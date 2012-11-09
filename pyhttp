@@ -26,15 +26,134 @@ def getheadervalue(header):
     else:
         return header[idx+1:].strip()
 
-def read_header(content, pos):
-    pass
-
 def ungzip(content):
     """ungip content"""
     compresssteam = StringIO.StringIO(content)
     gzipper = gzip.GzipFile(fileobj=compresssteam)     
     content = gzipper.read()
     return content
+
+
+def read_chunked_body(content, pos):
+    """读取chunked编码的http包体"""
+    result = ''
+    while True:
+        (pos, cline) = readline(content, pos)
+        chunk_size_end = cline.find(';')
+        if chunk_size_end < 0:
+            chunk_size_end = len(cline) 
+        # skip chunk extension
+        chunk_size_str = cline[0:chunk_size_end]
+        # the last chunk
+        if chunk_size_str[0] == '0':
+            # chunk footer header
+            # todo: now just skip it
+            while True:
+                (pos, cline) = readline(content, pos)
+                if  len(cline.strip()) == 0:
+                    (pos, nothing) = readline(content, pos)
+                    break
+            return pos, result
+        # chunk size
+        chunk_len = int(cline, 16)
+        result += content[pos:pos+chunk_len]
+        pos += chunk_len
+        if pos > len(content):
+            # 看起来我们有一个不完整的chunked response或者发生了别的什么..
+            # 直接略过整个body
+            pos = len(content)
+            break
+        # a CRLF to end this chunked response
+        (pos, nothing) = readline(content, pos)
+
+def read_request(body, pos, level):
+    content_len = 0
+    transfer_encoding = ''
+    content_encoding = ''
+    isgzip = False
+    ischunked = False
+    while True:
+        (pos, line) = readline(body, pos);
+        if level >= 1:
+            print line
+        if line.startswith('Content-Length:'):
+            content_len = int(getheadervalue(line))
+        elif line.startswith('Transfer-Encoding'):
+            transfer_encoding = getheadervalue(line)
+            if transfer_encoding == 'chunked':
+                ischunked = True
+        elif line.startswith('Content-Encoding'):
+            content_encoding = getheadervalue(line)
+            if content_encoding.find('gzip') >= 0:
+                isgzip = True
+        # end of header
+        elif len(line.strip()) == 0:
+            break
+    # deal with body
+    if not ischunked:
+        content = body[pos:pos+content_len]
+        # print content
+        pos += content_len
+    else:
+        (pos, content) = read_chunked_body(body,pos)
+    if isgzip:
+        content = ungzip(content)
+    # TODO:if it is form url encode
+    if True:
+        if level>=2:
+            print "\n", content
+    else:
+        if level>=3:
+            print "\n", content
+    return pos, content
+
+def read_response(body, pos, level):
+    content_type = ''
+    content_len = 0
+    host = ''
+    transfer_encoding = ''
+    content_encoding = ''
+    isgzip = False
+    ischunked = False
+    while True:
+        (pos, line) = readline(body, pos);
+        if level >= 1:
+            print line
+        if line.startswith('Content-Type'):
+            content_type = getheadervalue(line)
+        elif line.startswith('Content-Length:'):
+            content_len = int(getheadervalue(line))
+        elif line.startswith('Host:'):
+            host = getheadervalue(line)
+        elif line.startswith('Transfer-Encoding'):
+            transfer_encoding = getheadervalue(line)
+            if transfer_encoding == 'chunked':
+                ischunked = True
+        elif line.startswith('Content-Encoding'):
+            content_encoding = getheadervalue(line)
+            if content_encoding.find('gzip') >= 0:
+                isgzip = True
+        # end of header
+        elif len(line.strip()) == 0:
+            break
+    # deal with body
+    if not ischunked:
+        content = body[pos:pos+content_len]
+        # print content
+        pos += content_len
+    else:
+        (pos, content) = read_chunked_body(body,pos)
+    if isgzip:
+        content = ungzip(content)
+    # TODO: get charset from header, or cmd args
+    if content_type.find('text') >=0 or content_type.find('html')>=0 or content_type.find('json')>=0 \
+            or content_type.find('java') >=0:
+        if level>=2:
+            print "\n", content
+    else:
+        if level>=3:
+            print "\n", content
+    return pos, content
 
 class http_conn:
     """本地端口、远程IP、远程端口都相同的一组request-response, 
@@ -56,88 +175,20 @@ class http_conn:
     def append(self, another):
         self.body += another.body
     def parse(self, level):
-        ishead = False
-        isreq = True
-        content_type = ''
-        content_len =  0
-        content = ''
-        ischunked = False
-        isgzip = False
-        host = ''
-        (pos, line) = readline(self.body);
-        while pos > 0:
-            if line.startswith('POST') or line.startswith('GET'):
-                ishead = True
-                isreq = True
+        pos = 0
+        (pos_tmp, line) = readline(self.body, pos);
+        while pos_tmp > 0:
+            if line.strip().startswith('POST') or line.startswith('GET'):
                 if level == 0:
                     print "\t", line
-            elif line.startswith('HTTP'):
-                ishead = True
-                isreq = False
-                content_len = 0
-                isgzip = False
-                ischunked = False
-                content_type = ''
-            # mine type
-            if line.startswith('Content-Type'):
-                content_type = getheadervalue(line)
-            elif line.startswith('Content-Length:'):
-                content_len = int(getheadervalue(line))
-            elif line.startswith('Host:'):
-                host = getheadervalue(line)
-            elif line.startswith('Transfer-Encoding'):
-                transfer_encoding = getheadervalue(line)
-                if transfer_encoding == 'chunked':
-                    ischunked = True
-            elif line.startswith('Content-Encoding'):
-                content_encoding = getheadervalue(line)
-                if content_encoding.find('gzip') >= 0:
-                    isgzip = True
-            # end of header
-            if len(line.strip()) == 0:
-                # deal with body
-                if not ischunked:
-                    content = self.body[pos:pos+content_len]
-                    # print content
-                    pos += content_len
-                else:
-                    while True:
-                        print "xxxxxxxxxx:", pos
-                        (pos, cline) = readline(self.body, pos)
-                        chunk_size_end = cline.find(';')
-                        if chunk_size_end < 0:
-                            chunk_size_end = len(cline) 
-                        chunk_size_str = cline[0:chunk_size_end]
-                        if chunk_size_str[0] == '0':
-                            #end of chunked response
-                            # chunk footer header
-                            read_header(self.body, pos)
-                            # a CRLF
-                            (pos, cline) = readline(self.body, pos)
-                            break
-                        chunk_len = int(cline, 16)
-                        content += self.body[pos:pos+chunk_len]
-                        pos += chunk_len
-                        if pos > len(self.body):
-                            # 我们有一个不完整的chunked response..
-                            pos = len(self.body)
-                            break
-                        # a CRLF to end this chunk
-                        (pos, nothing) = readline(self.body, pos)
-                if isgzip:
-                    content = ungzip(content)
-                if content_type.find('text') >=0 or content_type.find('html')>=0 or content_type.find('json')>=0 \
-                        or content_type.find('java') >=0:
-                    if level>=2:
-                        print "\n", content
-                else:
-                    if level>=3:
-                        print "\n", content
-            if ishead :
-                # output head
-                if level >= 1:
-                    print line
-            (pos, line) = readline(self.body, pos);
+                (pos, ignore) = read_request(self.body, pos, level)
+            #elif line.strip().startswith('HTTP'):
+            elif line.strip().find('HTTP') >= 0:
+                (pos, ignore) = read_response(self.body, pos, level)
+            else:
+                print "yyyyy", line
+                pos = pos_tmp
+            (pos_tmp, line) = readline(self.body, pos);
 
 endian = '@'
 def pcap_check(infile):
