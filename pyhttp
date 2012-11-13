@@ -11,7 +11,7 @@ import StringIO
 import gzip
 import getopt
 
-#sys.argv = ["", "-v", "t.pcap"];
+#sys.argv = ["", "-vv", "test.pcap"];
 
 def readline(content, idx=0):
     end = content.find('\n', idx)
@@ -28,6 +28,30 @@ def getheadervalue(header):
     else:
         return header[idx+1:].strip()
 
+def ishttprequest(body):
+    return body.startswith('GET') or body.startswith('POST') or body.startswith('PUT') \
+                        or body.startswith('DELETE');
+def ishttpresponse(body):
+    return body.startswith('HTTP')
+
+def parse_content_type(content_type):
+    idx = content_type.find(';')
+    if idx < 0:
+        idx = len(content_type)
+    mime = content_type[0:idx]
+    encoding = content_type[idx+1:]
+    if len(encoding) > 0:
+        eidx = encoding.find('=')
+        if eidx > 0:
+            encoding = encoding[eidx+1:]
+        else:
+            encoding = ''
+    return (mime.strip().lower(), encoding.strip().lower())
+
+def istextbody(mime):
+    return mime.find('text') >=0 or mime.find('html')>=0 or mime.find('json')>=0 \
+            or mime.find('java') >=0
+
 def ungzip(content):
     """ungip content"""
     compresssteam = StringIO.StringIO(content)
@@ -35,6 +59,12 @@ def ungzip(content):
     content = gzipper.read()
     return content
 
+def decode_body(content, charset):
+    if charset is not None and charset != '':
+        return content.decode(charset).encode('utf-8')
+    else:
+        # todo: encoding detect
+        return content
 
 def read_chunked_body(content, pos):
     """读取chunked编码的http包体"""
@@ -52,8 +82,7 @@ def read_chunked_body(content, pos):
             # todo: now just skip it
             while True:
                 (pos, cline) = readline(content, pos)
-                if  len(cline.strip()) == 0:
-                    (pos, nothing) = readline(content, pos)
+                if  cline is None or len(cline.strip()) == 0:
                     break
             return pos, result
         # chunk size
@@ -64,11 +93,11 @@ def read_chunked_body(content, pos):
             # 看起来我们有一个不完整的chunked response或者发生了别的什么..
             # 直接略过整个body
             pos = len(content)
-            break
+            return pos, result
         # a CRLF to end this chunked response
         (pos, nothing) = readline(content, pos)
 
-def read_request(body, pos, level):
+def read_request(body, pos, level, encoding):
     content_len = 0
     transfer_encoding = ''
     content_encoding = ''
@@ -103,13 +132,15 @@ def read_request(body, pos, level):
     # TODO:if it is form url encode
     if True:
         if level>=2:
-            print "\n", content
+            #print "\n", #decode_body(content, charset)
+            pass
     else:
         if level>=3:
-            print "\n", content
+            #print "\n", #decode_body(content, charset)
+            pass
     return pos, content
 
-def read_response(body, pos, level):
+def read_response(body, pos, level, encoding):
     content_type = ''
     content_len = 0
     host = ''
@@ -138,6 +169,9 @@ def read_response(body, pos, level):
         # end of header
         elif len(line.strip()) == 0:
             break
+    mime, charset = parse_content_type(content_type)
+    if len(encoding) > 0 and charset == '':
+        charset = encoding
     # deal with body
     if not ischunked:
         content = body[pos:pos+content_len]
@@ -148,13 +182,12 @@ def read_response(body, pos, level):
     if isgzip:
         content = ungzip(content)
     # TODO: get charset from header, or cmd args
-    if content_type.find('text') >=0 or content_type.find('html')>=0 or content_type.find('json')>=0 \
-            or content_type.find('java') >=0:
-        if level>=2:
-            print "\n", content
+    if istextbody(mime):
+        if level >= 2:
+            print decode_body(content, charset)
     else:
-        if level>=3:
-            print "\n", content
+        if level >= 3:
+            print decode_body(content, charset)
     return pos, content
 
 class http_conn:
@@ -176,19 +209,20 @@ class http_conn:
         return hash(self.data)
     def append(self, another):
         self.body += another.body
-    def parse(self, level):
+    def parse(self, level, encoding):
         pos = 0
         (pos_tmp, line) = readline(self.body, pos);
         while pos_tmp > 0:
-            if line.strip().startswith('POST') or line.startswith('GET'):
+            if ishttprequest(line):
                 if level == 0:
                     print "\t", line
-                (pos, ignore) = read_request(self.body, pos, level)
+                (pos, ignore) = read_request(self.body, pos, level, encoding)
             #elif line.strip().startswith('HTTP'):
-            elif line.strip().startswith('HTTP') >= 0:
-                (pos, ignore) = read_response(self.body, pos, level)
+            elif ishttpresponse(line):
+                (pos, ignore) = read_response(self.body, pos, level, encoding)
             else:
-                print "yyyyy", line
+                if level >= 3:
+                    print "unknow:", line
                 pos = pos_tmp
             (pos_tmp, line) = readline(self.body, pos);
 
@@ -296,7 +330,8 @@ def main():
     psource = ''
     pdest = ''
     show_level = 0
-    opts, args = getopt.getopt(sys.argv[1:],'hvs:t:')
+    encoding = ''
+    opts, args = getopt.getopt(sys.argv[1:],'hvs:t:e:')
     filepath = args[0]
     for opt in opts:
         if opt[0] == '-v':
@@ -308,6 +343,8 @@ def main():
             psource = opt[1]
         elif opt[0] == '-t':
             pdest = opt[1]
+        elif opt[0] == '-e':
+            encoding = opt[1]
             
     with open(filepath) as pcap_file:
         flag = pcap_check(pcap_file)
@@ -329,10 +366,9 @@ def main():
                 # TODO:这里很傻..
                 idx = conns.index(conn)
                 conns[idx].append(conn)
-            elif body.startswith('GET') or body.startswith('POST') or body.startswith('PUT') \
-                        or body.startswith('DELETE'):
+            elif ishttprequest(body):
                 conns.append(conn)
-            elif body.startswith('HTTP'):
+            elif ishttpresponse(body):
                 conn = http_conn(dest, dest_port, source, source_port, body)
                 conns.append(conn)
                 
@@ -342,8 +378,8 @@ def main():
                 continue
             if not compare_socket(conn.dest_ip, conn.dest_port, pdest):
                 continue
-            print "\n", conn.source_ip, conn.source_port, "===>", conn.dest_ip, conn.dest_port
-            conn.parse(show_level)
+            print "\n", "-"*20, conn.source_ip, conn.source_port, "===>", conn.dest_ip, conn.dest_port, "-"*20
+            conn.parse(show_level, encoding)
 
 if __name__ == "__main__":
     main()
