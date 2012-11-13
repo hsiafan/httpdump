@@ -11,7 +11,7 @@ import StringIO
 import gzip
 import getopt
 
-#sys.argv = ["", "-vv", "t.pcap"];
+#sys.argv = ["", "-vv", "a.pcap"];
 
 def readline(content, idx=0):
     end = content.find('\n', idx)
@@ -64,6 +64,14 @@ def decode_body(content, charset):
         return content.decode(charset).encode('utf-8')
     else:
         # todo: encoding detect
+        try:
+            return content.decode('utf-8').encode('utf-8')
+        except:
+            pass
+        try:
+            return content.decode('gb18030').encode('utf-8')
+        except:
+            pass
         return content
 
 def read_chunked_body(content, pos):
