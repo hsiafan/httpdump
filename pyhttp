@@ -217,7 +217,6 @@ class http_conn:
                 if level == 0:
                     print "\t", line
                 (pos, ignore) = read_request(self.body, pos, level, encoding)
-            #elif line.strip().startswith('HTTP'):
             elif ishttpresponse(line):
                 (pos, ignore) = read_response(self.body, pos, level, encoding)
             else:
