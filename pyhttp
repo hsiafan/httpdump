@@ -11,7 +11,7 @@ import StringIO
 import gzip
 import getopt
 
-#sys.argv = ["", "-vv", "test.pcap"];
+#sys.argv = ["", "-vv", "t.pcap"];
 
 def readline(content, idx=0):
     end = content.find('\n', idx)
@@ -101,6 +101,7 @@ def read_request(body, pos, level, encoding):
     content_len = 0
     transfer_encoding = ''
     content_encoding = ''
+    content_type = ''
     isgzip = False
     ischunked = False
     while True:
@@ -113,6 +114,8 @@ def read_request(body, pos, level, encoding):
             transfer_encoding = getheadervalue(line)
             if transfer_encoding == 'chunked':
                 ischunked = True
+        elif line.startswith('Content-Type'):
+            content_type = getheadervalue(line);
         elif line.startswith('Content-Encoding'):
             content_encoding = getheadervalue(line)
             if content_encoding.find('gzip') >= 0:
@@ -121,6 +124,7 @@ def read_request(body, pos, level, encoding):
         elif len(line.strip()) == 0:
             break
     # deal with body
+    # "通常"http request不会chunked编码
     if not ischunked:
         content = body[pos:pos+content_len]
         # print content
@@ -129,14 +133,14 @@ def read_request(body, pos, level, encoding):
         (pos, content) = read_chunked_body(body,pos)
     if isgzip:
         content = ungzip(content)
-    # TODO:if it is form url encode
-    if True:
+    # if it is form url encode
+    if content_type.find('www-form-urlencoded') > 0:
         if level>=2:
-            #print "\n", #decode_body(content, charset)
+            print content
             pass
     else:
         if level>=3:
-            #print "\n", #decode_body(content, charset)
+            print content
             pass
     return pos, content
 
