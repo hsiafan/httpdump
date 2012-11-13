@@ -11,6 +11,8 @@ import StringIO
 import gzip
 import getopt
 
+sys.argv = ["", "-v", "t.pcap"];
+
 def readline(content, idx=0):
     end = content.find('\n', idx)
     if end < 0:
@@ -183,7 +185,7 @@ class http_conn:
                     print "\t", line
                 (pos, ignore) = read_request(self.body, pos, level)
             #elif line.strip().startswith('HTTP'):
-            elif line.strip().find('HTTP') >= 0:
+            elif line.strip().startswith('HTTP') >= 0:
                 (pos, ignore) = read_response(self.body, pos, level)
             else:
                 print "yyyyy", line
@@ -227,6 +229,13 @@ def pcap_check(infile):
 
     return False
 
+def check_body_empty(body):
+    """检查包体是否全是0"""
+    for c in body:
+        if c != '\0':
+            return False
+    return True
+
 def process_pcap_package(infile):
 
     package_header = infile.read(16)
@@ -255,12 +264,15 @@ def process_pcap_package(infile):
         infile.read(ip_header_len - 20)
 
     tcp_header = infile.read(20)
-    (source_port, dest_port, seq, ack, t_f) = struct.unpack('!HHIIB7x', tcp_header)
-    tcp_header_len = ((t_f>>4) & 0xF) * 4;
+    (source_port, dest_port, seq, ack, t_f, flags) = struct.unpack('!HHIIB6xB', tcp_header)
+    tcp_header_len = ((t_f>>4) & 0xF) * 4
     if tcp_header_len > 20:
         infile.read(tcp_header_len - 20)
+    syn = (flags>>1) & 1
+    fin = flags &1
     body = infile.read(package_len - 14 - ip_header_len - tcp_header_len)
-
+    if check_body_empty(body):
+        body = ''
     return (source, source_port, dest, dest_port, seconds, body)
 
 def print_help():
