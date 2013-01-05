@@ -1,24 +1,21 @@
 #!/usr/bin/env python
 #coding=utf-8
 
-import struct
-import os
-import re
-import sys
-import time
-import socket
 import StringIO
-import gzip
 import getopt
+import gzip
+import socket
+import struct
+import sys
+from collections import OrderedDict
 
-#sys.argv = ["", "-vv", "a.pcap"];
-
-def readline(content, idx=0):
+def readline(content, idx = 0):
+    if idx >= len(content):
+        return -1, None
     end = content.find('\n', idx)
     if end < 0:
-        return (-1, None)
-    else:
-        return (end+1, content[idx:end])
+        end = len(content)
+    return (end + 1, content[idx:end])
 
 def getheadervalue(header):
     header = header.strip()
@@ -28,11 +25,23 @@ def getheadervalue(header):
     else:
         return header[idx+1:].strip()
 
+def isGzip(content):
+    """
+    test if content is gzipped by magic num.
+    """
+    if len(content) > 3 and ord(content[0:1]) == 31 and ord(content[1:2]) == 139 and ord(content[2:3]) == 8:
+        return True
+    return False
+
 def ishttprequest(body):
-    return body.startswith('GET') or body.startswith('POST') or body.startswith('PUT') \
-                        or body.startswith('DELETE');
+    idx = body.find(' ')
+    if idx < 0 or idx > 10:
+        return False
+    method = body[0:idx].lower()
+    return method in ('get', 'post', 'put', 'delete');
+
 def ishttpresponse(body):
-    return body.startswith('HTTP')
+    return body.startswith('HTTP/') or body.startswith('http/')
 
 def parse_content_type(content_type):
     idx = content_type.find(';')
@@ -54,14 +63,20 @@ def istextbody(mime):
 
 def ungzip(content):
     """ungip content"""
-    compresssteam = StringIO.StringIO(content)
-    gzipper = gzip.GzipFile(fileobj=compresssteam)     
-    content = gzipper.read()
-    return content
+    try:
+        compresssteam = StringIO.StringIO(content)
+        gzipper = gzip.GzipFile(fileobj = compresssteam)     
+        content = gzipper.read()
+        return content
+    except:
+        return content
 
 def decode_body(content, charset):
     if charset is not None and charset != '':
-        return content.decode(charset).encode('utf-8')
+        try:
+            return content.decode(charset).encode('utf-8')
+        except:
+            return content
     else:
         # todo: encoding detect
         try:
@@ -75,10 +90,13 @@ def decode_body(content, charset):
         return content
 
 def read_chunked_body(content, pos):
-    """读取chunked编码的http包体"""
-    result = ''
+    """read chunked body.
+    """
+    result = []
     while True:
         (pos, cline) = readline(content, pos)
+        if pos == -1:
+            return -1, None
         chunk_size_end = cline.find(';')
         if chunk_size_end < 0:
             chunk_size_end = len(cline) 
@@ -92,18 +110,22 @@ def read_chunked_body(content, pos):
                 (pos, cline) = readline(content, pos)
                 if  cline is None or len(cline.strip()) == 0:
                     break
-            return pos, result
+            return pos, ''.join(result)
         # chunk size
-        chunk_len = int(cline, 16)
-        result += content[pos:pos+chunk_len]
+        cline = cline.strip()
+        try:
+            chunk_len = int(cline, 16)
+        except:
+            return pos, ''.join(result)
+
+        result.append(content[pos:pos+chunk_len])
         pos += chunk_len
         if pos > len(content):
-            # 看起来我们有一个不完整的chunked response或者发生了别的什么..
-            # 直接略过整个body
+            # skip all
             pos = len(content)
-            return pos, result
+            return pos, ''.join(result)
         # a CRLF to end this chunked response
-        (pos, nothing) = readline(content, pos)
+        (pos, _) = readline(content, pos)
 
 def read_request(body, pos, level, encoding):
     content_len = 0
@@ -112,44 +134,71 @@ def read_request(body, pos, level, encoding):
     content_type = ''
     isgzip = False
     ischunked = False
+    host = ''
+    request = ''
     while True:
         (pos, line) = readline(body, pos);
+        if pos == -1:
+            return pos, None
         if level >= 1:
             print line
-        if line.startswith('Content-Length:'):
+        lline = line.lower()
+        if lline.startswith('content-length:'):
             content_len = int(getheadervalue(line))
-        elif line.startswith('Transfer-Encoding'):
+        elif lline.startswith('transfer-encoding'):
             transfer_encoding = getheadervalue(line)
             if transfer_encoding == 'chunked':
                 ischunked = True
-        elif line.startswith('Content-Type'):
+        elif lline.startswith('content-type'):
             content_type = getheadervalue(line);
-        elif line.startswith('Content-Encoding'):
+        elif lline.startswith('content-encoding'):
             content_encoding = getheadervalue(line)
             if content_encoding.find('gzip') >= 0:
                 isgzip = True
+        elif lline.startswith('host'):
+            host = getheadervalue(line)
+        elif ishttprequest(lline):
+            request = line
         # end of header
         elif len(line.strip()) == 0:
+            if level == 0:
+                idx = request.find(' ')
+                if idx >= 0 and idx < len(request) - 1:
+                    request = request[0:idx+1] + host + request[idx+1:]
+                idx = request.rfind(' ')
+                if idx >=0:
+                    request = request[0:idx]
+                request = request
+                print request
             break
+
+    output_body = False
+    if level >= 3:
+        output_body = True
+    elif level >= 2 and 'www-form-urlencoded' in content_type > 0:
+        output_body = True
+
+    content = ''
     # deal with body
-    # "通常"http request不会chunked编码
     if not ischunked:
-        content = body[pos:pos+content_len]
+        if output_body:
+            content = body[pos:pos + content_len]
         # print content
         pos += content_len
     else:
-        (pos, content) = read_chunked_body(body,pos)
-    if isgzip:
+        (pos, content) = read_chunked_body(body, pos)
+    
+    if not isgzip:
+        # if is gzip by content magic header
+        # someone missed the content-encoding header
+        isgzip = isGzip(content)
+
+    if output_body and isgzip:
         content = ungzip(content)
     # if it is form url encode
-    if content_type.find('www-form-urlencoded') > 0:
-        if level>=2:
-            print content
-            pass
-    else:
-        if level>=3:
-            print content
-            pass
+    if output_body:
+        print content
+        print ''
     return pos, content
 
 def read_response(body, pos, level, encoding):
@@ -158,101 +207,122 @@ def read_response(body, pos, level, encoding):
     host = ''
     transfer_encoding = ''
     content_encoding = ''
+    connection = ''
     isgzip = False
     ischunked = False
     while True:
         (pos, line) = readline(body, pos);
+        if pos == -1:
+            return pos, None
         if level >= 1:
             print line
-        if line.startswith('Content-Type'):
+        lline = line.lower()
+        if lline.startswith('content-type'):
             content_type = getheadervalue(line)
-        elif line.startswith('Content-Length:'):
+        elif lline.startswith('content-length'):
             content_len = int(getheadervalue(line))
-        elif line.startswith('Host:'):
+        elif lline.startswith('host:'):
             host = getheadervalue(line)
-        elif line.startswith('Transfer-Encoding'):
+        elif lline.startswith('transfer-encoding'):
             transfer_encoding = getheadervalue(line)
             if transfer_encoding == 'chunked':
                 ischunked = True
-        elif line.startswith('Content-Encoding'):
+        elif lline.startswith('content-encoding'):
             content_encoding = getheadervalue(line)
-            if content_encoding.find('gzip') >= 0:
+            if 'gzip' in content_encoding:
                 isgzip = True
+        elif lline.startswith('connection:'):
+            connection = getheadervalue(line)
         # end of header
         elif len(line.strip()) == 0:
             break
+
     mime, charset = parse_content_type(content_type)
     if len(encoding) > 0 and charset == '':
         charset = encoding
+
+    output_body = False
+    if level >= 3:
+        output_body = True
+    elif level >= 2 and istextbody(mime) > 0:
+        output_body = True
+
+    content = ''
     # deal with body
     if not ischunked:
-        content = body[pos:pos+content_len]
+        if content_len == 0:
+            if connection == 'close':
+                # we can't get content length, so asume it till the end of data.
+                content_len = len(body) - pos
+            else:
+                # we can't get content length, and is not a chunked body.
+                pass
+        if output_body:
+            content = body[pos : pos + content_len]
         # print content
         pos += content_len
     else:
-        (pos, content) = read_chunked_body(body,pos)
-    if isgzip:
+        (pos, content) = read_chunked_body(body, pos)
+    if isgzip and output_body:
         content = ungzip(content)
     # TODO: get charset from header, or cmd args
-    if istextbody(mime):
-        if level >= 2:
-            print decode_body(content, charset)
-    else:
-        if level >= 3:
-            print decode_body(content, charset)
+    if output_body:
+        print decode_body(content, charset)
+        print ''
     return pos, content
 
 class http_conn:
-    """本地端口、远程IP、远程端口都相同的一组request-response, 
-    属于同一个http连接"""
+    """
+    all data having same source/dest ip/port.
+    """
+
     def __init__(self, source_ip, source_port, dest_ip, dest_port, body):
         self.source_ip = source_ip
         self.source_port = source_port
         self.dest_ip = dest_ip
         self.dest_port = dest_port
-        if cmp(source_ip, dest_ip) < 0:
-            self.data = "%s %d %s %d" % (source_ip, source_port, dest_ip, dest_port)
-        else:
-            self.data = "%s %d %s %d" % (dest_ip, dest_port, source_ip, source_port)
-        self.body = body
-    def __eq__(self, another):
-        return type(self) == type(another) and self.data == another.data
-    def __hash__(self):
-        return hash(self.data)
-    def append(self, another):
-        self.body += another.body
+        self.sio = StringIO.StringIO()
+        self.sio.write(body)
+    
+    def append(self, another_body):
+        self.sio.write(another_body)
+    
     def parse(self, level, encoding):
         pos = 0
-        (pos_tmp, line) = readline(self.body, pos);
+        body = self.sio.getvalue()
+        self.sio.close()
+        #aaa print body
+        (pos_tmp, line) = readline(body, pos);
         while pos_tmp > 0:
             if ishttprequest(line):
-                if level == 0:
-                    print "\t", line
-                (pos, ignore) = read_request(self.body, pos, level, encoding)
+                (pos, _) = read_request(body, pos, level, encoding)
             elif ishttpresponse(line):
-                (pos, ignore) = read_response(self.body, pos, level, encoding)
+                (pos, _) = read_response(body, pos, level, encoding)
             else:
                 if level >= 3:
                     print "unknow:", line
                 pos = pos_tmp
-            (pos_tmp, line) = readline(self.body, pos);
+            (pos_tmp, line) = readline(body, pos)
 
-endian = '@'
 def pcap_check(infile):
+    """check the header of cap file.
+    """
 
+    endian = '@'
+    # read 24 bytes header
     global_head = infile.read(24)
     if not global_head:
-        return global_head      
+        return False, endian
 
     (magic_num,) = struct.unpack('<I', global_head[0:4])
-    # 根据此判断大小端
+    # judge the endian of file.
     if magic_num == 0xA1B2C3D4:
         endian = '<'
     elif magic_num == 0x4D3C2B1A:
         endian = '>'
     else:
         print "not pcap format."
-        return False
+        return False, endian
     (version_major,version_minor,timezone,timestamp,max_package_len,linklayer)  \
             = struct.unpack(endian + '4xHHIIII', global_head)
 
@@ -260,9 +330,10 @@ def pcap_check(infile):
     #print "minor version:", version_minor
     #print "max packet length:", max_package_len
     #print "linklayer type:", 
+    # now only handle Ethernet package.
     if linklayer == 1:
         #print "Ethernet"
-        return True
+        return True, endian
     elif linklayer == 6:
         print "TOKEN RING"
     elif linklayer == 10:
@@ -281,25 +352,31 @@ def check_body_empty(body):
             return False
     return True
 
-def process_pcap_package(infile):
+def process_pcap_package(infile, endian):
+    """ process one package.
+        return -1 : end of file
+        return 1  : invalid package
+    """
 
+    # package header
     package_header = infile.read(16)
+    # end of file.
     if not package_header:
         return -1
 
-    (seconds,suseconds,package_len,rawlen) = struct.unpack(endian + 'IIII', package_header)
-
-    
+    (seconds, suseconds, package_len, rawlen) = struct.unpack(endian + 'IIII', package_header)
+    # ethernet header
     ethernet_header = infile.read(14)
     (n_protocol, ) = struct.unpack('!12xH', ethernet_header)
-    # not ip
+    # not ip package
     if n_protocol != 2048:
         return 1
 
+    # ip header
     ip_header = infile.read(20)
-    (f,ip_length,protocol) = struct.unpack('!BxH5xB10x', ip_header)
+    (f, ip_length, protocol) = struct.unpack('!BxH5xB10x', ip_header)
     ip_header_len = (f & 0xF) * 4;
-    ip_version = (f>>4) & 0xF
+    ip_version = (f >> 4) & 0xF
     # not tcp.
     if protocol != 6:
         return 1
@@ -308,14 +385,22 @@ def process_pcap_package(infile):
     if ip_header_len > 20:
         infile.read(ip_header_len - 20)
 
+    # tcp header
     tcp_header = infile.read(20)
     (source_port, dest_port, seq, ack, t_f, flags) = struct.unpack('!HHIIB6xB', tcp_header)
     tcp_header_len = ((t_f>>4) & 0xF) * 4
     if tcp_header_len > 20:
         infile.read(tcp_header_len - 20)
-    syn = (flags>>1) & 1
-    fin = flags &1
+    fin = flags & 1
+    syn = (flags >> 1) & 1
+    rst = (flags >> 2) & 1
+    psh = (flags >> 3) & 1
+    ack = (flags >> 4) & 1
+    urg = (flags >> 5) & 1
+
+    # body
     body = infile.read(package_len - 14 - ip_header_len - tcp_header_len)
+    # no data
     if check_body_empty(body):
         body = ''
     return (source, source_port, dest, dest_port, seconds, body)
@@ -323,26 +408,12 @@ def process_pcap_package(infile):
 def print_help():
     print "help"
 
-def compare_socket(ip, port, para):
-    if para == '':
-        return True
-    idx = para.find(':')
-    if idx == -1:
-        return False
-    pip = para[0:idx]
-    pport = para[idx+1:]
-    if pip != '' and pip != ip:
-        return False
-    if pport !='' and int(pport) != port:
-        return False
-    return True
-
 def main():
-    psource = ''
-    pdest = ''
+    port = -1
+    ip = ''
     show_level = 0
     encoding = ''
-    opts, args = getopt.getopt(sys.argv[1:],'hvs:t:e:')
+    opts, args = getopt.getopt(sys.argv[1:],'hvp:i:e:')
     filepath = args[0]
     for opt in opts:
         if opt[0] == '-v':
@@ -350,47 +421,59 @@ def main():
         elif opt[0] == '-h':
             print_help()
             return
-        elif opt[0] == '-s':
-            psource = opt[1]
-        elif opt[0] == '-t':
-            pdest = opt[1]
+        elif opt[0] == '-p':
+            port = int(opt[1])
+        elif opt[0] == '-i':
+            ip = opt[1]
         elif opt[0] == '-e':
             encoding = opt[1]
             
     with open(filepath) as pcap_file:
-        flag = pcap_check(pcap_file)
+        flag, endian = pcap_check(pcap_file)
         if not flag:
+            # not a valid pcap file or we cannot handle this file.
             return
-        conns = []
+
+        conn_dict = OrderedDict()
         while True:
-            result = process_pcap_package(pcap_file)
+            result = process_pcap_package(pcap_file, endian)
             # end of file
             if result == -1:
                 break
-            # not tcp package
+            # not handle this package
             if result == 1:
                 continue
+            
             (source, source_port, dest, dest_port, seconds, body) = result
-            conn = http_conn(source, source_port, dest, dest_port, body)
-            # 属于已有的连接
-            if conn in conns:
-                # TODO:这里很傻..
-                idx = conns.index(conn)
-                conns[idx].append(conn)
-            elif ishttprequest(body):
-                conns.append(conn)
-            elif ishttpresponse(body):
-                conn = http_conn(dest, dest_port, source, source_port, body)
-                conns.append(conn)
-                
+            if port != -1 and source_port != port and dest_port != port:
+                continue
+            if ip != '' and source != ip and dest != ip:
+                continue
 
-        for conn in conns:
-            if not compare_socket(conn.source_ip, conn.source_port, psource):
-                continue
-            if not compare_socket(conn.dest_ip, conn.dest_port, pdest):
-                continue
-            print "\n", "-"*20, conn.source_ip, conn.source_port, "===>", conn.dest_ip, conn.dest_port, "-"*20
+            skey = source + ':' + str(source_port)
+            dkey = dest + ':' + str(dest_port)
+            if cmp(skey, dkey) < 0:
+                key = skey + '-' + dkey
+            else:
+                key = dkey + '-' + skey
+            # we already have this conn
+            if key in conn_dict:
+                conn_dict[key].append(body)
+            # begin a new http request
+            elif ishttprequest(body):
+                conn_dict[key] = http_conn(source, source_port, dest, dest_port, body)
+            # begin a new http response
+            elif ishttpresponse(body):
+                conn_dict[key] = http_conn(dest, dest_port, source, source_port, body)
+            else:
+                # ignore 
+                pass
+
+        for key in conn_dict:
+            conn = conn_dict[key]
+            print "-" * 20, conn.source_ip, ':', conn.source_port, "===>", conn.dest_ip, ':', conn.dest_port, "-" * 20
             conn.parse(show_level, encoding)
+            print ''
 
 if __name__ == "__main__":
     main()
