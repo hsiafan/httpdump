@@ -19,8 +19,11 @@ pyhttpcap是一个用python编写的分析pcap格式文件中http数据包的脚
 + pyhttp -vv test.pcap   //同事输出http req/resp 文本类型的包体
 
 此外，可以使用-p, -i指定源和目标的ip/端口，这是只输出符合指定条件的数据:
-+ pyhttp -p80 -vv test.pcap
-+ pyhttp -i192.168.109.91 -p80 -vv test.pcap
++ pyhttp -p55419 -vv test.pcap
++ pyhttp -i192.168.109.91 -vv test.pcap
+
+使用-d输出抓到的package 信息:
++ pyhttp -p55419 -vvd test.pcap
 
 使用-e指定http包体的编码
 + pyhttp -i192.168.109.91 -p80 -vv -eutf-8 -vv test.pcap
