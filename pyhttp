@@ -7,7 +7,6 @@ import gzip
 import socket
 import struct
 import sys
-from collections import OrderedDict
 
 def readline(content, idx = 0):
     if idx >= len(content):
@@ -506,7 +505,17 @@ def process_pcap_package(infile, endian):
         yield pack
 
 def print_help():
-    print "help"
+    print """Usage: pyhttp [option] file
+    Options:
+    -v      : show request/response headers
+    -vv     : show text request/response bodys
+    -vvv    : show all request/response bodys
+    -d      : debug output.show package infos
+    -h      : show helps
+    -p port : only parser tcp packages with port(dest or source)
+    -i ip   : only parser tcp packages with ip(dest or source)
+    -e encoding : specify encoding to decode http response. auto detect if not specified.
+    """
 
 def main():
     port = -1
@@ -515,7 +524,6 @@ def main():
     encoding = ''
     debug = False
     opts, args = getopt.getopt(sys.argv[1:],'hvdp:i:e:')
-    filepath = args[0]
     for opt in opts:
         if opt[0] == '-v':
             show_level += 1
@@ -530,6 +538,8 @@ def main():
             encoding = opt[1]
         elif opt[0] == '-d':
             debug = True
+
+    filepath = args[0]
             
     with open(filepath) as pcap_file:
         flag, endian = pcap_check(pcap_file)
