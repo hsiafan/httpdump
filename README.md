@@ -13,6 +13,7 @@ pyhttpcap是一个用python编写的分析pcap格式文件中http数据包的脚
 =========
 假设使用tcpdump抓包：
 + tcpdump -wtest.pcap tcp port 80
+
 那么：
 + pyhttp test.pcap    //列出所有http请求
 + pyhttp -v test.pcap    //同时输出http req/resp head
