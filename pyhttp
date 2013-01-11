@@ -360,7 +360,6 @@ class HttpConn:
             pass
         elif self.status == 2:
             pass
-
         print self.source_ip, ':', self.source_port, "--- -- - >", self.dest_ip, ':', self.dest_port
 
         request_pacs = []
@@ -376,15 +375,20 @@ class HttpConn:
                         state = 1
                         response_pacs.append(pac)
                         del request_pacs[:]
+                    #else:
+                    #    if len(pac.body) > 0:
+                    #        state = 1
                 else:
                     request_pacs.append(pac)
             else:
                 if pac.direction == 0:
                     if ishttprequest(pac.body):
-                        read_response(request_pacs, level, encoding)
+                        read_response(response_pacs, level, encoding)
                         state = 0
-                        response_pacs.append(pac)
+                        request_pacs.append(pac)
                         del response_pacs[:]
+                    #else:
+                    #    print 'yyyyyy'
                 else:
                     response_pacs.append(pac)
         if len(request_pacs) > 0:
