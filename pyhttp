@@ -24,7 +24,7 @@ def getheadervalue(header):
     else:
         return header[idx+1:].strip()
 
-def isGzip(content):
+def isgzip(content):
     """
     test if content is gzipped by magic num.
     """
@@ -58,6 +58,29 @@ def parse_content_type(content_type):
 
 def istextbody(mime):
     return 'text' in mime or 'html' in mime or 'json' in mime or 'java' in mime
+
+def isjson(text):
+    """
+    if text is a json str.
+    """
+    if len(text) > 50000:
+        # do not process to large text
+        return False
+    if text.startswith('{') and text.endswith('}') or text.startswith('{') and text.endswith('}'):
+        # do not process a non-list-dict json
+        return True
+    return False
+
+def print_json(text):
+    import json
+    import traceback
+    try:
+        data = json.loads(text)
+        print json.dumps(data, indent = 2, ensure_ascii = False, separators = (',', ': ')).encode('utf-8')
+    except Exception, e:
+        print traceback.format_exc()
+
+        print text
 
 def ungzip(content):
     """ungip content"""
@@ -133,7 +156,7 @@ def read_request(request_pacs, level, encoding):
     transfer_encoding = ''
     content_encoding = ''
     content_type = ''
-    isgzip = False
+    gzip = False
     ischunked = False
     host = ''
     request = ''
@@ -155,7 +178,7 @@ def read_request(request_pacs, level, encoding):
         elif lline.startswith('content-encoding'):
             content_encoding = getheadervalue(line)
             if gzip in content_encoding:
-                isgzip = True
+                gzip = True
         elif lline.startswith('host'):
             host = getheadervalue(line)
         elif ishttprequest(lline):
@@ -190,10 +213,10 @@ def read_request(request_pacs, level, encoding):
     else:
         (pos, content) = read_chunked_body(body, pos)
     
-    if not isgzip:
+    if not gzip:
         # if is gzip by content magic header
         # someone missed the content-encoding header
-        isgzip = isGzip(content)
+        gzip = isgzip(content)
 
     if output_body and isgzip:
         content = ungzip(content)
@@ -273,7 +296,11 @@ def read_response(response_pacs, level, encoding):
     if isgzip and output_body:
         content = ungzip(content)
     if output_body:
-        print decode_body(content, charset)
+        content = decode_body(content, charset)
+        if isjson(content):
+            print_json(content)
+        else:
+            print content
         print ''
 
 class TcpPack:
