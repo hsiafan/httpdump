@@ -59,28 +59,21 @@ def parse_content_type(content_type):
 def istextbody(mime):
     return 'text' in mime or 'html' in mime or 'json' in mime or 'java' in mime
 
-def isjson(text):
-    """
-    if text is a json str.
-    """
+def print_json(text):
     if len(text) > 50000:
         # do not process to large text
         return False
     if text.startswith('{') and text.endswith('}') or text.startswith('{') and text.endswith('}'):
+        import json
         # do not process a non-list-dict json
-        return True
-    return False
-
-def print_json(text):
-    import json
-    import traceback
-    try:
-        data = json.loads(text)
-        print json.dumps(data, indent = 2, ensure_ascii = False, separators = (',', ': ')).encode('utf-8')
-    except Exception, e:
-        print traceback.format_exc()
-
-        print text
+        try:
+            data = json.loads(text)
+            print json.dumps(data, indent = 2, ensure_ascii = False, separators = (',', ': ')).encode('utf-8')
+            return True
+        except Exception, e:
+            return False
+    else:
+        return False
 
 def ungzip(content):
     """ungip content"""
@@ -150,6 +143,7 @@ def read_chunked_body(content, pos):
     #endwhile
 
 def read_request(request_pacs, level, encoding):
+    request_pacs.sort(key = lambda x: x.seq)
     body = ''.join([p.body for p in request_pacs])
     pos = 0
     content_len = 0
@@ -226,6 +220,7 @@ def read_request(request_pacs, level, encoding):
         print ''
 
 def read_response(response_pacs, level, encoding):
+    response_pacs.sort(key = lambda x: x.seq)
     body = ''.join([p.body for p in response_pacs])
     pos = 0
     content_type = ''
@@ -297,11 +292,8 @@ def read_response(response_pacs, level, encoding):
         content = ungzip(content)
     if output_body:
         content = decode_body(content, charset)
-        if isjson(content):
-            print_json(content)
-        else:
+        if not print_json(content):
             print content
-        print ''
 
 class TcpPack:
     """
@@ -383,20 +375,18 @@ class HttpConn:
                 continue
             if state == 0:
                 if pac.direction == 1:
-                    if ishttpresponse(pac.body):
-                        read_request(request_pacs, level, encoding)
-                        state = 1
-                        response_pacs.append(pac)
-                        del request_pacs[:]
+                    read_request(request_pacs, level, encoding)
+                    state = 1
+                    response_pacs.append(pac)
+                    del request_pacs[:]
                 else:
                     request_pacs.append(pac)
             else:
                 if pac.direction == 0:
-                    if ishttprequest(pac.body):
-                        read_response(response_pacs, level, encoding)
-                        state = 0
-                        request_pacs.append(pac)
-                        del response_pacs[:]
+                    read_response(response_pacs, level, encoding)
+                    state = 0
+                    request_pacs.append(pac)
+                    del response_pacs[:]
                 else:
                     response_pacs.append(pac)
         #endfor
