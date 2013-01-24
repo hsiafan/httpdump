@@ -14,7 +14,7 @@ def readline(content, idx = 0):
     end = content.find('\n', idx)
     if end < 0:
         end = len(content)
-    return (end + 1, content[idx:end])
+    return end + 1, content[idx:end]
 
 def getheadervalue(header):
     header = header.strip()
@@ -37,7 +37,7 @@ def ishttprequest(body):
     if idx < 0 or idx > 10:
         return False
     method = body[0:idx].lower()
-    return method in ('get', 'post', 'put', 'delete');
+    return method in ('get', 'post', 'put', 'delete')
 
 def ishttpresponse(body):
     return body.startswith('HTTP/') or body.startswith('http/')
@@ -54,11 +54,10 @@ def parse_content_type(content_type):
             encoding = encoding[eidx+1:]
         else:
             encoding = ''
-    return (mime.strip().lower(), encoding.strip().lower())
+    return mime.strip().lower(), encoding.strip().lower()
 
 def istextbody(mime):
-    return mime.find('text') >=0 or mime.find('html')>=0 or mime.find('json')>=0 \
-            or mime.find('java') >=0
+    return 'text' in mime or 'html' in mime or 'json' in mime or 'java' in mime
 
 def ungzip(content):
     """ungip content"""
@@ -125,6 +124,7 @@ def read_chunked_body(content, pos):
             return pos, ''.join(result)
         # a CRLF to end this chunked response
         (pos, _) = readline(content, pos)
+    #endwhile
 
 def read_request(request_pacs, level, encoding):
     body = ''.join([p.body for p in request_pacs])
@@ -154,7 +154,7 @@ def read_request(request_pacs, level, encoding):
             content_type = getheadervalue(line);
         elif lline.startswith('content-encoding'):
             content_encoding = getheadervalue(line)
-            if content_encoding.find('gzip') >= 0:
+            if gzip in content_encoding:
                 isgzip = True
         elif lline.startswith('host'):
             host = getheadervalue(line)
@@ -164,7 +164,7 @@ def read_request(request_pacs, level, encoding):
         elif len(line.strip()) == 0:
             if level == 0:
                 idx = request.find(' ')
-                if idx >= 0 and idx < len(request) - 1:
+                if 0 <= idx < len(request) - 1:
                     request = request[0:idx+1] + host + request[idx+1:]
                 idx = request.rfind(' ')
                 if idx >=0:
@@ -172,6 +172,7 @@ def read_request(request_pacs, level, encoding):
                 request = request
                 print request
             break
+    #endwhile
 
     output_body = False
     if level >= 3:
@@ -240,6 +241,7 @@ def read_response(response_pacs, level, encoding):
         # end of header
         elif len(line.strip()) == 0:
             break
+    #endwhile
 
     # read body
     mime, charset = parse_content_type(content_type)
@@ -332,7 +334,8 @@ class HttpConn:
             elif pac.seq < tcp_pac.seq:
                 idx = -1
                 break
-            idx = idx - 1
+            idx -= 1
+        #endwhile
 
         if idx >= 0:
             self.pac_list[idx] = tcp_pac
@@ -374,9 +377,6 @@ class HttpConn:
                         state = 1
                         response_pacs.append(pac)
                         del request_pacs[:]
-                    #else:
-                    #    if len(pac.body) > 0:
-                    #        state = 1
                 else:
                     request_pacs.append(pac)
             else:
@@ -386,10 +386,9 @@ class HttpConn:
                         state = 0
                         request_pacs.append(pac)
                         del response_pacs[:]
-                    #else:
-                    #    print 'yyyyyy'
                 else:
                     response_pacs.append(pac)
+        #endfor
         if len(request_pacs) > 0:
             read_request(request_pacs, level, encoding)
         if len(response_pacs) > 0:
@@ -503,6 +502,7 @@ def process_pcap_package(infile, endian):
 
         pack = TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
         yield pack
+    #end while
 
 def print_help():
     print """Usage: pyhttp [option] file
@@ -538,6 +538,7 @@ def main():
             encoding = opt[1]
         elif opt[0] == '-d':
             debug = True
+    #endfor
 
     filepath = args[0]
             
@@ -572,9 +573,11 @@ def main():
             else:
                 # ignore 
                 pass
-
+        #endfor
         for conn in conns:
             conn.output(show_level, encoding)
+    #endwhile
+
 
 if __name__ == "__main__":
     main()
