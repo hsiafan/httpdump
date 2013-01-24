@@ -110,9 +110,9 @@ def read_chunked_body(content, pos):
                     break
             return pos, ''.join(result)
         # chunk size
-        cline = cline.strip()
+        chunk_size_str = chunk_size_str.strip()
         try:
-            chunk_len = int(cline, 16)
+            chunk_len = int(chunk_size_str, 16)
         except:
             return pos, ''.join(result)
 
@@ -323,24 +323,8 @@ class HttpConn:
             return
         if tcp_pac.source != self.source_ip:
             tcp_pac.direction = 1
-        idx = len(self.pac_list) - 1
-        while idx >= 0:
-            pac = self.pac_list[idx]
-            if pac.direction != tcp_pac.direction:
-                pass
-            elif pac.seq == tcp_pac.seq:
-                # override 
-                break
-            elif pac.seq < tcp_pac.seq:
-                idx = -1
-                break
-            idx -= 1
-        #endwhile
 
-        if idx >= 0:
-            self.pac_list[idx] = tcp_pac
-        else:
-            self.pac_list.append(tcp_pac)
+        self.pac_list.append(tcp_pac)
         
         if self.status == 0:
             if tcp_pac.body != '':
