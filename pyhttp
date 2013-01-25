@@ -337,6 +337,8 @@ class HttpConn:
         self.status = 0
     
     def append(self, tcp_pac):
+        if len(tcp_pac.body) == 0:
+            return
         if self.status == -1 or self.status == 2:
             # not http conn or conn already closed.
             return
@@ -542,14 +544,13 @@ def main():
     #endfor
 
     filepath = args[0]
-            
+
     with open(filepath) as pcap_file:
         flag, endian = pcap_check(pcap_file)
         if not flag:
             # not a valid pcap file or we cannot handle this file.
             return
 
-        conns = []
         conn_dict = {}
         for tcp_pac in process_pcap_package(pcap_file, endian):
 
@@ -565,17 +566,19 @@ def main():
             # we already have this conn
             if key in conn_dict:
                 conn_dict[key].append(tcp_pac)
+                # conn closed.
                 if tcp_pac.pac_type == -1:
+                    conn_dict[key].output(show_level, encoding)
                     del conn_dict[key]
+
             # begin tcp connection.
             elif tcp_pac.pac_type == 1:
                 conn_dict[key] = HttpConn(tcp_pac)
-                conns.append(conn_dict[key])
             else:
                 # ignore 
                 pass
         #endfor
-        for conn in conns:
+        for conn in conn_dict.values():
             conn.output(show_level, encoding)
     #endwhile
 
