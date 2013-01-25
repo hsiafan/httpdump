@@ -119,7 +119,7 @@ def read_chunked_body(content, pos):
         # the last chunk
         if chunk_size_str[0] == '0':
             # chunk footer header
-            # todo: now just skip it
+            # todo: handle additional http headers.
             while True:
                 (pos, cline) = readline(content, pos)
                 if  cline is None or len(cline.strip()) == 0:
@@ -144,6 +144,7 @@ def read_chunked_body(content, pos):
 
 def read_request(request_pacs, level, encoding):
     request_pacs.sort(key = lambda x: x.seq)
+    #TODO: handle with tcp retransmission
     body = ''.join([p.body for p in request_pacs])
     pos = 0
     content_len = 0
