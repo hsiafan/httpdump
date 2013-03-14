@@ -277,7 +277,7 @@ def read_response(response_pacs, level, encoding):
     # deal with body
     if not ischunked:
         if content_len == 0:
-            if connection == 'close':
+            if connection.lower() == 'close':
                 # we can't get content length, so asume it till the end of data.
                 content_len = len(body) - pos
             else:
