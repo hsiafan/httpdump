@@ -7,14 +7,17 @@ import gzip
 import socket
 import struct
 import sys
+from collections import OrderedDict
 
-def readline(content, idx = 0):
+
+def readline(content, idx=0):
     if idx >= len(content):
         return -1, None
     end = content.find('\n', idx)
     if end < 0:
         end = len(content)
     return end + 1, content[idx:end]
+
 
 def getheadervalue(header):
     header = header.strip()
@@ -24,6 +27,7 @@ def getheadervalue(header):
     else:
         return header[idx+1:].strip()
 
+
 def isgzip(content):
     """
     test if content is gzipped by magic num.
@@ -32,6 +36,7 @@ def isgzip(content):
         return True
     return False
 
+
 def ishttprequest(body):
     idx = body.find(' ')
     if idx < 0 or idx > 10:
@@ -39,8 +44,10 @@ def ishttprequest(body):
     method = body[0:idx].lower()
     return method in ('get', 'post', 'put', 'delete')
 
+
 def ishttpresponse(body):
     return body.startswith('HTTP/') or body.startswith('http/')
+
 
 def parse_content_type(content_type):
     idx = content_type.find(';')
@@ -56,8 +63,10 @@ def parse_content_type(content_type):
             encoding = ''
     return mime.strip().lower(), encoding.strip().lower()
 
+
 def istextbody(mime):
     return 'text' in mime or 'html' in mime or 'json' in mime or 'java' in mime
+
 
 def print_json(text):
     if len(text) > 50000:
@@ -75,15 +84,17 @@ def print_json(text):
     else:
         return False
 
+
 def ungzip(content):
     """ungip content"""
     try:
         compresssteam = StringIO.StringIO(content)
-        gzipper = gzip.GzipFile(fileobj = compresssteam)     
+        gzipper = gzip.GzipFile(fileobj = compresssteam)
         content = gzipper.read()
         return content
     except:
         return content
+
 
 def decode_body(content, charset):
     if charset is not None and charset != '':
@@ -103,6 +114,7 @@ def decode_body(content, charset):
             pass
         return content
 
+
 def read_chunked_body(content, pos):
     """read chunked body.
     """
@@ -113,7 +125,7 @@ def read_chunked_body(content, pos):
             return -1, None
         chunk_size_end = cline.find(';')
         if chunk_size_end < 0:
-            chunk_size_end = len(cline) 
+            chunk_size_end = len(cline)
         # skip chunk extension
         chunk_size_str = cline[0:chunk_size_end]
         # the last chunk
@@ -141,6 +153,7 @@ def read_chunked_body(content, pos):
         # a CRLF to end this chunked response
         (pos, _) = readline(content, pos)
     #endwhile
+
 
 def read_request(request_pacs, level, encoding):
     request_pacs.sort(key = lambda x: x.seq)
@@ -207,7 +220,7 @@ def read_request(request_pacs, level, encoding):
         pos += content_len
     else:
         (pos, content) = read_chunked_body(body, pos)
-    
+
     if not gzip:
         # if is gzip by content magic header
         # someone missed the content-encoding header
@@ -219,6 +232,7 @@ def read_request(request_pacs, level, encoding):
     if output_body:
         print content
         print ''
+
 
 def read_response(response_pacs, level, encoding):
     response_pacs.sort(key = lambda x: x.seq)
@@ -296,6 +310,7 @@ def read_response(response_pacs, level, encoding):
         if not print_json(content):
             print content
 
+
 class TcpPack:
     """
     represent a tcp package.
@@ -312,9 +327,10 @@ class TcpPack:
         self.direction = 0
 
     def __str__(self):
-        return "%s:%d  -->  %s:%d, type:%d, seq:%d, ack:%s size:%d" % (self.source, self.source_port,
-            self.dest, self.dest_port, self.pac_type, self.seq, self.ack, len(self.body))
-    
+        return "%s:%d  -->  %s:%d, type:%d, seq:%d, ack:%s size:%d" % \
+               (self.source, self.source_port, self.dest, self.dest_port, self.pac_type, self.seq,
+                self.ack, len(self.body))
+
     def gen_key(self):
         skey = self.source + ':' + str(self.source_port)
         dkey = self.dest + ':' + str(self.dest_port)
@@ -323,6 +339,7 @@ class TcpPack:
         else:
             key = dkey + '-' + skey
         return key
+
 
 class HttpConn:
     """
@@ -335,8 +352,10 @@ class HttpConn:
         self.dest_ip = tcp_pac.dest
         self.dest_port = tcp_pac.dest_port
         self.pac_list = []
+        if len(tcp_pac.body) > 0:
+            self.pac_list.append(tcp_pac)
         self.status = 0
-    
+
     def append(self, tcp_pac):
         if len(tcp_pac.body) == 0:
             return
@@ -347,7 +366,7 @@ class HttpConn:
             tcp_pac.direction = 1
 
         self.pac_list.append(tcp_pac)
-        
+
         if self.status == 0:
             if tcp_pac.body != '':
                 if ishttprequest(tcp_pac.body):
@@ -358,7 +377,7 @@ class HttpConn:
                 self.status = 2
             else:
                 self.status = -2
-    
+
     def output(self, level, encoding):
         if self.status <= -1:
             return
@@ -400,6 +419,7 @@ class HttpConn:
 
         print ''
 
+
 def pcap_check(infile):
     """check the header of cap file.
     """
@@ -436,6 +456,7 @@ def pcap_check(infile):
         print linklayer
 
     return False
+
 
 def process_pcap_package(infile, endian):
     """ generator for process packages.
@@ -493,6 +514,7 @@ def process_pcap_package(infile, endian):
         body_len2 = ip_length - ip_header_len - tcp_header_len
         # body
         body = infile.read(body_len2)
+
         if body_len > body_len2:
             # TODO: why 6bytes zero
             infile.seek(body_len - body_len2, 1)
@@ -508,6 +530,7 @@ def process_pcap_package(infile, endian):
         yield pack
     #end while
 
+
 def print_help():
     print """Usage: pyhttp [option] file
     Options:
@@ -520,6 +543,7 @@ def print_help():
     -i ip   : only parser tcp packages with ip(dest or source)
     -e encoding : specify encoding to decode http response. auto detect if not specified.
     """
+
 
 def main():
     port = -1
@@ -552,7 +576,7 @@ def main():
             # not a valid pcap file or we cannot handle this file.
             return
 
-        conn_dict = {}
+        conn_dict = OrderedDict()
         for tcp_pac in process_pcap_package(pcap_file, endian):
 
             #filter
@@ -575,6 +599,11 @@ def main():
             # begin tcp connection.
             elif tcp_pac.pac_type == 1:
                 conn_dict[key] = HttpConn(tcp_pac)
+            elif tcp_pac.pac_type == 0:
+                # tcp init before capature
+                # if is a http request?
+                if ishttprequest(tcp_pac.body):
+                    conn_dict[key] = HttpConn(tcp_pac)
             else:
                 # ignore 
                 pass
