@@ -9,66 +9,9 @@ import struct
 import sys
 from collections import OrderedDict
 
-
-def readline(content, idx=0):
-    if idx >= len(content):
-        return -1, None
-    end = content.find('\n', idx)
-    if end < 0:
-        end = len(content)
-    return end + 1, content[idx:end]
-
-
-def getheadervalue(header):
-    header = header.strip()
-    idx = header.find(':')
-    if idx < 0:
-        return ''
-    else:
-        return header[idx+1:].strip()
-
-
-def isgzip(content):
-    """
-    test if content is gzipped by magic num.
-    """
-    if len(content) > 3 and ord(content[0:1]) == 31 and ord(content[1:2]) == 139 and ord(content[2:3]) == 8:
-        return True
-    return False
-
-
-def ishttprequest(body):
-    idx = body.find(' ')
-    if idx < 0 or idx > 10:
-        return False
-    method = body[0:idx].lower()
-    return method in ('get', 'post', 'put', 'delete')
-
-
-def ishttpresponse(body):
-    return body.startswith('HTTP/') or body.startswith('http/')
-
-
-def parse_content_type(content_type):
-    idx = content_type.find(';')
-    if idx < 0:
-        idx = len(content_type)
-    mime = content_type[0:idx]
-    encoding = content_type[idx+1:]
-    if len(encoding) > 0:
-        eidx = encoding.find('=')
-        if eidx > 0:
-            encoding = encoding[eidx+1:]
-        else:
-            encoding = ''
-    return mime.strip().lower(), encoding.strip().lower()
-
-
-def istextbody(mime):
-    return 'text' in mime or 'html' in mime or 'json' in mime or 'java' in mime
-
-
 def print_json(text):
+    if text is None:
+        return
     if len(text) > 50000:
         # do not process to large text
         return False
@@ -84,231 +27,350 @@ def print_json(text):
     else:
         return False
 
+class PacReader(object):
+    """
+    wrap pac data for read.
+    """
+    def __init__(self, data):
+        self.data = data
+        self.pos = 0
+        self.length = len(self.data)
 
-def ungzip(content):
-    """ungip content"""
-    try:
-        compresssteam = StringIO.StringIO(content)
-        gzipper = gzip.GzipFile(fileobj = compresssteam)
-        content = gzipper.read()
-        return content
-    except:
-        return content
+    def readline(self):
+        """read line from input data"""
+        if self.pos >= self.length:
+            return None
+        end = self.data.find('\n', self.pos)
+        if end < 0:
+            end = len(content)
+        begin = self.pos
+        self.pos = end + 1
+        return self.data[begin:end]
+
+    def fetchline(self):
+        """fetch a line ,but not modify pos"""
+        if self.pos >= self.length:
+            return None
+        end = self.data.find('\n', self.pos)
+        if end < 0:
+            end = len(content)
+        return self.data[self.pos:end]
+
+    def read(self, size):
+        if self.pos >= self.length:
+            return None
+        end = self.pos + size
+        if end < 0:
+            end = len(content)
+        begin = self.pos
+        self.pos = end
+        return self.data[begin:end]
+
+    def skip(self, size):
+        self.pos = self.pos + size;
+
+    def isend(self):
+        return self.pos >= self.length
+
+    def remains(self):
+        return self.length - self.pos
+
+class HttpRequestHeader(object):
+    """
+    represent http readers.
+    """
+    def __init__(self):
+        self.content_len = 0
+        self.method = ''
+        self.host = ''
+        self.uri = ''
+        self.transfer_encoding = ''
+        self.content_encoding = ''
+        self.content_type = ''
+        self.gzip = False
+        self.chunked = False
+        self.host = ''
+        self.request = ''
+
+class HttpReponseHeader(object):
+    """
+    represent http readers.
+    """
+    def __init__(self):
+        self.content_len = 0
+        self.status_code = ''
+        self.transfer_encoding = ''
+        self.content_encoding = ''
+        self.content_type = ''
+        self.gzip = False
+        self.chunked = False
+        self.host = ''
+        self.request = ''
+        self.connectionclose = False
 
 
-def decode_body(content, charset):
-    if charset is not None and charset != '':
+class GzipUtils(object):
+    @staticmethod
+    def isgzip(content):
+        """
+        test if content is gzipped by magic num.
+        """
+        if len(content) > 3 and ord(content[0:1]) == 31 and ord(content[1:2]) == 139 and ord(content[2:3]) == 8:
+            return True
+        return False
+
+    @staticmethod
+    def ungzip(content):
+        """ungip content"""
         try:
-            return content.decode(charset).encode('utf-8')
+            compresssteam = StringIO.StringIO(content)
+            gzipper = gzip.GzipFile(fileobj = compresssteam)
+            content = gzipper.read()
+            return content
         except:
             return content
-    else:
-        # todo: encoding detect
-        try:
-            return content.decode('utf-8').encode('utf-8')
-        except:
-            pass
-        try:
-            return content.decode('gb18030').encode('utf-8')
-        except:
-            pass
-        return content
 
-
-def read_chunked_body(content, pos):
-    """read chunked body.
+class HttpUtils(object):
     """
-    result = []
-    while True:
-        (pos, cline) = readline(content, pos)
-        if pos == -1:
-            return -1, None
-        chunk_size_end = cline.find(';')
-        if chunk_size_end < 0:
-            chunk_size_end = len(cline)
-        # skip chunk extension
-        chunk_size_str = cline[0:chunk_size_end]
-        # the last chunk
-        if chunk_size_str[0] == '0':
-            # chunk footer header
-            # todo: handle additional http headers.
-            while True:
-                (pos, cline) = readline(content, pos)
-                if  cline is None or len(cline.strip()) == 0:
-                    break
-            return pos, ''.join(result)
-        # chunk size
-        chunk_size_str = chunk_size_str.strip()
-        try:
-            chunk_len = int(chunk_size_str, 16)
-        except:
-            return pos, ''.join(result)
+    utils methods for processing http packages
+    """
 
-        result.append(content[pos:pos+chunk_len])
-        pos += chunk_len
-        if pos > len(content):
-            # skip all
-            pos = len(content)
-            return pos, ''.join(result)
-        # a CRLF to end this chunked response
-        (pos, _) = readline(content, pos)
-    #endwhile
+    @staticmethod
+    def parseheader(header):
+        header = header.strip()
+        idx = header.find(':')
+        if idx < 0:
+            return None, None
+        else:
+            return header[0:idx].strip(), header[idx+1:].strip()
+
+    @staticmethod
+    def ishttprequest(body):
+        idx = body.find(' ')
+        if idx < 0:
+            return False
+        method = body[0:idx].lower()
+        return method in ('get', 'post', 'put', 'delete')
+
+    @staticmethod
+    def ishttpresponse(body):
+        return body.startswith('HTTP/') or body.startswith('http/')
+
+    @staticmethod
+    def parse_content_type(content_type):
+        idx = content_type.find(';')
+        if idx < 0:
+            idx = len(content_type)
+        mime = content_type[0:idx]
+        encoding = content_type[idx+1:]
+        if len(encoding) > 0:
+            eidx = encoding.find('=')
+            if eidx > 0:
+                encoding = encoding[eidx+1:]
+            else:
+                encoding = ''
+        return mime.strip().lower(), encoding.strip().lower()
+
+    @staticmethod
+    def istextbody(mime):
+        return 'text' in mime or 'html' in mime or 'json' in mime or 'java' in mime
+
+    @staticmethod
+    def readHeaders(pacReader, level):
+        line = pacReader.fetchline()
+        if HttpUtils.ishttprequest(line):
+            headers = HttpRequestHeader()
+            items = line.split(' ')
+            if len(items) == 3:
+                headers.method = items[0]
+                headers.uri = items[1]
+            pacReader.readline()
+            if level >=1 :
+                print line
+        elif HttpUtils.ishttpresponse(line):
+            headers = HttpReponseHeader()
+            pacReader.readline()
+            if level >=1 :
+                print line
+        else:
+            return None
+
+        while True:
+            line = pacReader.readline()
+            if line is None or len(line.strip()) == 0:
+                if level >= 1:
+                    print ''
+                return headers
+
+            if level >= 1:
+                print line
+
+            key, value = HttpUtils.parseheader(line)
+            if key is None:
+                #TODO: incorrect headers.
+                continue
+            key = key.lower()
+            if key == "content-length":
+                headers.content_len = int(value)
+            elif key == 'transfer-encoding' and value == 'chunked':
+                    headers.chunked = True
+            elif key == 'content-type':
+                headers.content_type = value;
+            elif key == 'content-encoding' and 'gzip' in value:
+                headers.gzip = True
+            elif key == 'host':
+                headers.host = value
+            elif key == 'connectoin' and value == 'close':
+                headers.connectionclose = True
+
+    @staticmethod
+    def decode_body(content, charset):
+        if charset is not None and charset != '':
+            try:
+                return content.decode(charset).encode('utf-8')
+            except:
+                return content
+        else:
+            # todo: encoding detect
+            try:
+                return content.decode('utf-8').encode('utf-8')
+            except:
+                pass
+            try:
+                return content.decode('gb18030').encode('utf-8')
+            except:
+                pass
+            return content
+
+    @staticmethod
+    def read_chunked_body(pacReader, skip=False):
+        """
+        read chunked body.
+        """
+        result = []
+        while True:
+            cline = pacReader.readline()
+            if cline is None:
+                return None
+            chunk_size_end = cline.find(';')
+            if chunk_size_end < 0:
+                chunk_size_end = len(cline)
+            # skip chunk extension
+            chunk_size_str = cline[0:chunk_size_end]
+            # the last chunk
+            if chunk_size_str[0] == '0':
+                # chunk footer header
+                # todo: handle additional http headers.
+                while True:
+                    cline = pacReader.readline()
+                    if  cline is None or len(cline.strip()) == 0:
+                        break
+                return ''.join(result)
+            # chunk size
+            chunk_size_str = chunk_size_str.strip()
+            try:
+                chunk_len = int(chunk_size_str, 16)
+            except:
+                return ''.join(result)
+
+            result.append(pacReader.read(chunk_len))
+            if pacReader.isend():
+                # skip all
+                return pos, ''.join(result)
+            # a CRLF to end this chunked response
+            pacReader.readline()
 
 
 def read_request(request_pacs, level, encoding):
+    """
+    read and output one http request.
+    """
     request_pacs.sort(key = lambda x: x.seq)
     #TODO: handle with tcp retransmission
     body = ''.join([p.body for p in request_pacs])
-    pos = 0
-    content_len = 0
-    transfer_encoding = ''
-    content_encoding = ''
-    content_type = ''
-    gzip = False
-    ischunked = False
-    host = ''
-    request = ''
-    while True:
-        (pos, line) = readline(body, pos);
-        if pos == -1:
-            return
-        if level >= 1:
-            print line
-        lline = line.lower()
-        if lline.startswith('content-length:'):
-            content_len = int(getheadervalue(line))
-        elif lline.startswith('transfer-encoding'):
-            transfer_encoding = getheadervalue(line)
-            if transfer_encoding == 'chunked':
-                ischunked = True
-        elif lline.startswith('content-type'):
-            content_type = getheadervalue(line);
-        elif lline.startswith('content-encoding'):
-            content_encoding = getheadervalue(line)
-            if gzip in content_encoding:
-                gzip = True
-        elif lline.startswith('host'):
-            host = getheadervalue(line)
-        elif ishttprequest(lline):
-            request = line
-        # end of header
-        elif len(line.strip()) == 0:
-            if level == 0:
-                idx = request.find(' ')
-                if 0 <= idx < len(request) - 1:
-                    request = request[0:idx+1] + host + request[idx+1:]
-                idx = request.rfind(' ')
-                if idx >=0:
-                    request = request[0:idx]
-                request = request
-                print request
-            break
-    #endwhile
+    pacReader = PacReader(body)
+    headers = HttpUtils.readHeaders(pacReader, level)
+    
+    # print request info
+    if level == 0:
+        if not headers.host.startswith('http://'):
+            request =  headers.method + ' http://' + headers.host + headers.uri
+        else:
+            request = headers.method + ' ' + headers.uri
+        print request
 
     output_body = False
     if level >= 3:
         output_body = True
-    elif level >= 2 and 'www-form-urlencoded' in content_type > 0:
+    elif level >= 2 and 'www-form-urlencoded' in headers.content_type > 0:
         output_body = True
 
     content = ''
     # deal with body
-    if not ischunked:
+    if not headers.chunked:
         if output_body:
-            content = body[pos:pos + content_len]
-        # print content
-        pos += content_len
+            content = pacReader.read(headers.content_len)
+        else:
+            pacReader.skip(headers.content_len)
     else:
-        (pos, content) = read_chunked_body(body, pos)
+        content = HttpUtils.read_chunked_body(pacReader)
 
-    if not gzip:
+    if not headers.gzip:
         # if is gzip by content magic header
         # someone missed the content-encoding header
-        gzip = isgzip(content)
+        headers.gzip = GzipUtils.isgzip(content)
 
-    if output_body and isgzip:
-        content = ungzip(content)
+    if output_body and headers.gzip:
+        content = GzipUtils.ungzip(content)
     # if it is form url encode
     if output_body:
-        print content
+        if content is not None:
+            print content
         print ''
 
 
 def read_response(response_pacs, level, encoding):
+    """
+    read and output one http response
+    """
     response_pacs.sort(key = lambda x: x.seq)
     body = ''.join([p.body for p in response_pacs])
-    pos = 0
-    content_type = ''
-    content_len = 0
-    host = ''
-    transfer_encoding = ''
-    content_encoding = ''
-    connection = ''
-    isgzip = False
-    ischunked = False
-
-    # read header
-    while True:
-        (pos, line) = readline(body, pos);
-        if pos == -1:
-            return
-        if level >= 1:
-            print line
-        lline = line.lower()
-        if lline.startswith('content-type'):
-            content_type = getheadervalue(line)
-        elif lline.startswith('content-length'):
-            content_len = int(getheadervalue(line))
-        elif lline.startswith('host:'):
-            host = getheadervalue(line)
-        elif lline.startswith('transfer-encoding'):
-            transfer_encoding = getheadervalue(line)
-            if transfer_encoding == 'chunked':
-                ischunked = True
-        elif lline.startswith('content-encoding'):
-            content_encoding = getheadervalue(line)
-            if 'gzip' in content_encoding:
-                isgzip = True
-        elif lline.startswith('connection:'):
-            connection = getheadervalue(line)
-        # end of header
-        elif len(line.strip()) == 0:
-            break
-    #endwhile
+   
+    pacReader = PacReader(body)
+    headers = HttpUtils.readHeaders(pacReader,level)
 
     # read body
-    mime, charset = parse_content_type(content_type)
+    mime, charset = HttpUtils.parse_content_type(headers.content_type)
     if len(encoding) > 0 and charset == '':
         charset = encoding
 
     output_body = False
     if level >= 3:
         output_body = True
-    elif level >= 2 and istextbody(mime) > 0:
+    elif level >= 2 and HttpUtils.istextbody(mime) > 0:
         output_body = True
 
     content = ''
     # deal with body
-    if not ischunked:
-        if content_len == 0:
-            if connection.lower() == 'close':
+    if not headers.chunked:
+        if headers.content_len == 0:
+            if headers.connectionclose:
                 # we can't get content length, so asume it till the end of data.
-                content_len = len(body) - pos
+                headers.content_len = pacReader.remains()
             else:
-                # we can't get content length, and is not a chunked body.
+                #TODO: we can't get content length, and is not a chunked body.
                 pass
         if output_body:
-            content = body[pos : pos + content_len]
-        # print content
-        pos += content_len
+            content = pacReader.read(headers.content_len)
     else:
-        (pos, content) = read_chunked_body(body, pos)
-    if isgzip and output_body:
-        content = ungzip(content)
+        content = HttpUtils.read_chunked_body(pacReader)
+    if headers.gzip and output_body:
+        content = GzipUtils.ungzip(content)
     if output_body:
-        content = decode_body(content, charset)
+        content = HttpUtils.decode_body(content, charset)
         if not print_json(content):
-            print content
+            if content is not None:
+                print content
 
 
 class TcpPack:
@@ -369,7 +431,7 @@ class HttpConn:
 
         if self.status == 0:
             if tcp_pac.body != '':
-                if ishttprequest(tcp_pac.body):
+                if HttpUtils.ishttprequest(tcp_pac.body):
                     self.status = 1
         if tcp_pac.pac_type == -1:
             # end of connection
@@ -602,7 +664,7 @@ def main():
             elif tcp_pac.pac_type == 0:
                 # tcp init before capature
                 # if is a http request?
-                if ishttprequest(tcp_pac.body):
+                if HttpUtils.ishttprequest(tcp_pac.body):
                     conn_dict[key] = HttpConn(tcp_pac)
             else:
                 # ignore 
