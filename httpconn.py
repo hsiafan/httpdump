@@ -128,7 +128,7 @@ def read_http_headers(reader, level):
     if 'chunked' in header_dict["transfer-encoding"]:
         headers.chunked = True
     headers.content_type = header_dict['content-type']
-    headers.gzip = ('gzip' in header_dict["content-length"])
+    headers.gzip = ('gzip' in header_dict["content-encoding"])
     headers.host = header_dict["host"]
     headers.connectionclose = (header_dict['connection'] == 'close')
     return headers
