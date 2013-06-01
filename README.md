@@ -12,19 +12,19 @@ pyhttpcap是一个用python编写的分析pcap格式文件中http数据包的脚
 + tcpdump -wtest.pcap tcp port 80
 
 那么：
-+ pyhttp test.pcap    //列出所有http请求
-+ pyhttp -v test.pcap    //同时输出http req/resp head
-+ pyhttp -vv test.pcap   //同事输出http req/resp 文本类型的包体
++ ./pyhttp.py test.pcap    //列出所有http请求
++ ./pyhttp.py -v test.pcap    //同时输出http req/resp head
++ ./pyhttp.py -vv test.pcap   //同事输出http req/resp 文本类型的包体
 
 此外，可以使用-p, -i指定源和目标的ip/端口，这是只输出符合指定条件的数据:
-+ pyhttp -p55419 -vv test.pcap
-+ pyhttp -i192.168.109.91 -vv test.pcap
++ ./pyhttp.py -p55419 -vv test.pcap
++ ./pyhttp.py -i192.168.109.91 -vv test.pcap
 
 使用-d输出抓到的package 信息:
-+ pyhttp -p55419 -vvd test.pcap
++ ./pyhttp.py -p55419 -vvd test.pcap
 
 使用-e指定http包体的编码
-+ pyhttp -i192.168.109.91 -p80 -vv -eutf-8 -vv test.pcap
++ ./pyhttp.py -i192.168.109.91 -p80 -vv -eutf-8 -vv test.pcap
 
 附带一个arm指令集的tcpdump，可用于android手机抓包.
 
