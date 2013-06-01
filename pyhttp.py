@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #coding=utf-8
-import util
+import textutils
 
 __author__ = 'dongliu'
 
@@ -77,7 +77,7 @@ def main():
             elif tcp_pac.pac_type == 0:
                 # tcp init before capature
                 # if is a http request?
-                if util.ishttprequest(tcp_pac.body):
+                if textutils.ishttprequest(tcp_pac.body):
                     conn_dict[key] = httpconn.HttpConn(tcp_pac)
             else:
                 # ignore 

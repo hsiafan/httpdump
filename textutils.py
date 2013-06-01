@@ -16,7 +16,7 @@ def print_json(text):
         # do not process a non-list-dict json
         try:
             data = json.loads(text)
-            print json.dumps(data, indent = 2, ensure_ascii = False, separators = (',', ': ')).encode('utf-8')
+            print json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')).encode('utf-8')
             return True
         except Exception, e:
             return False
@@ -37,7 +37,7 @@ def ungzip(content):
     """ungip content"""
     try:
         compresssteam = StringIO.StringIO(content)
-        gzipper = gzip.GzipFile(fileobj = compresssteam)
+        gzipper = gzip.GzipFile(fileobj=compresssteam)
         content = gzipper.read()
         return content
     except:
@@ -70,18 +70,18 @@ def parse_content_type(content_type):
     if idx < 0:
         idx = len(content_type)
     mime = content_type[0:idx]
-    encoding = content_type[idx+1:]
+    encoding = content_type[idx + 1:]
     if len(encoding) > 0:
         eidx = encoding.find('=')
         if eidx > 0:
-            encoding = encoding[eidx+1:]
+            encoding = encoding[eidx + 1:]
         else:
             encoding = ''
     return mime.strip().lower(), encoding.strip().lower()
 
 
 def istextbody(mime):
-    return 'text' in mime or 'html' in mime or 'json' in mime or 'java' in mime
+    return 'text' in mime or 'html' in mime or 'json' in mime or 'script' in mime
 
 
 def decode_body(content, charset):

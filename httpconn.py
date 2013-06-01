@@ -1,7 +1,7 @@
 #coding=utf-8
 __author__ = 'dongliu'
 
-import util
+import textutils
 from collections import defaultdict
 
 
@@ -87,13 +87,13 @@ class HttpReponseHeader(object):
 def read_http_headers(reader, level):
     """read & parse http headers"""
     line = reader.fetchline()
-    if util.ishttprequest(line):
+    if textutils.ishttprequest(line):
         headers = HttpRequestHeader()
         items = line.split(' ')
         if len(items) == 3:
             headers.method = items[0]
             headers.uri = items[1]
-    elif util.ishttpresponse(line):
+    elif textutils.ishttpresponse(line):
         headers = HttpReponseHeader()
         items = line.split(' ')
         if len(items) == 3:
@@ -116,7 +116,7 @@ def read_http_headers(reader, level):
         if line is None or len(line.strip()) == 0:
             break
 
-        key, value = util.parse_http_header(line)
+        key, value = textutils.parse_http_header(line)
         if key is None:
             # incorrect headers.
             continue
@@ -191,9 +191,7 @@ def read_request(request_pacs, level, encoding):
         print request
 
     output_body = False
-    if level >= 3:
-        output_body = True
-    elif level >= 2 and 'www-form-urlencoded' in headers.content_type > 0:
+    if level >= 3 or level >= 2 and 'www-form-urlencoded' in headers.content_type:
         output_body = True
 
     content = ''
@@ -209,12 +207,12 @@ def read_request(request_pacs, level, encoding):
     if not headers.gzip:
         # if is gzip by content magic header
         # someone missed the content-encoding header
-        headers.gzip = util.isgzip(content)
+        headers.gzip = textutils.isgzip(content)
 
-    if output_body and headers.gzip:
-        content = util.ungzip(content)
     # if it is form url encode
     if output_body:
+        if headers.gzip:
+            content = textutils.ungzip(content)
         if content is not None:
             print content
         print ''
@@ -231,14 +229,12 @@ def read_response(response_pacs, level, encoding):
     headers = read_http_headers(reader,level)
 
     # read body
-    mime, charset = util.parse_content_type(headers.content_type)
+    mime, charset = textutils.parse_content_type(headers.content_type)
     if len(encoding) > 0 and charset == '':
         charset = encoding
 
     output_body = False
-    if level >= 3:
-        output_body = True
-    elif level >= 2 and util.istextbody(mime):
+    if level >= 3 or level >= 2 and textutils.istextbody(mime):
         output_body = True
 
     content = ''
@@ -255,19 +251,18 @@ def read_response(response_pacs, level, encoding):
             content = reader.read(headers.content_len)
     else:
         content = read_chunked_body(reader)
-    if headers.gzip and output_body:
-        content = util.ungzip(content)
+
     if output_body:
-        content = util.decode_body(content, charset)
-        if not util.print_json(content):
-            if content is not None:
+        if headers.gzip:
+            content = textutils.ungzip(content)
+        content = textutils.decode_body(content, charset)
+        if content is not None:
+            if not textutils.print_json(content):
                 print content
 
 
 class HttpConn:
-    """
-    all data having same source/dest ip/port.
-    """
+    """all data having same source/dest ip/port in one http connection."""
 
     def __init__(self, tcp_pac):
         self.source_ip = tcp_pac.source
@@ -292,7 +287,7 @@ class HttpConn:
 
         if self.status == 0:
             if tcp_pac.body != '':
-                if util.ishttprequest(tcp_pac.body):
+                if textutils.ishttprequest(tcp_pac.body):
                     self.status = 1
         if tcp_pac.pac_type == -1:
             # end of connection
