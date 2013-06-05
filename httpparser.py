@@ -172,15 +172,12 @@ def read_chunked_body(pacReader, skip=False):
         pacReader.readline()
 
 
-def read_request(request_pacs, level, encoding):
+def read_request(httpDataReader, level, encoding=''):
     """
     read and output one http request.
     """
-    request_pacs.sort(key=lambda x: x.seq)
-    #TODO: handle with tcp retransmission
-    body = ''.join([p.body for p in request_pacs])
-    reader = HttpDataReader(body)
-    headers = read_http_headers(reader, level)
+
+    headers = read_http_headers(httpDataReader, level)
     
     # print request info
     if level == 0:
@@ -198,11 +195,11 @@ def read_request(request_pacs, level, encoding):
     # deal with body
     if not headers.chunked:
         if output_body:
-            content = reader.read(headers.content_len)
+            content = httpDataReader.read(headers.content_len)
         else:
-            reader.skip(headers.content_len)
+            httpDataReader.skip(headers.content_len)
     else:
-        content = read_chunked_body(reader)
+        content = read_chunked_body(httpDataReader)
 
     if not headers.gzip:
         # if is gzip by content magic header
@@ -218,15 +215,11 @@ def read_request(request_pacs, level, encoding):
         print ''
 
 
-def read_response(response_pacs, level, encoding):
+def read_response(httpDataReader, level, encoding=''):
     """
     read and output one http response
     """
-    response_pacs.sort(key=lambda x: x.seq)
-    body = ''.join([p.body for p in response_pacs])
-   
-    reader = HttpDataReader(body)
-    headers = read_http_headers(reader,level)
+    headers = read_http_headers(httpDataReader, level)
 
     # read body
     mime, charset = textutils.parse_content_type(headers.content_type)
@@ -243,14 +236,14 @@ def read_response(response_pacs, level, encoding):
         if headers.content_len == 0:
             if headers.connectionclose:
                 # we can't get content length, so asume it till the end of data.
-                headers.content_len = reader.remains()
+                headers.content_len = httpDataReader.remains()
             else:
                 #TODO: we can't get content length, and is not a chunked body.
                 pass
         if output_body:
-            content = reader.read(headers.content_len)
+            content = httpDataReader.read(headers.content_len)
     else:
-        content = read_chunked_body(reader)
+        content = read_chunked_body(httpDataReader)
 
     if output_body:
         if headers.gzip:
@@ -259,80 +252,3 @@ def read_response(response_pacs, level, encoding):
         if content is not None:
             if not textutils.print_json(content):
                 print content
-
-
-class HttpConn:
-    """all data having same source/dest ip/port in one http connection."""
-
-    def __init__(self, tcp_pac):
-        self.source_ip = tcp_pac.source
-        self.source_port = tcp_pac.source_port
-        self.dest_ip = tcp_pac.dest
-        self.dest_port = tcp_pac.dest_port
-        self.pac_list = []
-        if len(tcp_pac.body) > 0:
-            self.pac_list.append(tcp_pac)
-        self.status = 0
-
-    def append(self, tcp_pac):
-        if len(tcp_pac.body) == 0:
-            return
-        if self.status == -1 or self.status == 2:
-            # not http conn or conn already closed.
-            return
-        if tcp_pac.source != self.source_ip:
-            tcp_pac.direction = 1
-
-        self.pac_list.append(tcp_pac)
-
-        if self.status == 0:
-            if tcp_pac.body != '':
-                if textutils.ishttprequest(tcp_pac.body):
-                    self.status = 1
-        if tcp_pac.pac_type == -1:
-            # end of connection
-            if self.status == 1:
-                self.status = 2
-            else:
-                self.status = -2
-
-    def output(self, level, encoding):
-        if self.status <= -1:
-            return
-        elif self.status == 0:
-            return
-        elif self.status == 1:
-            pass
-        elif self.status == 2:
-            pass
-        print self.source_ip, ':', self.source_port, "--- -- - >", self.dest_ip, ':', self.dest_port
-
-        request_pacs = []
-        response_pacs = []
-        state = 0
-        for pac in self.pac_list:
-            if len(pac.body) == 0:
-                continue
-            if state == 0:
-                if pac.direction == 1:
-                    read_request(request_pacs, level, encoding)
-                    state = 1
-                    response_pacs.append(pac)
-                    del request_pacs[:]
-                else:
-                    request_pacs.append(pac)
-            else:
-                if pac.direction == 0:
-                    read_response(response_pacs, level, encoding)
-                    state = 0
-                    request_pacs.append(pac)
-                    del response_pacs[:]
-                else:
-                    response_pacs.append(pac)
-
-        if len(request_pacs) > 0:
-            read_request(request_pacs, level, encoding)
-        if len(response_pacs) > 0:
-            read_response(response_pacs, level, encoding)
-
-        print ''

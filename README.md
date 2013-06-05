@@ -1,13 +1,20 @@
-pyhttpcap
-=========
+### pyhttpcap
 
-解析和显示pcap格式中的http数据包内容
+分析和显示http请求
 
-pyhttpcap是一个用python编写的分析pcap格式文件中http数据包的脚本，它会忽略非TCP/HTTP的数据包。
-它可以对http请求/响应按TCP连接进行分组，显示http包的包头和包体内容，自动处理chunked/gzip，自动转换字符编码。
+有两种功能:
+1. 解析和显示pcap文件中的http数据包内容, pcap文件可通过tcpdump等抓包软件获得, 会忽略文件中非TCP/HTTP的数据包。
+2. 作为http代理, 记录和显示经过此代理发送的所有http数据包
 
-使用：
-=========
+特点：
+http请求/响应按TCP连接进行分组, 复用同一TCP连接的请求在一起显示
+显示http包的包头和包体中的文本内容
+自动处理chunked/gzip
+自动转换字符编码
+对json内容进行格式化输出
+
+### 分析pcap文件：
+
 假设使用tcpdump抓包：
 + tcpdump -wtest.pcap tcp port 80
 
@@ -28,3 +35,10 @@ pyhttpcap是一个用python编写的分析pcap格式文件中http数据包的脚
 
 附带一个arm指令集的tcpdump，可用于android手机抓包.
 
+### 作为代理使用:
+
++ python httpproxy.py
+
+默认端口是8000, 将需要抓包的软件的代理设置为此即可.
+
+在android上, root后的手机可以使用proxydroid(http://apps.wandoujia.com/search?key=org.proxydroid)来设置http代理.
