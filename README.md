@@ -41,4 +41,4 @@ http请求/响应按TCP连接进行分组, 复用同一TCP连接的请求在一�
 
 默认端口是8000, 将需要抓包的软件的代理设置为此即可.
 
-在android上, root后的手机可以使用proxydroid(http://apps.wandoujia.com/search?key=org.proxydroid)来设置http代理.
+在android上, root后的手机可以使用proxydroid( http://apps.wandoujia.com/search?key=org.proxydroid )来设置http代理.
