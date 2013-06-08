@@ -29,9 +29,6 @@
 + ./pyhttp.py -p55419 -vv test.pcap
 + ./pyhttp.py -i192.168.109.91 -vv test.pcap
 
-使用-d输出抓到的package 信息:
-+ ./pyhttp.py -p55419 -vvd test.pcap
-
 使用-e指定http包体的编码
 + ./pyhttp.py -i192.168.109.91 -p80 -vv -eutf-8 -vv test.pcap
 
@@ -40,6 +37,10 @@
 ### 作为代理使用:
 
 + python httpproxy.py
++ python httpproxy.py -vv         // output http req & resp contentm, if are texts
++ python httpproxy.py -l127.0.0.1 -p8080 -vv     // the ip and port the proxy listenen on
++ python httpproxy.py -vv -ohttp.log     // ouput result to http.log
+
 
 默认端口是8000, 将需要抓包的软件的代理设置为此即可.
 

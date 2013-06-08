@@ -84,7 +84,7 @@ class HttpReponseHeader(object):
         self.connectionclose = False
 
 
-def read_http_headers(reader, level):
+def read_http_headers(reader, level, outputfile):
     """read & parse http headers"""
     line = reader.fetchline()
     if textutils.ishttprequest(line):
@@ -104,14 +104,14 @@ def read_http_headers(reader, level):
         return None
 
     if level >= 1:
-        print line
+        print >>outputfile, line
     reader.readline()
 
     header_dict = defaultdict(str)
     while True:
         line = reader.readline()
         if level >= 1:
-            print line
+            print >>outputfile, line
 
         if line is None or len(line.strip()) == 0:
             break
@@ -172,20 +172,22 @@ def read_chunked_body(pacReader, skip=False):
         pacReader.readline()
 
 
-def read_request(httpDataReader, level, encoding=''):
+def read_request(httpDataReader, level, outputfile, encoding=''):
     """
     read and output one http request.
     """
+    headers = read_http_headers(httpDataReader, level, outputfile)
+    if headers is None:
+        print >>outputfile, "{Http headers Not found.}"
+        return
 
-    headers = read_http_headers(httpDataReader, level)
-    
     # print request info
     if level == 0:
-        if not headers.host.startswith('http://'):
+        if not headers.host.startswith('http'):
             request = headers.method + ' http://' + headers.host + headers.uri
         else:
             request = headers.method + ' ' + headers.uri
-        print request
+        print >>outputfile, request
 
     output_body = False
     if level >= 3 or level >= 2 and 'www-form-urlencoded' in headers.content_type:
@@ -211,19 +213,22 @@ def read_request(httpDataReader, level, encoding=''):
         if headers.gzip:
             content = textutils.ungzip(content)
         if content is not None:
-            print content
-        print ''
+            print >>outputfile, content
+        print >>outputfile, ''
 
 
-def read_response(httpDataReader, level, encoding=''):
+def read_response(httpDataReader, level, outputfile, encoding=''):
     """
     read and output one http response
     """
-    headers = read_http_headers(httpDataReader, level)
+    headers = read_http_headers(httpDataReader, level, outputfile)
+    if headers is None:
+        print >>outputfile, "{Http headers Not found.}"
+        return
 
     # read body
     mime, charset = textutils.parse_content_type(headers.content_type)
-    if len(encoding) > 0 and charset == '':
+    if encoding and not charset:
         charset = encoding
 
     output_body = False
@@ -246,9 +251,10 @@ def read_response(httpDataReader, level, encoding=''):
         content = read_chunked_body(httpDataReader)
 
     if output_body:
+
         if headers.gzip:
             content = textutils.ungzip(content)
         content = textutils.decode_body(content, charset)
         if content is not None:
-            if not textutils.print_json(content):
-                print content
+            if not textutils.print_json(content, outputfile):
+                print >>outputfile, content

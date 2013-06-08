@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 #coding=utf-8
+import argparse
 import textutils
 
 __author__ = 'dongliu'
 
-import getopt
 import sys
 from collections import OrderedDict
 
@@ -47,7 +47,7 @@ class HttpConn:
             else:
                 self.status = -2
 
-    def output(self, level, encoding):
+    def output(self, level, outputfile, encoding):
         if self.status <= -1:
             return
         elif self.status == 0:
@@ -56,7 +56,7 @@ class HttpConn:
             pass
         elif self.status == 2:
             pass
-        print self.source_ip, ':', self.source_port, "--- -- - >", self.dest_ip, ':', self.dest_port
+        print >>outputfile, self.source_ip, ':', self.source_port, "--- -- - >", self.dest_ip, ':', self.dest_port
 
         request_pacs = []
         response_pacs = []
@@ -66,7 +66,7 @@ class HttpConn:
                 continue
             if state == 0:
                 if pac.direction == 1:
-                    read_request(self._wrap(request_pacs), level, encoding)
+                    read_request(self._wrap(request_pacs), level, outputfile, encoding)
                     state = 1
                     response_pacs.append(pac)
                     del request_pacs[:]
@@ -74,7 +74,7 @@ class HttpConn:
                     request_pacs.append(pac)
             else:
                 if pac.direction == 0:
-                    read_response(self._wrap(response_pacs), level, encoding)
+                    read_response(self._wrap(response_pacs), level, outputfile, encoding)
                     state = 0
                     request_pacs.append(pac)
                     del response_pacs[:]
@@ -82,9 +82,9 @@ class HttpConn:
                     response_pacs.append(pac)
 
         if len(request_pacs) > 0:
-            read_request(self._wrap(request_pacs), level, encoding)
+            read_request(self._wrap(request_pacs), level, outputfile, encoding)
         if len(response_pacs) > 0:
-            read_response(self._wrap(response_pacs), level, encoding)
+            read_response(self._wrap(response_pacs), level, outputfile, encoding)
 
         print ''
 
@@ -111,40 +111,34 @@ def print_help():
 
 
 def main():
-    port = -1
-    ip = ''
-    show_level = 0
-    encoding = ''
-    debug = False
-    opts, args = getopt.getopt(sys.argv[1:],'hvdp:i:e:')
-    for opt in opts:
-        if opt[0] == '-v':
-            show_level += 1
-        elif opt[0] == '-h':
-            print_help()
-            return
-        elif opt[0] == '-p':
-            port = int(opt[1])
-        elif opt[0] == '-i':
-            ip = opt[1]
-        elif opt[0] == '-e':
-            encoding = opt[1]
-        elif opt[0] == '-d':
-            debug = True
+    parser = argparse.ArgumentParser()
+    parser.add_argument("pcap_file", help="the pcap file to parse")
+    parser.add_argument("-i", "--ip", help="only parse packages with specified source OR dest ip")
+    parser.add_argument("-p", "--port", type=int, help="only parse packages with specified source OR dest port")
+    parser.add_argument("-v", "--verbosity", help="increase output verbosity(-vv is recommended)", action="count")
+    parser.add_argument("-o", "--output", help="output to file instead of stdout")
+    parser.add_argument("-e", "--encoding", help="decode the data use specified encodings.")
+    args = parser.parse_args()
 
-    filepath = args[0]
+    filepath = args.pcap_file
+    port = args.port
+    ip = args.ip
+    level = args.verbosity
+    encoding = args.encoding
+
+    if args.output:
+        outputfile = open(args.output, "w+")
+    else:
+        outputfile = sys.stdout
 
     with open(filepath) as pcap_file:
         conn_dict = OrderedDict()
         for tcp_pac in pcap.readPcapPackage(pcap_file):
-
             #filter
-            if port != -1 and tcp_pac.source_port != port and tcp_pac.dest_port != port:
+            if port is not None and tcp_pac.source_port != port and tcp_pac.dest_port != port:
                 continue
-            if ip != '' and tcp_pac.source != ip and tcp_pac.dest != ip:
+            if ip is not None and tcp_pac.source != ip and tcp_pac.dest != ip:
                 continue
-            if debug:
-                print str(tcp_pac)
 
             key = tcp_pac.gen_key()
             # we already have this conn
@@ -152,7 +146,8 @@ def main():
                 conn_dict[key].append(tcp_pac)
                 # conn closed.
                 if tcp_pac.pac_type == -1:
-                    conn_dict[key].output(show_level, encoding)
+                    conn_dict[key].output(level, outputfile, encoding)
+                    outputfile.flush()
                     del conn_dict[key]
 
             # begin tcp connection.
@@ -168,8 +163,11 @@ def main():
                 pass
 
         for conn in conn_dict.values():
-            conn.output(show_level, encoding)
+            conn.output(level, outputfile, encoding)
+            outputfile.flush()
 
+    if args.output:
+        outputfile.close()
 
 if __name__ == "__main__":
     main()

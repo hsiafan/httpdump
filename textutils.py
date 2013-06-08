@@ -6,19 +6,20 @@ import StringIO
 import gzip
 
 
-def print_json(text):
+def print_json(text, outputfile):
+
     if text is None:
         return
-    if len(text) > 50000:
+    if len(text) > 500000:
         # do not process to large text
         return False
     if text.startswith('{') and text.endswith('}') or text.startswith('{') and text.endswith('}'):
         # do not process a non-list-dict json
         try:
             data = json.loads(text)
-            print json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')).encode('utf-8')
+            print >>outputfile, json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')).encode('utf-8')
             return True
-        except Exception, e:
+        except Exception as e:
             return False
     else:
         return False
@@ -50,7 +51,7 @@ def parse_http_header(header):
     if idx < 0:
         return None, None
     else:
-        return header[0:idx].strip(), header[idx+1:].strip()
+        return header[0:idx].strip(), header[idx + 1:].strip()
 
 
 def ishttprequest(body):
@@ -66,6 +67,8 @@ def ishttpresponse(body):
 
 
 def parse_content_type(content_type):
+    if not content_type:
+        return None, None
     idx = content_type.find(';')
     if idx < 0:
         idx = len(content_type)
@@ -81,11 +84,13 @@ def parse_content_type(content_type):
 
 
 def istextbody(mime):
+    if not mime:
+        return False
     return 'text' in mime or 'html' in mime or 'json' in mime or 'script' in mime
 
 
 def decode_body(content, charset):
-    if charset is not None and charset != '':
+    if charset:
         try:
             return content.decode(charset).encode('utf-8')
         except:
