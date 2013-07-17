@@ -1,5 +1,4 @@
 #coding=utf8
-# from https://code.google.com/p/python-proxy/source/browse/trunk/PythonProxy.py
 __author__ = "dongliu"
 
 import sys
@@ -8,123 +7,58 @@ import socket
 import select
 import threading
 import signal
-from httpparser import (HttpDataReader, read_request, read_response)
+from StringIO import StringIO
+from httpparser import HttpType, parse_http_data
 
-_BUFLEN = 8192
-_VERSION = 'Python Proxy/0.1.0 Draft 1'
-_HTTPVER = 'HTTP/1.1'
-_TIMEOUT = 20
+_BUF_SIZE = 8192
+_MAX_READ_RETRY_COUNT = 20
 _READ_TIMEOUT = 3
 
 
-REQUEST = 0
-RESPONSE = 1
-
-
-class Seg(object):
-    def __init__(self, datatype, data):
-        self.datatype = datatype
-        self.data = data
-
-
-class OutputWrapper(object):
-    def __init__(self, clientsocket, targetsocket, remains=None):
-        self.clientsocket = clientsocket
-        self.targetsocket = targetsocket
-        self.segs = []
-        if remains:
-            self.segs.append(Seg(REQUEST, remains))
-            self.targetsocket.send(remains)
-
-    def run(self):
-        sockets = [self.clientsocket, self.targetsocket]
-        count = 0
-        while True:
-            count += 1
-            (recv, _, error) = select.select(sockets, [], sockets, _READ_TIMEOUT)
-            if error:
-                break
-            if not recv:
-                continue
-
-            for in_ in recv:
-                data = in_.recv(_BUFLEN)
-                out = (in_ is self.clientsocket) and self.targetsocket or self.clientsocket
-                datatype = (in_ is self.clientsocket) and REQUEST or RESPONSE
-                if data:
-                    out.send(data)
-                    self.segs.append(Seg(datatype, data))
-                    count = 0
-
-            if count == _TIMEOUT:
-                break
-
-    def output(self, level, outputfile):
-        cur_datatype = self.segs[0].datatype
-        cur_data = []
-        for seg in self.segs:
-            if seg.datatype == cur_datatype:
-                cur_data.append(seg.data)
-                continue
-
-            reader = HttpDataReader(''.join(cur_data))
-            del cur_data[:]
-            if cur_datatype == REQUEST:
-                read_request(reader, level, outputfile)
-            else:
-                read_response(reader, level, outputfile)
-            cur_datatype = seg.datatype
-            cur_data.append(seg.data)
-
-        if cur_data:
-            reader = HttpDataReader(''.join(cur_data))
-            del cur_data[:]
-            if cur_datatype == REQUEST:
-                read_request(reader, level, outputfile)
-            else:
-                read_response(reader, level, outputfile)
-
-        self.segs = None
-
-
 class ConnectionHandler(object):
-    def __init__(self, clientsocket, level, outputfile):
+    """handle one connection from client"""
+    def __init__(self, clientsocket):
         self.clientsocket = clientsocket
-        self.clientbuffer = ''
-        self.level = level
-        self.outputfile = outputfile
+        self.first_data = ''
+        self.httptype = HttpType.REQUEST
 
     def run(self):
         while True:
-            self.clientbuffer += self.clientsocket.recv(_BUFLEN)
-            end = self.clientbuffer.find('\n')
+            self.first_data += self.clientsocket.recv(_BUF_SIZE)
+            end = self.first_data.find('\n')
             if end != -1:
                 break
-        self.method, self.path, self.protocol = (self.clientbuffer[:end + 1]).split()
-        self.clientbuffer = self.clientbuffer[end + 1:]
+        self.method, self.path, self.protocol = self.first_data[:end + 1].split()
 
-        if self.method == 'CONNECT':
-            self.method_CONNECT()
-        elif self.method in ('OPTIONS', 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE'):
-            self.method_others()
-        self.clientsocket.close()
-        self.targetsocket.close()
+        try:
+            if self.method == 'CONNECT':
+                self.first_data = self.first_data[end + 1:]
+                yield HttpType.REQUEST, self.first_data[end + 1:]
+                for data in self._method_CONNECT():
+                    yield data
+            elif self.method in ('OPTIONS', 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE'):
+                yield HttpType.REQUEST, self.first_data
+                for data in self._method_others():
+                    yield data
+        finally:
+            self.clientsocket.close()
+            # self.targetsocket.close()
 
-    def method_CONNECT(self):
-        """it is usually for https proxy"""
+    def _method_CONNECT(self):
+        """for http proxy connect method. it is usually for https proxy"""
         self._connect_target(self.path)
-        self.clientsocket.send('%s 200 Connection established\nProxy-agent: %s\n\n' % (_HTTPVER, _VERSION))
-        self.clientbuffer = ''
-        self._read_write()
+        self.clientsocket.send('HTTP/1.1 200 Connection established\nProxy-agent: Python Proxy\n\n')
+        for data in self._proxy_data():
+            yield data
 
-    def method_others(self):
+    def _method_others(self):
         self.path = self.path[7:]
         i = self.path.find('/')
         host = self.path[:i]
         path = self.path[i:]
         self._connect_target(host)
-        self.clientbuffer = '%s %s %s\n%s' % (self.method, path, self.protocol, self.clientbuffer)
-        self._read_write()
+        for data in self._proxy_data():
+            yield data
 
     def _connect_target(self, host):
         i = host.find(':')
@@ -136,26 +70,49 @@ class ConnectionHandler(object):
         (soc_family, _, _, _, address) = socket.getaddrinfo(host, port)[0]
         self.targetsocket = socket.socket(soc_family)
         self.targetsocket.connect(address)
+        self.targetsocket.send(self.first_data)
 
-    def _read_write(self):
-        wrapper = OutputWrapper(self.clientsocket, self.targetsocket, self.clientbuffer)
-        self.clientbuffer = ''
-        wrapper.run()
-        # parser and output http datas.
-        try:
-            wrapper.output(self.level, self.outputfile)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
+    def _proxy_data(self):
+        """run the proxy"""
+        sockets = [self.clientsocket, self.targetsocket]
+        emptyReadCount = 0
+        while True:
+            emptyReadCount += 1
+            (recv, _, error) = select.select(sockets, [], sockets, _READ_TIMEOUT)
+            if error:
+                # connection closed, or error occured.
+                break
+
+            if not recv:
+                continue
+
+            for in_ in recv:
+                data = in_.recv(_BUF_SIZE)
+                out = (in_ is self.clientsocket) and self.targetsocket or self.clientsocket
+                httptype = (in_ is self.clientsocket) and HttpType.REQUEST or HttpType.RESPONSE
+                if data:
+                    out.send(data)
+                    emptyReadCount = 0
+                    yield httptype, data
+
+            if emptyReadCount == _MAX_READ_RETRY_COUNT:
+                break
 
 
 def _worker(workersocket, clientip, clientport, level, outputfile):
-    handler = ConnectionHandler(workersocket, level, outputfile)
-    handler.run()
-    outputfile.flush()
+    try:
+        buf = StringIO()
+        handler = ConnectionHandler(workersocket)
+        parse_http_data(handler.run(), level, buf)
+        outputfile.write(buf.getvalue())
+        outputfile.flush()
+    except Exception:
+        import traceback
+        traceback.print_exc()
 
 
 def start_server(host='0.0.0.0', port=8000, IPv6=False, level=0, output=None):
+    """start proxy server."""
     ipver = IPv6 and socket.AF_INET6 or socket.AF_INET
     serversocket = socket.socket(ipver)
     serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -168,20 +125,23 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, level=0, output=None):
     print "Proxy start on %s:%d" % (host, port)
     serversocket.listen(0)
 
-    if output:
-        outputfile = open(output, "w+")
-    else:
-        outputfile = sys.stdout
+    outputfile = output and open(output, "w+") or sys.stdout
 
-    # when press Ctrl+C
-    def signal_handler(signal, frame):
-        if output:
-            outputfile.close()
+    def clean():
+        """do clean job after process terminated"""
         try:
             serversocket.close()
         except:
             pass
-        # TODO:make all thread quit.
+        try:
+            outputfile.close()
+        except:
+            pass
+
+    # when press Ctrl+C, stop the proxy.
+    def signal_handler(signal, frame):
+        clean()
+        # TODO:stop all threads and close all files and sockets.
         print '\nStopping proxy...'
         sys.exit(0)
     signal.signal(signal.SIGINT, signal_handler)
@@ -194,8 +154,7 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, level=0, output=None):
             workerthread.setDaemon(True)
             workerthread.start()
     finally:
-        if output:
-            outputfile.close()
+        clean()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -213,6 +172,7 @@ if __name__ == '__main__':
         setting["port"] = args.port
     if args.output:
         setting["output"] = args.output
-    setting["level"] = args.verbosity
+    if args.verbosity:
+        setting["level"] = args.verbosity
 
     start_server(**setting)

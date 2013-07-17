@@ -17,7 +17,7 @@ def print_json(text, outputfile):
         # do not process a non-list-dict json
         try:
             data = json.loads(text)
-            print >>outputfile, json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')).encode('utf-8')
+            outputfile.write(json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')).encode('utf-8'))
             return True
         except Exception as e:
             return False
@@ -86,7 +86,7 @@ def parse_content_type(content_type):
 def istextbody(mime):
     if not mime:
         return False
-    return 'text' in mime or 'html' in mime or 'json' in mime or 'script' in mime
+    return 'text' in mime or 'html' in mime or 'json' in mime or 'script' in mime or 'www-form-urlencoded' in mime
 
 
 def decode_body(content, charset):
