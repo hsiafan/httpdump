@@ -305,7 +305,8 @@ def read_request(httpDataReader, level, outputfile, encoding=None):
 
     mime, charset = textutils.parse_content_type(headers.content_type)
     # usually charset is not set in http post
-    output_body = level >= OutputLevel.ALL_BODY or level >= OutputLevel.TEXT_BODY and textutils.istextbody(mime)
+    output_body = level >= OutputLevel.ALL_BODY and not textutils.isbinarybody(mime) \
+            or level >= OutputLevel.TEXT_BODY and textutils.istextbody(mime)
 
     content = ''
     # deal with body
@@ -344,7 +345,8 @@ def read_response(httpDataReader, level, outputfile, encoding=None):
     if encoding and not charset:
         charset = encoding
 
-    output_body = level >= OutputLevel.ALL_BODY or level >= OutputLevel.TEXT_BODY and textutils.istextbody(mime)
+    output_body = level >= OutputLevel.ALL_BODY and not textutils.isbinarybody(mime) \
+            or level >= OutputLevel.TEXT_BODY and textutils.istextbody(mime)
 
     content = ''
     # deal with body

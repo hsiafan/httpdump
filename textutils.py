@@ -29,7 +29,9 @@ def isgzip(content):
     """
     test if content is gzipped by magic num.
     """
-    if len(content) > 3 and ord(content[0:1]) == 31 and ord(content[1:2]) == 139 and ord(content[2:3]) == 8:
+    if content is not None and len(content) > 10 \
+        and ord(content[0:1]) == 31 and ord(content[1:2]) == 139 \
+        and ord(content[2:3]) == 8:
         return True
     return False
 
@@ -86,8 +88,15 @@ def parse_content_type(content_type):
 def istextbody(mime):
     if not mime:
         return False
-    return 'text' in mime or 'html' in mime or 'json' in mime or 'script' in mime or 'www-form-urlencoded' in mime
+    return 'text' in mime or 'html' in mime or 'xml' in mime or 'json' in mime or 'script' in mime or 'www-form-urlencoded' in mime
 
+def isbinarybody(mime):
+    if not mime:
+        return False
+    # some stupid client set mime to octet-stream even if it is a text content.
+    # and we cannot exclude the reponse without content-type headers.
+    # TODO: we need to judge if body is text by content.
+    return 'image' in mime or 'octet-stream' in mime or 'video' in mime or 'pdf' in mime
 
 def decode_body(content, charset):
     if charset:
