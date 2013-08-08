@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 #coding=utf-8
 from Queue import Queue
+import StringIO
 import argparse
 import textutils
 
@@ -15,6 +16,10 @@ from httpparser import HttpType, parse_http_data, OutputLevel
 
 class HttpConn:
     """all data having same source/dest ip/port in one http connection."""
+    STATUS_BEGIN = 0
+    STATUS_RUNNING = 1
+    STATUS_CLOSED = 2
+    STATUS_ERROR = -1
 
     def __init__(self, tcp_pac, level, outputfile, encoding):
         self.source_ip = tcp_pac.source
@@ -22,20 +27,34 @@ class HttpConn:
         self.dest_ip = tcp_pac.dest
         self.dest_port = tcp_pac.dest_port
 
-        self.status = 0
+        self.status = HttpConn.STATUS_BEGIN
         self.outputfile = outputfile
 
         self.queue = Queue()
+        self.buf = StringIO.StringIO()
         # start parser thread
-        self.parser_worker = parse_http_data(self.queue, level, outputfile, encoding)
+        self.parser_worker = parse_http_data(self.queue, level, self.buf, encoding)
         self.append(tcp_pac)
 
     def append(self, tcp_pac):
         if len(tcp_pac.body) == 0:
             return
-        if self.status == -1 or self.status == 2:
+        if self.status == HttpConn.STATUS_ERROR or self.status == HttpConn.STATUS_CLOSED:
             # not http conn or conn already closed.
             return
+
+        if self.status == HttpConn.STATUS_BEGIN:
+            if tcp_pac.body:
+                if textutils.ishttprequest(tcp_pac.body):
+                    self.status = HttpConn.STATUS_RUNNING
+        if tcp_pac.pac_type == -1:
+            # end of connection
+            if self.status == HttpConn.STATUS_RUNNING:
+                self.status = HttpConn.STATUS_CLOSED
+            else:
+                self.status = HttpConn.STATUS_ERROR
+            return
+
         if tcp_pac.source == self.source_ip:
             httptype = HttpType.REQUEST
         else:
@@ -44,20 +63,10 @@ class HttpConn:
         if tcp_pac.body:
             self.queue.put((httptype, tcp_pac.body))
 
-        if self.status == 0:
-            if tcp_pac.body != '':
-                if textutils.ishttprequest(tcp_pac.body):
-                    self.status = 1
-        if tcp_pac.pac_type == -1:
-            # end of connection
-            if self.status == 1:
-                self.status = 2
-            else:
-                self.status = -2
-
     def finish(self):
         self.queue.put((None, None))
         self.parser_worker.join()
+        self.outputfile.write(self.buf.getvalue())
 
 def print_help():
     print """Usage: python show_pcap.py [option] file
@@ -111,7 +120,7 @@ def main():
             if key in conn_dict:
                 conn_dict[key].append(tcp_pac)
                 # conn closed.
-                if tcp_pac.pac_type == -1:
+                if tcp_pac.pac_type == pcap.TcpPack.TYPE_CLOSE:
                     conn_dict[key].finish()
                     outputfile.flush()
                     del conn_dict[key]

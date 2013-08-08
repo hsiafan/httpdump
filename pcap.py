@@ -9,6 +9,11 @@ class TcpPack:
     """
     represent a tcp package.
     """
+
+    TYPE_INIT = 1  # init tcp connection
+    TYPE_ESTAB = 0  # establish conn
+    TYPE_CLOSE = -1  # close tcp connection
+
     def __init__(self, source, source_port, dest, dest_port, pac_type, seq, ack, body):
         self.source = source
         self.source_port = source_port
@@ -105,7 +110,7 @@ def readPcapPackage(infile):
         # ip header
         ip_header = infile.read(20)
         (f, ip_length, protocol) = struct.unpack('!BxH5xB10x', ip_header)
-        ip_header_len = (f & 0xF) * 4;
+        ip_header_len = (f & 0xF) * 4
         ip_version = (f >> 4) & 0xF
         # not tcp.
         if protocol != 6:
@@ -119,7 +124,7 @@ def readPcapPackage(infile):
         # tcp header
         tcp_header = infile.read(20)
         (source_port, dest_port, seq, ack_seq, t_f, flags) = struct.unpack('!HHIIBB6x', tcp_header)
-        tcp_header_len = ((t_f>>4) & 0xF) * 4
+        tcp_header_len = ((t_f >> 4) & 0xF) * 4
         # skip extension headers
         if tcp_header_len > 20:
             infile.read(tcp_header_len - 20)
@@ -140,11 +145,11 @@ def readPcapPackage(infile):
             infile.seek(body_len - body_len2, 1)
         if syn == 1 and ack == 0:
             # init tcp connection
-            pac_type = 1
+            pac_type = TcpPack.TYPE_INIT
         elif fin == 1:
-            pac_type = -1
+            pac_type = TcpPack.TYPE_CLOSE
         else:
-            pac_type = 0
+            pac_type = TcpPack.TYPE_ESTAB
 
         pack = TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
         yield pack
