@@ -188,7 +188,8 @@ def readPcapPackageRegular(infile):
             fetch_packs = conn_dict[key]
             cdict = conn_dict
 
-        hold_packs.append(pack)
+        if pack.body or pack.pac_type != TcpPack.TYPE_ESTAB:
+            hold_packs.append(pack)
         ack_packs = [ipack for ipack in fetch_packs if ipack.expectAck() <= pack.ack]
         remain_packs = [ipack for ipack in fetch_packs if ipack.expectAck() > pack.ack]
         cdict[key] = remain_packs
