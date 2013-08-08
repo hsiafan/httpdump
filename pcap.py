@@ -11,6 +11,7 @@ class TcpPack:
     """
 
     TYPE_INIT = 1  # init tcp connection
+    TYPE_INIT_ACK = 2
     TYPE_ESTAB = 0  # establish conn
     TYPE_CLOSE = -1  # close tcp connection
 
@@ -38,6 +39,12 @@ class TcpPack:
         else:
             key = dkey + '-' + skey
         return key
+
+    def expectAck(self):
+        if self.pac_type == TcpPack.TYPE_ESTAB:
+            return self.seq + len(self.body)
+        else:
+            return self.seq + 1
 
 
 def pcapCheck(infile):
@@ -103,7 +110,7 @@ def readPcapPackage(infile):
         if n_protocol != 2048:
             infile.seek(package_len - 14, 1)
             if n_protocol == 34525:
-                # TODO: ipv6 package
+                # TODO: deal with ipv6 package
                 pass
             continue
 
@@ -146,6 +153,8 @@ def readPcapPackage(infile):
         if syn == 1 and ack == 0:
             # init tcp connection
             pac_type = TcpPack.TYPE_INIT
+        elif syn == 1 and ack == 1:
+            pac_type = TcpPack.TYPE_INIT_ACK
         elif fin == 1:
             pac_type = TcpPack.TYPE_CLOSE
         else:
@@ -153,3 +162,35 @@ def readPcapPackage(infile):
 
         pack = TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
         yield pack
+
+
+def readPcapPackageRegular(infile):
+    """
+    clean up tcp packages.
+    note:we abandon the last ack package after fin.
+    """
+    conn_dict = {}
+    reverse_conn_dict = {}
+    direction_dict = {}
+    for pack in readPcapPackage(infile):
+        key = pack.gen_key()
+        if key not in conn_dict:
+            conn_dict[key] = []
+            reverse_conn_dict[key] = []
+            direction_dict[key] = pack.source
+
+        if pack.source == direction_dict[key]:
+            hold_packs = conn_dict[key]
+            fetch_packs = reverse_conn_dict[key]
+            cdict = reverse_conn_dict
+        else:
+            hold_packs = reverse_conn_dict[key]
+            fetch_packs = conn_dict[key]
+            cdict = conn_dict
+
+        hold_packs.append(pack)
+        ack_packs = [ipack for ipack in fetch_packs if ipack.expectAck() <= pack.ack]
+        remain_packs = [ipack for ipack in fetch_packs if ipack.expectAck() > pack.ack]
+        cdict[key] = remain_packs
+        for ipack in sorted(ack_packs, key=lambda x:x.seq):
+            yield ipack

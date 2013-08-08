@@ -67,19 +67,7 @@ class HttpConn:
         self.queue.put((None, None))
         self.parser_worker.join()
         self.outputfile.write(self.buf.getvalue())
-
-def print_help():
-    print """Usage: python show_pcap.py [option] file
-    Options:
-    -v      : show request/response headers
-    -vv     : show text request/response bodys
-    -vvv    : show all request/response bodys
-    -d      : debug output.show package infos
-    -h      : show helps
-    -p port : only parser tcp packages with port(dest or source)
-    -i ip   : only parser tcp packages with ip(dest or source)
-    -e encoding : specify encoding to decode http response. auto detect if not specified.
-    """
+        self.outputfile.flush()
 
 
 def main():
@@ -108,7 +96,8 @@ def main():
 
     with open(filepath) as pcap_file:
         conn_dict = OrderedDict()
-        for tcp_pac in pcap.readPcapPackage(pcap_file):
+        for tcp_pac in pcap.readPcapPackageRegular(pcap_file):
+
             #filter
             if port is not None and tcp_pac.source_port != port and tcp_pac.dest_port != port:
                 continue
@@ -122,24 +111,19 @@ def main():
                 # conn closed.
                 if tcp_pac.pac_type == pcap.TcpPack.TYPE_CLOSE:
                     conn_dict[key].finish()
-                    outputfile.flush()
                     del conn_dict[key]
 
             # begin tcp connection.
             elif tcp_pac.pac_type == 1:
                 conn_dict[key] = HttpConn(tcp_pac, level, outputfile, encoding)
             elif tcp_pac.pac_type == 0:
-                # tcp init before capature
+                # tcp init before capature, we found a http request header, begin parse
                 # if is a http request?
                 if textutils.ishttprequest(tcp_pac.body):
                     conn_dict[key] = HttpConn(tcp_pac, level, outputfile, encoding)
-            else:
-                # ignore 
-                pass
 
         for conn in conn_dict.values():
             conn.finish()
-            outputfile.flush()
 
     if args.output:
         outputfile.close()
