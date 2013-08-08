@@ -25,6 +25,7 @@ class TcpPack:
         self.ack = ack
         self.body = body
         self.direction = 0
+        self.key = None
 
     def __str__(self):
         return "%s:%d  -->  %s:%d, type:%d, seq:%d, ack:%s size:%d" % \
@@ -32,13 +33,15 @@ class TcpPack:
                 self.ack, len(self.body))
 
     def gen_key(self):
+        if self.key:
+            return self.key
         skey = self.source + ':' + str(self.source_port)
         dkey = self.dest + ':' + str(self.dest_port)
         if cmp(skey, dkey) < 0:
-            key = skey + '-' + dkey
+            self.key = skey + '-' + dkey
         else:
-            key = dkey + '-' + skey
-        return key
+            self.key = dkey + '-' + skey
+        return self.key
 
     def expectAck(self):
         if self.pac_type == TcpPack.TYPE_ESTAB:
@@ -177,9 +180,9 @@ def readPcapPackageRegular(infile):
         if key not in conn_dict:
             conn_dict[key] = []
             reverse_conn_dict[key] = []
-            direction_dict[key] = pack.source
+            direction_dict[key] = pack.source + str(pack.source_port)
 
-        if pack.source == direction_dict[key]:
+        if pack.source + str(pack.source_port) == direction_dict[key]:
             hold_packs = conn_dict[key]
             fetch_packs = reverse_conn_dict[key]
             cdict = reverse_conn_dict
@@ -195,3 +198,5 @@ def readPcapPackageRegular(infile):
         cdict[key] = remain_packs
         for ipack in sorted(ack_packs, key=lambda x:x.seq):
             yield ipack
+
+        # TODO: add close sokect logic, and delete elements from dicts.
