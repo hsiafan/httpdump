@@ -1,4 +1,6 @@
 #coding=utf8
+from Queue import Queue
+
 __author__ = "dongliu"
 
 import sys
@@ -17,10 +19,11 @@ _READ_TIMEOUT = 3
 
 class ConnectionHandler(object):
     """handle one connection from client"""
-    def __init__(self, clientsocket):
+    def __init__(self, clientsocket, queue):
         self.clientsocket = clientsocket
         self.first_data = ''
         self.httptype = HttpType.REQUEST
+        self.queue = queue
 
     def run(self):
         while True:
@@ -33,14 +36,13 @@ class ConnectionHandler(object):
         try:
             if self.method == 'CONNECT':
                 self.first_data = self.first_data[end + 1:]
-                yield HttpType.REQUEST, self.first_data[end + 1:]
-                for data in self._method_CONNECT():
-                    yield data
+                self.queue.put((HttpType.REQUEST, self.first_data[end + 1:]))
+                self._method_CONNECT()
             elif self.method in ('OPTIONS', 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE'):
-                yield HttpType.REQUEST, self.first_data
-                for data in self._method_others():
-                    yield data
+                self.queue.put((HttpType.REQUEST, self.first_data))
+                self._method_others()
         finally:
+            self.queue.put((None, None))
             self.clientsocket.close()
             # self.targetsocket.close()
 
@@ -48,8 +50,7 @@ class ConnectionHandler(object):
         """for http proxy connect method. it is usually for https proxy"""
         self._connect_target(self.path)
         self.clientsocket.send('HTTP/1.1 200 Connection established\nProxy-agent: Python Proxy\n\n')
-        for data in self._proxy_data():
-            yield data
+        self._proxy_data()
 
     def _method_others(self):
         self.path = self.path[7:]
@@ -57,8 +58,7 @@ class ConnectionHandler(object):
         host = self.path[:i]
         path = self.path[i:]
         self._connect_target(host)
-        for data in self._proxy_data():
-            yield data
+        self._proxy_data()
 
     def _connect_target(self, host):
         i = host.find(':')
@@ -93,7 +93,7 @@ class ConnectionHandler(object):
                 if data:
                     out.send(data)
                     emptyReadCount = 0
-                    yield httptype, data
+                    self.queue.put((httptype, data))
 
             if emptyReadCount == _MAX_READ_RETRY_COUNT:
                 break
@@ -102,8 +102,11 @@ class ConnectionHandler(object):
 def _worker(workersocket, clientip, clientport, level, outputfile):
     try:
         buf = StringIO()
-        handler = ConnectionHandler(workersocket)
-        parse_http_data(handler.run(), level, buf)
+        queue = Queue()
+        handler = ConnectionHandler(workersocket, queue)
+        parser_worker = parse_http_data(queue, level, buf)
+        handler.run()
+        parser_worker.join()
         outputfile.write(buf.getvalue())
         outputfile.flush()
     except Exception:

@@ -1,4 +1,6 @@
 #coding=utf-8
+import threading
+
 __author__ = 'dongliu'
 
 import textutils
@@ -371,12 +373,12 @@ def read_response(httpDataReader, level, outputfile, encoding=None):
         print_body(content, headers.gzip, encoding, outputfile)
 
 
-def parse_http_data(generator, level, outputfile, encoding=None):
+def parse_http_data(queue, level, outputfile, encoding=None):
 
     class ResetableWrapper(object):
         """a wrapper to distinct request and response datas."""
-        def __init__(self, generator):
-            self.generator = generator
+        def __init__(self, queue):
+            self.queue = queue
             self.cur_httptype = None
             self.last_data = None
             self.finish = False
@@ -393,7 +395,11 @@ def parse_http_data(generator, level, outputfile, encoding=None):
                 self.last_data = None
                 yield temp
 
-            for httptype, data in self.generator:
+            while True:
+                httptype, data = self.queue.get(block=True, timeout=None)
+                if data is None:
+                    #None mean finish.
+                    break
                 if httptype == self.cur_httptype:
                     yield data
                 else:
@@ -402,28 +408,37 @@ def parse_http_data(generator, level, outputfile, encoding=None):
                     return
             self.finish = True
 
-    wrapper = ResetableWrapper(generator)
-    try:
-        while wrapper.remains():
-            wrapper.setType(HttpType.REQUEST)
-            reader = DataReader(wrapper.wrap())
-            if reader.fetchline() is None:
-                break
-            read_request(reader, level, outputfile, encoding)
+    def _work(queue, level, outputfile, encoding=None):
+        wrapper = ResetableWrapper(queue)
+        try:
+            while wrapper.remains():
+                wrapper.setType(HttpType.REQUEST)
+                reader = DataReader(wrapper.wrap())
+                if reader.fetchline() is None:
+                    break
+                read_request(reader, level, outputfile, encoding)
 
-            wrapper.setType(HttpType.RESPONSE)
-            reader = DataReader(wrapper.wrap())
-            if not wrapper.remains():
-                outputfile.write('{Http response missing}\n\n')
-                break
-            if reader.fetchline() is None:
-                outputfile.write('{Gttp response missing}\n\n')
-                break
-            read_response(reader, level, outputfile, encoding)
-            outputfile.write('\n')
-    except Exception as e:
-        import traceback
-        traceback.print_exc(file=outputfile)
-        # for proxy mode, make sure http-proxy works well
-        for value in generator:
-            pass
+                wrapper.setType(HttpType.RESPONSE)
+                reader = DataReader(wrapper.wrap())
+                if not wrapper.remains():
+                    outputfile.write('{Http response missing}\n\n')
+                    break
+                if reader.fetchline() is None:
+                    outputfile.write('{Gttp response missing}\n\n')
+                    break
+                read_response(reader, level, outputfile, encoding)
+                outputfile.write('\n')
+        except Exception as e:
+            import traceback
+            traceback.print_exc(file=outputfile)
+            # consume all datas.
+            # for proxy mode, make sure http-proxy works well
+            while True:
+                httptype, data = queue.get(block=True, timeout=None)
+                if data is None:
+                    break
+
+    worker = threading.Thread(target=_work, args=(queue, level, outputfile, encoding))
+    worker.setDaemon(False)
+    worker.start()
+    return worker

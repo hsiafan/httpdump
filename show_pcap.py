@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 #coding=utf-8
+from Queue import Queue
 import argparse
 import textutils
 
@@ -15,15 +16,19 @@ from httpparser import HttpType, parse_http_data, OutputLevel
 class HttpConn:
     """all data having same source/dest ip/port in one http connection."""
 
-    def __init__(self, tcp_pac):
+    def __init__(self, tcp_pac, level, outputfile, encoding):
         self.source_ip = tcp_pac.source
         self.source_port = tcp_pac.source_port
         self.dest_ip = tcp_pac.dest
         self.dest_port = tcp_pac.dest_port
-        self.pac_list = []
-        if len(tcp_pac.body) > 0:
-            self.pac_list.append(tcp_pac)
+
         self.status = 0
+        self.outputfile = outputfile
+
+        self.queue = Queue()
+        # start parser thread
+        self.parser_worker = parse_http_data(self.queue, level, outputfile, encoding)
+        self.append(tcp_pac)
 
     def append(self, tcp_pac):
         if len(tcp_pac.body) == 0:
@@ -31,10 +36,13 @@ class HttpConn:
         if self.status == -1 or self.status == 2:
             # not http conn or conn already closed.
             return
-        if tcp_pac.source != self.source_ip:
-            tcp_pac.direction = 1
+        if tcp_pac.source == self.source_ip:
+            httptype = HttpType.REQUEST
+        else:
+            httptype = HttpType.RESPONSE
 
-        self.pac_list.append(tcp_pac)
+        if tcp_pac.body:
+            self.queue.put((httptype, tcp_pac.body))
 
         if self.status == 0:
             if tcp_pac.body != '':
@@ -47,58 +55,9 @@ class HttpConn:
             else:
                 self.status = -2
 
-    def output(self, outputfile):
-        if self.status <= -1:
-            return
-        elif self.status == 0:
-            return
-        elif self.status == 1:
-            pass
-        elif self.status == 2:
-            pass
-        outputfile.write("%s:%d --- -- - > %s:%d" % (self.source_ip, self.source_port, self.dest_ip, self.dest_port))
-        outputfile.write('\n')
-
-        request_pacs = []
-        response_pacs = []
-        state = 0
-        for pac in self.pac_list:
-            if len(pac.body) == 0:
-                continue
-            if state == 0:
-                if pac.direction == 1:
-                    for value in self._wrap(request_pacs, HttpType.REQUEST):
-                        yield value
-                    state = 1
-                    response_pacs.append(pac)
-                    del request_pacs[:]
-                else:
-                    request_pacs.append(pac)
-            else:
-                if pac.direction == 0:
-                    for value in self._wrap(response_pacs, HttpType.RESPONSE):
-                        yield value
-                    state = 0
-                    request_pacs.append(pac)
-                    del response_pacs[:]
-                else:
-                    response_pacs.append(pac)
-
-        if len(request_pacs) > 0:
-            for value in self._wrap(request_pacs, HttpType.REQUEST):
-                yield value
-        if len(response_pacs) > 0:
-            for value in self._wrap(response_pacs, HttpType.RESPONSE):
-                yield value
-
-
-    def _wrap(self, pacs, httptype):
-        pacs.sort(key=lambda x: x.seq)
-        #TODO: handle with tcp retransmission
-        #TODO: do not wait for and hold all datas.
-        for pac in pacs:
-            yield httptype, pac.body
-
+    def finish(self):
+        self.queue.put((None, None))
+        self.parser_worker.join()
 
 def print_help():
     print """Usage: python show_pcap.py [option] file
@@ -153,24 +112,24 @@ def main():
                 conn_dict[key].append(tcp_pac)
                 # conn closed.
                 if tcp_pac.pac_type == -1:
-                    parse_http_data(conn_dict[key].output(outputfile), level, outputfile, encoding)
+                    conn_dict[key].finish()
                     outputfile.flush()
                     del conn_dict[key]
 
             # begin tcp connection.
             elif tcp_pac.pac_type == 1:
-                conn_dict[key] = HttpConn(tcp_pac)
+                conn_dict[key] = HttpConn(tcp_pac, level, outputfile, encoding)
             elif tcp_pac.pac_type == 0:
                 # tcp init before capature
                 # if is a http request?
                 if textutils.ishttprequest(tcp_pac.body):
-                    conn_dict[key] = HttpConn(tcp_pac)
+                    conn_dict[key] = HttpConn(tcp_pac, level, outputfile, encoding)
             else:
                 # ignore 
                 pass
 
         for conn in conn_dict.values():
-            parse_http_data(conn.output(outputfile), level, outputfile, encoding)
+            conn.finish()
             outputfile.flush()
 
     if args.output:
