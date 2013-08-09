@@ -16,6 +16,7 @@ class DataReader(object):
     """
     wrap http data for read.
     """
+
     def __init__(self, data_generator):
         self.data_generaotr = data_generator
         self.data = None
@@ -44,8 +45,8 @@ class DataReader(object):
 
             idx = self.data.find('\n')
             if idx >= 0:
-                buffers.append(self.data[0:idx+1])
-                self.data = self.data[idx+1:]
+                buffers.append(self.data[0:idx + 1])
+                self.data = self.data[idx + 1:]
                 break
             if self.data:
                 buffers.append(self.data)
@@ -66,6 +67,9 @@ class DataReader(object):
         else:
             self.data = line
 
+        # self.finish may be True, mark it as False
+        if self.data:
+            self.finish = False
         return line
 
     def read(self, size):
@@ -83,7 +87,7 @@ class DataReader(object):
 
             if len(self.data) >= size - read_size:
                 buffers.append(self.data[0:size - read_size])
-                self.data = self.data[size-read_size:]
+                self.data = self.data[size - read_size:]
                 break
 
             if self.data:
@@ -106,7 +110,7 @@ class DataReader(object):
                 continue
 
             if len(self.data) >= size - read_size:
-                self.data = self.data[size-read_size:]
+                self.data = self.data[size - read_size:]
                 read_size = size
                 break
 
@@ -151,6 +155,7 @@ class HttpRequestHeader(object):
         self.chunked = False
         self.host = ''
         self.request = ''
+        self.expect = ''
 
 
 class HttpReponseHeader(object):
@@ -235,6 +240,8 @@ def read_http_headers(reader, level, outputfile):
     headers.gzip = ('gzip' in header_dict["content-encoding"])
     headers.host = header_dict["host"]
     headers.connectionclose = (header_dict['connection'] == 'close')
+    if 'expect' in header_dict:
+        headers.expect = header_dict['expect']
 
     if level >= OutputLevel.HEADER:
         outputfile.write('\n')
@@ -256,7 +263,7 @@ def read_chunked_body(pacReader, skip=False):
         chunk_size_end = cline.find(';')
         if chunk_size_end < 0:
             chunk_size_end = len(cline)
-        # skip chunk extension
+            # skip chunk extension
         chunk_size_str = cline[0:chunk_size_end]
         # the last chunk
         if chunk_size_str[0] == '0':
@@ -267,7 +274,7 @@ def read_chunked_body(pacReader, skip=False):
                 if cline is None or len(cline.strip()) == 0:
                     break
             return ''.join(result)
-        # chunk size
+            # chunk size
         chunk_size_str = chunk_size_str.strip()
         try:
             chunk_len = int(chunk_size_str, 16)
@@ -284,62 +291,78 @@ def read_chunked_body(pacReader, skip=False):
         pacReader.readline()
 
 
-def print_body(content, gzipped, charset, outputfile):
+def print_body(content, gzipped, charset, outputfile, form_encoded=True):
     if gzipped:
         content = textutils.ungzip(content)
     content = textutils.decode_body(content, charset)
     if content:
-        textutils.print_json(content, outputfile) or outputfile.write(content)
+        import urllib
+        content = urllib.unquote(content)
+    if content:
+        textutils.try_print_json(content, outputfile)
     else:
         outputfile.write("{empty body}")
     outputfile.write('\n\n')
 
-def read_request(httpDataReader, level, outputfile, encoding=None):
+
+def read_request(reader, level, outputfile, request_status, encoding=None):
     """
     read and output one http request.
     """
-    headers = read_http_headers(httpDataReader, level, outputfile)
-    if headers is None or not isinstance(headers, HttpRequestHeader):
-        outputfile.write("{Error, cannot parse http request headers.}")
-        outputfile.write('\n')
-        print httpDataReader.readall()
-        return
+    if 'expect' in request_status and not textutils.ishttprequest(reader.fetchline()):
+            headers = request_status['expect']
+            del request_status['expect']
+    else:
+        headers = read_http_headers(reader, level, outputfile)
+        if headers.expect:
+            # assume it is expect:continue-100
+            request_status['expect'] = headers
+        if headers is None or not isinstance(headers, HttpRequestHeader):
+            outputfile.write("{Error, cannot parse http request headers.}")
+            outputfile.write('\n')
+            print reader.readall()
+            return
 
     mime, charset = textutils.parse_content_type(headers.content_type)
     # usually charset is not set in http post
     output_body = level >= OutputLevel.ALL_BODY and not textutils.isbinarybody(mime) \
-            or level >= OutputLevel.TEXT_BODY and textutils.istextbody(mime)
+        or level >= OutputLevel.TEXT_BODY and textutils.istextbody(mime)
 
     content = ''
     # deal with body
     if not headers.chunked:
         if output_body:
-            content = httpDataReader.read(headers.content_len)
+            content = reader.read(headers.content_len)
         else:
-            httpDataReader.skip(headers.content_len)
+            reader.skip(headers.content_len)
     else:
-        content = read_chunked_body(httpDataReader)
+        content = read_chunked_body(reader)
 
     if not headers.gzip:
         # if is gzip by content magic header
         # someone missed the content-encoding header
         headers.gzip = textutils.isgzip(content)
 
-    #TODO: unescape www-form-encoded data.
     # if it is form url encode
+
+    if 'expect' in request_status and not content:
+        content = '{Expect-continue-100, see next content for http post body}'
     if output_body:
-        print_body(content, headers.gzip, encoding, outputfile)
+        #unescape www-form-encoded data.x-www-form-urlencoded
+        if encoding and not charset:
+            charset = encoding
+        print_body(content, headers.gzip, charset, outputfile, 'www-form-encoded' in mime)
 
 
-def read_response(httpDataReader, level, outputfile, encoding=None):
+def read_response(reader, level, outputfile, request_status, encoding=None):
     """
     read and output one http response
     """
-    headers = read_http_headers(httpDataReader, level, outputfile)
+    headers = read_http_headers(reader, level, outputfile)
     if headers is None or not isinstance(headers, HttpReponseHeader):
         outputfile.write("{Error, cannot parse http response headers.}")
         outputfile.write('\n')
-        httpDataReader.skipall()
+        reader.skipall()
         return
 
     # read body
@@ -348,7 +371,7 @@ def read_response(httpDataReader, level, outputfile, encoding=None):
         charset = encoding
 
     output_body = level >= OutputLevel.ALL_BODY and not textutils.isbinarybody(mime) \
-            or level >= OutputLevel.TEXT_BODY and textutils.istextbody(mime)
+        or level >= OutputLevel.TEXT_BODY and textutils.istextbody(mime)
 
     content = ''
     # deal with body
@@ -362,21 +385,21 @@ def read_response(httpDataReader, level, outputfile, encoding=None):
                 #TODO: we can't get content length, and is not a chunked body.
                 pass
         if output_body:
-            content = httpDataReader.read(headers.content_len)
+            content = reader.read(headers.content_len)
         else:
-            httpDataReader.skip(headers.content_len)
+            reader.skip(headers.content_len)
     else:
         #TODO: could skip chunked data.
-        content = read_chunked_body(httpDataReader)
+        content = read_chunked_body(reader)
 
     if output_body:
-        print_body(content, headers.gzip, encoding, outputfile)
+        print_body(content, headers.gzip, charset, outputfile)
 
 
-def parse_http_data(queue, level, outputfile, encoding=None):
-
+def parse_http_data(queue, level, outputfile, client_host, remote_host, encoding=None):
     class ResetableWrapper(object):
         """a wrapper to distinct request and response datas."""
+
         def __init__(self, queue):
             self.queue = queue
             self.cur_httptype = None
@@ -409,6 +432,10 @@ def parse_http_data(queue, level, outputfile, encoding=None):
             self.finish = True
 
     def _work(queue, level, outputfile, encoding=None):
+        outputfile.write("Connection: [%s:%d] --- -- - > [%s:%d]\n" %
+                         (client_host[0], client_host[1], remote_host[0], remote_host[1]))
+
+        request_status = {}
         wrapper = ResetableWrapper(queue)
         try:
             while wrapper.remains():
@@ -416,7 +443,7 @@ def parse_http_data(queue, level, outputfile, encoding=None):
                 reader = DataReader(wrapper.wrap())
                 if reader.fetchline() is None:
                     break
-                read_request(reader, level, outputfile, encoding)
+                read_request(reader, level, outputfile, request_status, encoding)
 
                 wrapper.setType(HttpType.RESPONSE)
                 reader = DataReader(wrapper.wrap())
@@ -426,10 +453,11 @@ def parse_http_data(queue, level, outputfile, encoding=None):
                 if reader.fetchline() is None:
                     outputfile.write('{Gttp response missing}\n\n')
                     break
-                read_response(reader, level, outputfile, encoding)
+                read_response(reader, level, outputfile, request_status, encoding)
                 outputfile.write('\n')
         except Exception as e:
             import traceback
+
             traceback.print_exc(file=outputfile)
             # consume all datas.
             # for proxy mode, make sure http-proxy works well

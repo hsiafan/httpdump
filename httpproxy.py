@@ -24,8 +24,9 @@ class ConnectionHandler(object):
         self.first_data = ''
         self.httptype = HttpType.REQUEST
         self.queue = queue
+        self.remote_host = None
 
-    def run(self):
+    def init_connect(self):
         while True:
             self.first_data += self.clientsocket.recv(_BUF_SIZE)
             end = self.first_data.find('\n')
@@ -33,24 +34,23 @@ class ConnectionHandler(object):
                 break
         self.method, self.path, self.protocol = self.first_data[:end + 1].split()
 
-        try:
-            if self.method == 'CONNECT':
-                self.first_data = self.first_data[end + 1:]
-                self.queue.put((HttpType.REQUEST, self.first_data[end + 1:]))
-                self._method_CONNECT()
-            elif self.method in ('OPTIONS', 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE'):
-                self.queue.put((HttpType.REQUEST, self.first_data))
-                self._method_others()
-        finally:
-            self.queue.put((None, None))
-            self.clientsocket.close()
-            # self.targetsocket.close()
+        if self.method == 'CONNECT':
+            self.first_data = self.first_data[end + 1:]
+            self.queue.put((HttpType.REQUEST, self.first_data[end + 1:]))
+            self._method_CONNECT()
+        elif self.method in ('OPTIONS', 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE'):
+            self.queue.put((HttpType.REQUEST, self.first_data))
+            self._method_others()
+
+    def close(self):
+        self.queue.put((None, None))
+        self.clientsocket.close()
+        self.targetsocket.close()
 
     def _method_CONNECT(self):
         """for http proxy connect method. it is usually for https proxy"""
         self._connect_target(self.path)
         self.clientsocket.send('HTTP/1.1 200 Connection established\nProxy-agent: Python Proxy\n\n')
-        self._proxy_data()
 
     def _method_others(self):
         self.path = self.path[7:]
@@ -58,21 +58,25 @@ class ConnectionHandler(object):
         host = self.path[:i]
         path = self.path[i:]
         self._connect_target(host)
-        self._proxy_data()
 
     def _connect_target(self, host):
         i = host.find(':')
         if i != -1:
-            port = int(host[i + 1:])
+            portstr = host[i + 1:]
+            if portstr:
+                port = int(host[i + 1:])
+            else:
+                port = 80
             host = host[:i]
         else:
             port = 80
         (soc_family, _, _, _, address) = socket.getaddrinfo(host, port)[0]
+        self.remote_host = address
         self.targetsocket = socket.socket(soc_family)
         self.targetsocket.connect(address)
         self.targetsocket.send(self.first_data)
 
-    def _proxy_data(self):
+    def proxy_data(self):
         """run the proxy"""
         sockets = [self.clientsocket, self.targetsocket]
         emptyReadCount = 0
@@ -104,8 +108,10 @@ def _worker(workersocket, clientip, clientport, level, outputfile):
         buf = StringIO()
         queue = Queue()
         handler = ConnectionHandler(workersocket, queue)
-        parser_worker = parse_http_data(queue, level, buf)
-        handler.run()
+        handler.init_connect()
+        parser_worker = parse_http_data(queue, level, buf, (clientip, clientport), handler.remote_host)
+        handler.proxy_data()
+        handler.close()
         parser_worker.join()
         outputfile.write(buf.getvalue())
         outputfile.flush()
@@ -143,9 +149,9 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, level=0, output=None):
 
     # when press Ctrl+C, stop the proxy.
     def signal_handler(signal, frame):
+        print '\nStopping proxy...'
         clean()
         # TODO:stop all threads and close all files and sockets.
-        print '\nStopping proxy...'
         sys.exit(0)
     signal.signal(signal.SIGINT, signal_handler)
 
@@ -166,6 +172,8 @@ if __name__ == '__main__':
     parser.add_argument("-6", "--ipv6", help="use ipv6", action="store_true")
     parser.add_argument("-v", "--verbosity", help="increase output verbosity(-vv is recommended)", action="count")
     parser.add_argument("-o", "--output", help="output to file instead of stdout")
+    parser.add_argument("-b", "--beauty", help="output json in a pretty way.", action="store_true")
+
 
     args = parser.parse_args()
     setting = {"IPv6": args.ipv6}

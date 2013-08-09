@@ -33,7 +33,8 @@ class HttpConn:
         self.queue = Queue()
         self.buf = StringIO.StringIO()
         # start parser thread
-        self.parser_worker = parse_http_data(self.queue, level, self.buf, encoding)
+        self.parser_worker = parse_http_data(self.queue, level, self.buf, (self.source_ip, self.source_port),
+                                             (self.dest_ip, self.dest_port), encoding)
         self.append(tcp_pac)
 
     def append(self, tcp_pac):
@@ -78,6 +79,8 @@ def main():
     parser.add_argument("-v", "--verbosity", help="increase output verbosity(-vv is recommended)", action="count")
     parser.add_argument("-o", "--output", help="output to file instead of stdout")
     parser.add_argument("-e", "--encoding", help="decode the data use specified encodings.")
+    parser.add_argument("-b", "--beauty", help="output json in a pretty way.", action="store_true")
+
     args = parser.parse_args()
 
     filepath = args.pcap_file
@@ -93,6 +96,7 @@ def main():
         outputfile = open(args.output, "w+")
     else:
         outputfile = sys.stdout
+
 
     with open(filepath) as pcap_file:
         conn_dict = OrderedDict()

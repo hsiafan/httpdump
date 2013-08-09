@@ -6,12 +6,13 @@ import StringIO
 import gzip
 
 
-def print_json(text, outputfile):
+def try_print_json(text, outputfile):
 
     if text is None:
         return
     if len(text) > 500000:
         # do not process to large text
+        outputfile.write(text)
         return False
     if text.startswith('{') and text.endswith('}') or text.startswith('{') and text.endswith('}'):
         # do not process a non-list-dict json
@@ -20,8 +21,10 @@ def print_json(text, outputfile):
             outputfile.write(json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')).encode('utf-8'))
             return True
         except Exception as e:
+            outputfile.write(text)
             return False
     else:
+        outputfile.write(text)
         return False
 
 
