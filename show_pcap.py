@@ -3,6 +3,7 @@
 from Queue import Queue
 import StringIO
 import argparse
+import config
 import textutils
 
 __author__ = 'dongliu'
@@ -11,7 +12,8 @@ import sys
 from collections import OrderedDict
 
 import pcap
-from httpparser import HttpType, parse_http_data, OutputLevel
+from httpparser import HttpType, parse_http_data
+from config import parse_config
 
 
 class HttpConn:
@@ -21,7 +23,7 @@ class HttpConn:
     STATUS_CLOSED = 2
     STATUS_ERROR = -1
 
-    def __init__(self, tcp_pac, level, outputfile, encoding):
+    def __init__(self, tcp_pac, outputfile):
         self.source_ip = tcp_pac.source
         self.source_port = tcp_pac.source_port
         self.dest_ip = tcp_pac.dest
@@ -33,8 +35,8 @@ class HttpConn:
         self.queue = Queue()
         self.buf = StringIO.StringIO()
         # start parser thread
-        self.parser_worker = parse_http_data(self.queue, level, self.buf, (self.source_ip, self.source_port),
-                                             (self.dest_ip, self.dest_port), encoding)
+        self.parser_worker = parse_http_data(self.queue, self.buf, (self.source_ip, self.source_port),
+                                             (self.dest_ip, self.dest_port), parse_config)
         self.append(tcp_pac)
 
     def append(self, tcp_pac):
@@ -86,17 +88,17 @@ def main():
     filepath = args.pcap_file
     port = args.port
     ip = args.ip
+
     if args.verbosity:
-        level = args.verbosity
-    else:
-        level = OutputLevel.ONLY_URL
-    encoding = args.encoding
+        parse_config.level = args.verbosity
+    if args.encoding:
+        parse_config.encoding = args.encoding
+    parse_config.pretty = args.beauty
 
     if args.output:
         outputfile = open(args.output, "w+")
     else:
         outputfile = sys.stdout
-
 
     with open(filepath) as pcap_file:
         conn_dict = OrderedDict()
@@ -119,12 +121,12 @@ def main():
 
             # begin tcp connection.
             elif tcp_pac.pac_type == 1:
-                conn_dict[key] = HttpConn(tcp_pac, level, outputfile, encoding)
+                conn_dict[key] = HttpConn(tcp_pac, outputfile)
             elif tcp_pac.pac_type == 0:
                 # tcp init before capature, we found a http request header, begin parse
                 # if is a http request?
                 if textutils.ishttprequest(tcp_pac.body):
-                    conn_dict[key] = HttpConn(tcp_pac, level, outputfile, encoding)
+                    conn_dict[key] = HttpConn(tcp_pac, outputfile)
 
         for conn in conn_dict.values():
             conn.finish()

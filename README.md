@@ -25,6 +25,7 @@
 + python ./show_pcap.py -v test.pcap   #输出http req/resp的头部内容
 + python ./show_pcap.py -vv test.pcap  #输出http req/resp 文本类型的包体
 + python ./show_pcap.py -vvv test.pcap  #强制输出http req/resp的包体，只要没有被判定为二进制的类型
++ python ./show_pcap.py -vv -b test.pcap  #输出的时候试图进行urldecode和格式化json输出
 
 此外，可以使用-p, -i指定源和目标的ip/端口，这是只输出符合指定条件的数据:
 + python ./show_pcap.py -p55419 -vv test.pcap

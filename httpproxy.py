@@ -1,5 +1,6 @@
 #coding=utf8
 from Queue import Queue
+import config
 
 __author__ = "dongliu"
 
@@ -11,6 +12,7 @@ import threading
 import signal
 from StringIO import StringIO
 from httpparser import HttpType, parse_http_data
+from config import parse_config
 
 _BUF_SIZE = 8192
 _MAX_READ_RETRY_COUNT = 20
@@ -103,13 +105,13 @@ class ConnectionHandler(object):
                 break
 
 
-def _worker(workersocket, clientip, clientport, level, outputfile):
+def _worker(workersocket, clientip, clientport, outputfile):
     try:
         buf = StringIO()
         queue = Queue()
         handler = ConnectionHandler(workersocket, queue)
         handler.init_connect()
-        parser_worker = parse_http_data(queue, level, buf, (clientip, clientport), handler.remote_host)
+        parser_worker = parse_http_data(queue, buf, (clientip, clientport), handler.remote_host, parse_config)
         handler.proxy_data()
         handler.close()
         parser_worker.join()
@@ -120,7 +122,7 @@ def _worker(workersocket, clientip, clientport, level, outputfile):
         traceback.print_exc()
 
 
-def start_server(host='0.0.0.0', port=8000, IPv6=False, level=0, output=None):
+def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
     """start proxy server."""
     ipver = IPv6 and socket.AF_INET6 or socket.AF_INET
     serversocket = socket.socket(ipver)
@@ -159,7 +161,7 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, level=0, output=None):
         while True:
             workersocket, client = serversocket.accept()
             (clientip, clientport) = client
-            workerthread = threading.Thread(target=_worker, args=(workersocket, clientip, clientport, level, outputfile))
+            workerthread = threading.Thread(target=_worker, args=(workersocket, clientip, clientport, outputfile))
             workerthread.setDaemon(True)
             workerthread.start()
     finally:
@@ -172,6 +174,7 @@ if __name__ == '__main__':
     parser.add_argument("-6", "--ipv6", help="use ipv6", action="store_true")
     parser.add_argument("-v", "--verbosity", help="increase output verbosity(-vv is recommended)", action="count")
     parser.add_argument("-o", "--output", help="output to file instead of stdout")
+    parser.add_argument("-e", "--encoding", help="decode the data use specified encodings.")
     parser.add_argument("-b", "--beauty", help="output json in a pretty way.", action="store_true")
 
 
@@ -183,7 +186,11 @@ if __name__ == '__main__':
         setting["port"] = args.port
     if args.output:
         setting["output"] = args.output
+
     if args.verbosity:
-        setting["level"] = args.verbosity
+        parse_config.level = args.verbosity
+    if args.encoding:
+        parse_config.encoding = args.encoding
+    parse_config.pretty = args.beauty
 
     start_server(**setting)
