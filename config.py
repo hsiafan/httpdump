@@ -1,0 +1,19 @@
+#coding=utf-8
+__author__ = 'dongliu'
+
+
+class OutputLevel(object):
+    ONLY_URL = 0
+    HEADER = 1
+    TEXT_BODY = 2
+    ALL_BODY = 3
+
+
+class _Config(object):
+    """ global settings """
+    def __init__(self):
+        self.level = OutputLevel.ONLY_URL
+        self.pretty = False
+        self.encoding = None
+
+parse_config = _Config()
