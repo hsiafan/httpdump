@@ -320,14 +320,14 @@ def read_request(reader, outputfile, request_status, parse_config):
             del request_status['expect']
     else:
         headers = read_http_headers(reader, outputfile, parse_config.level)
-        if headers.expect:
-            # assume it is expect:continue-100
-            request_status['expect'] = headers
         if headers is None or not isinstance(headers, HttpRequestHeader):
             outputfile.write("{Error, cannot parse http request headers.}")
             outputfile.write('\n')
-            print reader.readall()
+            reader.skipall()
             return
+        if headers.expect:
+            # assume it is expect:continue-100
+            request_status['expect'] = headers
 
     mime, charset = textutils.parse_content_type(headers.content_type)
     # usually charset is not set in http post
@@ -357,7 +357,7 @@ def read_request(reader, outputfile, request_status, parse_config):
         #unescape www-form-encoded data.x-www-form-urlencoded
         if parse_config.encoding and not charset:
             charset = parse_config.encoding
-        print_body(content, headers.gzip, charset, outputfile, 'www-form-encoded' in mime, parse_config.pretty)
+        print_body(content, headers.gzip, charset, outputfile, 'form-urlencoded' in mime, parse_config.pretty)
 
 
 def read_response(reader, outputfile, request_status, parse_config):
