@@ -357,7 +357,7 @@ def read_request(reader, outputfile, request_status, parse_config):
         #unescape www-form-encoded data.x-www-form-urlencoded
         if parse_config.encoding and not charset:
             charset = parse_config.encoding
-        print_body(content, headers.gzip, charset, outputfile, 'form-urlencoded' in mime, parse_config.pretty)
+        print_body(content, headers.gzip, charset, outputfile, mime and 'form-urlencoded' in mime, parse_config.pretty)
 
 
 def read_response(reader, outputfile, request_status, parse_config):
