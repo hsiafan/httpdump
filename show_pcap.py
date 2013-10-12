@@ -100,7 +100,7 @@ def main():
     else:
         outputfile = sys.stdout
 
-    with open(filepath) as pcap_file:
+    with open(filepath, "rb") as pcap_file:
         conn_dict = OrderedDict()
         for tcp_pac in pcap.readPcapPackageRegular(pcap_file):
 
