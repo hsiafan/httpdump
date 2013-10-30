@@ -3,6 +3,18 @@ __author__ = 'dongliu'
 
 import struct
 import socket
+import time
+
+"""
+Modifier: Lonkil (lonkil#gmail.com)
+Date:   2013-10-11
+add the Link-Type (LINKTYPE_LINUX_SLL) support.
+"""
+
+class Pcap_LinkType:
+    """support LinkType"""
+    LINKTYPE_LINUX_SLL= 113
+    LINKTYPE_ETHERNET = 1
 
 
 class TcpPack:
@@ -57,7 +69,7 @@ def pcapCheck(infile):
     # read 24 bytes header
     global_head = infile.read(24)
     if not global_head:
-        return False, endian
+        return False, endian, -1
 
     (magic_num,) = struct.unpack('<I', global_head[0:4])
     # judge the endian of file.
@@ -66,105 +78,189 @@ def pcapCheck(infile):
     elif magic_num == 0x4D3C2B1A:
         endian = '>'
     else:
-        print "not pcap format."
-        return False, endian
+        return False, endian, -1
+
     (version_major, version_minor, timezone, timestamp, max_package_len, linklayer)  \
             = struct.unpack(endian + '4xHHIIII', global_head)
 
-    # now only handle Ethernet package.
-    if linklayer == 1:
-        #print "Ethernet"
-        return True, endian
-    elif linklayer == 6:
-        print "TOKEN RING"
-    elif linklayer == 10:
-        print "FDDI"
-    elif linklayer == 0:
-        print "loop back"
-    else:
-        print linklayer
 
-    return False
+
+    # now only handle Ethernet package.
+    if linklayer == Pcap_LinkType.LINKTYPE_ETHERNET:
+        return True, endian, Pcap_LinkType.LINKTYPE_ETHERNET
+    elif linklayer == Pcap_LinkType.LINKTYPE_LINUX_SLL:
+        #LINKTYPE_LINUX_SLL
+        return True, endian, Pcap_LinkType.LINKTYPE_LINUX_SLL
+
+    return False, endian,linktype
+
+def parsePackage_Ethernet(infile,byteOrder):
+    """parse the Link type is Ethernet type"""
+    # process one package
+    # package header
+    package_header = infile.read(16)
+
+    # end of file.
+    if not package_header:
+       return -1,None
+
+    (seconds, suseconds, package_len, rawlen) = struct.unpack(byteOrder + 'IIII', package_header)
+
+    # ethernet header
+    ethernet_header = infile.read(14)
+    (n_protocol, ) = struct.unpack('!12xH', ethernet_header)
+    # not ip package
+    if n_protocol != 2048:
+        infile.seek(package_len - 14, 1)
+        if n_protocol == 34525:
+            # TODO: deal with ipv6 package
+            pass
+        return 0,None
+
+    # ip header
+    ip_header = infile.read(20)
+    (f, ip_length, protocol) = struct.unpack('!BxH5xB10x', ip_header)
+    ip_header_len = (f & 0xF) * 4
+    ip_version = (f >> 4) & 0xF
+    # not tcp.
+    if protocol != 6:
+        infile.seek(package_len - 14 - 20, 1)
+        return 0,None
+
+    source = socket.inet_ntoa(ip_header[12:16])
+    dest = socket.inet_ntoa(ip_header[16:])
+    if ip_header_len > 20:
+        infile.seek(ip_header_len - 20, 1)
+
+    # tcp header
+    tcp_header = infile.read(20)
+    (source_port, dest_port, seq, ack_seq, t_f, flags) = struct.unpack('!HHIIBB6x', tcp_header)
+    tcp_header_len = ((t_f >> 4) & 0xF) * 4
+    # skip extension headers
+    if tcp_header_len > 20:
+        infile.read(tcp_header_len - 20)
+    fin = flags & 1
+    syn = (flags >> 1) & 1
+    rst = (flags >> 2) & 1
+    psh = (flags >> 3) & 1
+    ack = (flags >> 4) & 1
+    urg = (flags >> 5) & 1
+
+    body_len = package_len - 14 - ip_header_len - tcp_header_len
+    body_len2 = ip_length - ip_header_len - tcp_header_len
+    # body
+    body = infile.read(body_len2)
+
+    if body_len > body_len2:
+        # TODO: why 6bytes zero
+        infile.seek(body_len - body_len2, 1)
+    if syn == 1 and ack == 0:
+        # init tcp connection
+        pac_type = TcpPack.TYPE_INIT
+    elif syn == 1 and ack == 1:
+        pac_type = TcpPack.TYPE_INIT_ACK
+    elif fin == 1:
+        pac_type = TcpPack.TYPE_CLOSE
+    else:
+        pac_type = TcpPack.TYPE_ESTAB
+
+    return 1,TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
+
+def parsePackage_LINUX_SLL(infile,byteOrder):
+    """parse the Link type is Ethernet type"""
+    # process one package
+    # package header
+    package_header = infile.read(16)
+    # end of file.
+    if not package_header:
+       return -1,None
+
+    (seconds, suseconds, package_len, rawlen) = struct.unpack(byteOrder + 'IIII', package_header)
+
+    #Linux cooked header
+    Linux_Cooked = infile.read(16)
+    if not Linux_Cooked:
+        return -1,None
+    
+    (packet_type, Link_type_address_type, Link_type_address_len, Link_type_address, Link_type_IP) = struct.unpack('!HHHQH', Linux_Cooked)
+
+    # ip header
+    ip_header = infile.read(20)
+    (f, ip_length, protocol) = struct.unpack('!BxH5xB10x', ip_header)
+    ip_header_len = (f & 0xF) * 4
+    ip_version = (f >> 4) & 0xF
+    # not tcp.
+    if protocol != 6:
+        infile.seek(package_len - 16 - 20, 1)
+        return 0,None
+
+    source = socket.inet_ntoa(ip_header[12:16])
+    dest = socket.inet_ntoa(ip_header[16:])
+    if ip_header_len > 20:
+        infile.seek(ip_header_len - 20, 1)
+
+    # tcp header
+    tcp_header = infile.read(20)
+    (source_port, dest_port, seq, ack_seq, t_f, flags) = struct.unpack('!HHIIBB6x', tcp_header)
+    tcp_header_len = ((t_f >> 4) & 0xF) * 4
+    # skip extension headers
+    if tcp_header_len > 20:
+        infile.read(tcp_header_len - 20)
+    fin = flags & 1
+    syn = (flags >> 1) & 1
+    rst = (flags >> 2) & 1
+    psh = (flags >> 3) & 1
+    ack = (flags >> 4) & 1
+    urg = (flags >> 5) & 1
+
+    body_len = package_len - 16 - ip_header_len - tcp_header_len
+    body_len2 = ip_length - ip_header_len - tcp_header_len
+
+    # body
+    body = infile.read(body_len2)
+
+    if body_len > body_len2:
+        # TODO: why 6bytes zero
+        infile.seek(body_len - body_len2, 1)
+    if syn == 1 and ack == 0:
+        # init tcp connection
+        pac_type = TcpPack.TYPE_INIT
+    elif syn == 1 and ack == 1:
+        pac_type = TcpPack.TYPE_INIT_ACK
+    elif fin == 1:
+        pac_type = TcpPack.TYPE_CLOSE
+    else:
+        pac_type = TcpPack.TYPE_ESTAB
+
+    return 1,TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
 
 
 def readPcapPackage(infile):
     """ generator, read a *TCP* package once."""
 
     # check the header.
-    flag, endian = pcapCheck(infile)
+    flag, endian, linktype = pcapCheck(infile)
     if not flag:
         # not a valid pcap file or we cannot handle this file.
+        print "can't recognize this PCAP file format.(link type: %d)" % (linktype, )
         return
 
     while True:
-        # process one package
-
-        # package header
-        package_header = infile.read(16)
-        # end of file.
-        if not package_header:
-            break
-
-        (seconds, suseconds, package_len, rawlen) = struct.unpack(endian + 'IIII', package_header)
-        # ethernet header
-        ethernet_header = infile.read(14)
-        (n_protocol, ) = struct.unpack('!12xH', ethernet_header)
-        # not ip package
-        if n_protocol != 2048:
-            infile.seek(package_len - 14, 1)
-            if n_protocol == 34525:
-                # TODO: deal with ipv6 package
-                pass
-            continue
-
-        # ip header
-        ip_header = infile.read(20)
-        (f, ip_length, protocol) = struct.unpack('!BxH5xB10x', ip_header)
-        ip_header_len = (f & 0xF) * 4
-        ip_version = (f >> 4) & 0xF
-        # not tcp.
-        if protocol != 6:
-            infile.seek(package_len - 14 - 20, 1)
-            continue
-        source = socket.inet_ntoa(ip_header[12:16])
-        dest = socket.inet_ntoa(ip_header[16:])
-        if ip_header_len > 20:
-            infile.seek(ip_header_len - 20, 1)
-
-        # tcp header
-        tcp_header = infile.read(20)
-        (source_port, dest_port, seq, ack_seq, t_f, flags) = struct.unpack('!HHIIBB6x', tcp_header)
-        tcp_header_len = ((t_f >> 4) & 0xF) * 4
-        # skip extension headers
-        if tcp_header_len > 20:
-            infile.read(tcp_header_len - 20)
-        fin = flags & 1
-        syn = (flags >> 1) & 1
-        rst = (flags >> 2) & 1
-        psh = (flags >> 3) & 1
-        ack = (flags >> 4) & 1
-        urg = (flags >> 5) & 1
-
-        body_len = package_len - 14 - ip_header_len - tcp_header_len
-        body_len2 = ip_length - ip_header_len - tcp_header_len
-        # body
-        body = infile.read(body_len2)
-
-        if body_len > body_len2:
-            # TODO: why 6bytes zero
-            infile.seek(body_len - body_len2, 1)
-        if syn == 1 and ack == 0:
-            # init tcp connection
-            pac_type = TcpPack.TYPE_INIT
-        elif syn == 1 and ack == 1:
-            pac_type = TcpPack.TYPE_INIT_ACK
-        elif fin == 1:
-            pac_type = TcpPack.TYPE_CLOSE
+        if linktype == Pcap_LinkType.LINKTYPE_ETHERNET:
+            state,pack =  parsePackage_Ethernet(infile,endian)
+        elif linktype == Pcap_LinkType.LINKTYPE_LINUX_SLL: 
+            state,pack = parsePackage_LINUX_SLL(infile,endian)
         else:
-            pac_type = TcpPack.TYPE_ESTAB
+            print "unsupport pcap file format."
+            return
 
-        pack = TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
-        yield pack
+        if state == 1 and pack != None:
+            yield pack
+            continue
+        elif state == -1:
+            break;
+        else:
+            continue
 
 
 def readPcapPackageRegular(infile):
