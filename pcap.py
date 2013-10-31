@@ -17,8 +17,8 @@ class LinkLayerType:
     def __init__(self):
         pass
 
-    LINKTYPE_LINUX_SLL = 113
-    LINKTYPE_ETHERNET = 1
+    LINUX_SLL = 113
+    ETHERNET = 1
 
 
 class NetworkProtocal:
@@ -87,9 +87,10 @@ def pcap_check(infile):
     # default, auto
     endian = '@'
     # read 24 bytes header
-    global_head = infile.read(24)
+    pcap_file_header_len = 24
+    global_head = infile.read(pcap_file_header_len)
     if not global_head:
-        return False, endian, -1
+        raise StopIteration()
 
     (magic_num,) = struct.unpack('<I', global_head[0:4])
     # judge the endian of file.
@@ -103,14 +104,7 @@ def pcap_check(infile):
     (version_major, version_minor, timezone, timestamp, max_package_len, linklayer) \
         = struct.unpack(endian + '4xHHIIII', global_head)
 
-    # now only handle Ethernet package.
-    if linklayer == LinkLayerType.LINKTYPE_ETHERNET:
-        return True, endian, LinkLayerType.LINKTYPE_ETHERNET
-    elif linklayer == LinkLayerType.LINKTYPE_LINUX_SLL:
-        #LINKTYPE_LINUX_SLL
-        return True, endian, LinkLayerType.LINKTYPE_LINUX_SLL
-
-    return False, endian, linklayer
+    return True, endian, linklayer
 
 
 def read_pcap_pac(infile, byteorder):
@@ -167,17 +161,18 @@ def dl_parse_linux_sll(infile, byteorder):
     return link_type_ip, package_len - sll_header_len
 
 
-def read_dl_pac(infile, endian, linktype):
-    """data link layer package"""
-    if linktype == LinkLayerType.LINKTYPE_ETHERNET:
-        return dl_parse_ethernet(infile, endian)
-    elif linktype == LinkLayerType.LINKTYPE_LINUX_SLL:
-        return dl_parse_linux_sll(infile, endian)
+def get_linklayer_parser(linktype):
+    if linktype == LinkLayerType.ETHERNET:
+        return dl_parse_ethernet
+    elif linktype == LinkLayerType.LINUX_SLL:
+        return dl_parse_linux_sll
+    else:
+        return None
 
 
-def read_ip_pac(infile, endian, linktype):
+def read_ip_pac(infile, endian, linklayer_parser):
     # ip header
-    n_protocol, package_len = read_dl_pac(infile, endian, linktype)
+    n_protocol, package_len = linklayer_parser(infile, endian)
 
     if n_protocol == NetworkProtocal.IP:
         pass
@@ -214,8 +209,8 @@ def read_ip_pac(infile, endian, linktype):
     return 1, package_len - ip_header_len, ip_header_len, ip_length, source, dest
 
 
-def read_tcp_pac(infile, endian, linktype):
-    state, package_len, ip_header_len, ip_length, source, dest = read_ip_pac(infile, endian, linktype)
+def read_tcp_pac(infile, endian, linklayer_parser):
+    state, package_len, ip_header_len, ip_length, source, dest = read_ip_pac(infile, endian, linklayer_parser)
     if state == 0:
         return None
 
@@ -266,14 +261,16 @@ def read_package(infile):
     flag, endian, linktype = pcap_check(infile)
     if not flag:
         # not a valid pcap file or we cannot handle this file.
-        print "can't recognize this PCAP file format.(link type: %d)" % (linktype, )
+        print "Can't recognize this PCAP file format."
         return
 
-    if linktype != LinkLayerType.LINKTYPE_ETHERNET and linktype != LinkLayerType.LINKTYPE_LINUX_SLL:
+    linklayer_parser = get_linklayer_parser(linktype)
+    if linklayer_parser is None:
         print "Link layer type %d not supported." % linktype
+        return
 
     while True:
-        state, pack = read_tcp_pac(infile, endian, linktype)
+        state, pack = read_tcp_pac(infile, endian, linklayer_parser)
 
         if state == 1 and pack:
             yield pack
