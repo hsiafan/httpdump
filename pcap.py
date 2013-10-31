@@ -1,20 +1,39 @@
 #coding=utf-8
+
 __author__ = 'dongliu'
 
 import struct
 import socket
-import time
 
-"""
-Modifier: Lonkil (lonkil#gmail.com)
-Date:   2013-10-11
-add the Link-Type (LINKTYPE_LINUX_SLL) support.
-"""
+#Modifier: Lonkil (lonkil#gmail.com)
+#Date:   2013-10-11
+#add the Link-Type (LINKTYPE_LINUX_SLL) support.
 
-class Pcap_LinkType:
+
+# all data-link data types: http://www.tcpdump.org/linktypes.html
+class LinkLayerType:
     """support LinkType"""
-    LINKTYPE_LINUX_SLL= 113
+
+    def __init__(self):
+        pass
+
+    LINKTYPE_LINUX_SLL = 113
     LINKTYPE_ETHERNET = 1
+
+
+class NetworkProtocal:
+    def __init__(self):
+        pass
+
+    IP = 2048
+    IPV6 = 34525
+
+
+class TransferProtocal:
+    def __init__(self):
+        pass
+
+    TCP = 6
 
 
 class TcpPack:
@@ -55,16 +74,17 @@ class TcpPack:
             self.key = dkey + '-' + skey
         return self.key
 
-    def expectAck(self):
+    def expect_ack(self):
         if self.pac_type == TcpPack.TYPE_ESTAB:
             return self.seq + len(self.body)
         else:
             return self.seq + 1
 
 
-def pcapCheck(infile):
+def pcap_check(infile):
     """check the header of cap file, see it is a ledge pcap file.."""
 
+    # default, auto
     endian = '@'
     # read 24 bytes header
     global_head = infile.read(24)
@@ -80,132 +100,135 @@ def pcapCheck(infile):
     else:
         return False, endian, -1
 
-    (version_major, version_minor, timezone, timestamp, max_package_len, linklayer)  \
-            = struct.unpack(endian + '4xHHIIII', global_head)
-
-
+    (version_major, version_minor, timezone, timestamp, max_package_len, linklayer) \
+        = struct.unpack(endian + '4xHHIIII', global_head)
 
     # now only handle Ethernet package.
-    if linklayer == Pcap_LinkType.LINKTYPE_ETHERNET:
-        return True, endian, Pcap_LinkType.LINKTYPE_ETHERNET
-    elif linklayer == Pcap_LinkType.LINKTYPE_LINUX_SLL:
+    if linklayer == LinkLayerType.LINKTYPE_ETHERNET:
+        return True, endian, LinkLayerType.LINKTYPE_ETHERNET
+    elif linklayer == LinkLayerType.LINKTYPE_LINUX_SLL:
         #LINKTYPE_LINUX_SLL
-        return True, endian, Pcap_LinkType.LINKTYPE_LINUX_SLL
+        return True, endian, LinkLayerType.LINKTYPE_LINUX_SLL
 
-    return False, endian,linktype
+    return False, endian, linklayer
 
-def parsePackage_Ethernet(infile,byteOrder):
-    """parse the Link type is Ethernet type"""
-    # process one package
+
+def read_pcap_pac(infile, byteorder):
+    """
+    read pcap header.
+    return the total package length.
+    """
     # package header
-    package_header = infile.read(16)
+    pcap_header_len = 16
+    package_header = infile.read(pcap_header_len)
 
     # end of file.
     if not package_header:
-       return -1,None
+        raise StopIteration()
 
-    (seconds, suseconds, package_len, rawlen) = struct.unpack(byteOrder + 'IIII', package_header)
+    (seconds, suseconds, package_len, rawlen) = struct.unpack(byteorder + 'IIII', package_header)
 
+    return package_len
+
+
+# http://standards.ieee.org/about/get/802/802.3.html
+def dl_parse_ethernet(infile, byteorder):
+    """
+    parse the Link type is Ethernet type
+    """
+    package_len = read_pcap_pac(infile, byteorder)
+
+    eth_header_len = 14
     # ethernet header
-    ethernet_header = infile.read(14)
+    ethernet_header = infile.read(eth_header_len)
+    if not ethernet_header:
+        raise StopIteration()
+
     (n_protocol, ) = struct.unpack('!12xH', ethernet_header)
-    # not ip package
-    if n_protocol != 2048:
-        infile.seek(package_len - 14, 1)
-        if n_protocol == 34525:
-            # TODO: deal with ipv6 package
-            pass
-        return 0,None
+    return n_protocol, package_len - eth_header_len
 
-    # ip header
-    ip_header = infile.read(20)
-    (f, ip_length, protocol) = struct.unpack('!BxH5xB10x', ip_header)
-    ip_header_len = (f & 0xF) * 4
-    ip_version = (f >> 4) & 0xF
-    # not tcp.
-    if protocol != 6:
-        infile.seek(package_len - 14 - 20, 1)
-        return 0,None
 
-    source = socket.inet_ntoa(ip_header[12:16])
-    dest = socket.inet_ntoa(ip_header[16:])
-    if ip_header_len > 20:
-        infile.seek(ip_header_len - 20, 1)
+# http://www.tcpdump.org/linktypes/LINKTYPE_LINUX_SLL.html
+def dl_parse_linux_sll(infile, byteorder):
+    """
+    parse the Link type is Ethernet type
+    """
 
-    # tcp header
-    tcp_header = infile.read(20)
-    (source_port, dest_port, seq, ack_seq, t_f, flags) = struct.unpack('!HHIIBB6x', tcp_header)
-    tcp_header_len = ((t_f >> 4) & 0xF) * 4
-    # skip extension headers
-    if tcp_header_len > 20:
-        infile.read(tcp_header_len - 20)
-    fin = flags & 1
-    syn = (flags >> 1) & 1
-    rst = (flags >> 2) & 1
-    psh = (flags >> 3) & 1
-    ack = (flags >> 4) & 1
-    urg = (flags >> 5) & 1
-
-    body_len = package_len - 14 - ip_header_len - tcp_header_len
-    body_len2 = ip_length - ip_header_len - tcp_header_len
-    # body
-    body = infile.read(body_len2)
-
-    if body_len > body_len2:
-        # TODO: why 6bytes zero
-        infile.seek(body_len - body_len2, 1)
-    if syn == 1 and ack == 0:
-        # init tcp connection
-        pac_type = TcpPack.TYPE_INIT
-    elif syn == 1 and ack == 1:
-        pac_type = TcpPack.TYPE_INIT_ACK
-    elif fin == 1:
-        pac_type = TcpPack.TYPE_CLOSE
-    else:
-        pac_type = TcpPack.TYPE_ESTAB
-
-    return 1,TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
-
-def parsePackage_LINUX_SLL(infile,byteOrder):
-    """parse the Link type is Ethernet type"""
-    # process one package
-    # package header
-    package_header = infile.read(16)
-    # end of file.
-    if not package_header:
-       return -1,None
-
-    (seconds, suseconds, package_len, rawlen) = struct.unpack(byteOrder + 'IIII', package_header)
+    sll_header_len = 16
+    package_len = read_pcap_pac(infile, byteorder)
 
     #Linux cooked header
-    Linux_Cooked = infile.read(16)
-    if not Linux_Cooked:
-        return -1,None
-    
-    (packet_type, Link_type_address_type, Link_type_address_len, Link_type_address, Link_type_IP) = struct.unpack('!HHHQH', Linux_Cooked)
+    linux_cooked = infile.read(sll_header_len)
+    if not linux_cooked:
+        raise StopIteration()
 
+    (packet_type, link_type_address_type, link_type_address_len, link_type_address, link_type_ip) \
+        = struct.unpack('!HHHQH', linux_cooked)
+    return link_type_ip, package_len - sll_header_len
+
+
+def read_dl_pac(infile, endian, linktype):
+    """data link layer package"""
+    if linktype == LinkLayerType.LINKTYPE_ETHERNET:
+        return dl_parse_ethernet(infile, endian)
+    elif linktype == LinkLayerType.LINKTYPE_LINUX_SLL:
+        return dl_parse_linux_sll(infile, endian)
+
+
+def read_ip_pac(infile, endian, linktype):
     # ip header
-    ip_header = infile.read(20)
-    (f, ip_length, protocol) = struct.unpack('!BxH5xB10x', ip_header)
-    ip_header_len = (f & 0xF) * 4
-    ip_version = (f >> 4) & 0xF
-    # not tcp.
-    if protocol != 6:
-        infile.seek(package_len - 16 - 20, 1)
-        return 0,None
+    n_protocol, package_len = read_dl_pac(infile, endian, linktype)
+
+    if n_protocol == NetworkProtocal.IP:
+        pass
+    elif n_protocol == NetworkProtocal.IPV6:
+        # TODO: deal with ipv6 package
+        infile.seek(package_len, 1)
+        return 0, package_len, None, None, None, None
+    else:
+        # skip
+        infile.seek(package_len, 1)
+        return 0, package_len, None, None, None, None
+
+    ip_base_header_len = 20
+    ip_header = infile.read(ip_base_header_len)
+    if not ip_header:
+        raise StopIteration()
+    (ip_info, ip_length, protocol) = struct.unpack('!BxH5xB10x', ip_header)
+    # real ip header len.
+    ip_header_len = (ip_info & 0xF) * 4
+    ip_version = (ip_info >> 4) & 0xF
+
+    # skip all extra header fields.
+    if ip_header_len > ip_base_header_len:
+        infile.seek(ip_header_len - ip_base_header_len, 1)
+
+    # not tcp, skip.
+    if protocol != TransferProtocal.TCP:
+        infile.seek(package_len - ip_header_len, 1)
+        return 0, None, None, None, None
 
     source = socket.inet_ntoa(ip_header[12:16])
     dest = socket.inet_ntoa(ip_header[16:])
-    if ip_header_len > 20:
-        infile.seek(ip_header_len - 20, 1)
 
+    return 1, package_len - ip_header_len, ip_header_len, ip_length, source, dest
+
+
+def read_tcp_pac(infile, endian, linktype):
+    state, package_len, ip_header_len, ip_length, source, dest = read_ip_pac(infile, endian, linktype)
+    if state == 0:
+        return None
+
+    tcp_base_header_len = 20
     # tcp header
-    tcp_header = infile.read(20)
+    tcp_header = infile.read(tcp_base_header_len)
     (source_port, dest_port, seq, ack_seq, t_f, flags) = struct.unpack('!HHIIBB6x', tcp_header)
+    # real tcp header len
     tcp_header_len = ((t_f >> 4) & 0xF) * 4
     # skip extension headers
-    if tcp_header_len > 20:
-        infile.read(tcp_header_len - 20)
+    if tcp_header_len > tcp_base_header_len:
+        infile.read(tcp_header_len - tcp_base_header_len)
+
     fin = flags & 1
     syn = (flags >> 1) & 1
     rst = (flags >> 2) & 1
@@ -213,15 +236,16 @@ def parsePackage_LINUX_SLL(infile,byteOrder):
     ack = (flags >> 4) & 1
     urg = (flags >> 5) & 1
 
-    body_len = package_len - 16 - ip_header_len - tcp_header_len
-    body_len2 = ip_length - ip_header_len - tcp_header_len
+    body_len = package_len - tcp_header_len
+    real_body_len = ip_length - ip_header_len - tcp_header_len
 
     # body
-    body = infile.read(body_len2)
+    body = infile.read(real_body_len)
 
-    if body_len > body_len2:
-        # TODO: why 6bytes zero
-        infile.seek(body_len - body_len2, 1)
+    # skip paddings
+    if body_len > real_body_len:
+        infile.seek(body_len - real_body_len, 1)
+
     if syn == 1 and ack == 0:
         # init tcp connection
         pac_type = TcpPack.TYPE_INIT
@@ -232,38 +256,33 @@ def parsePackage_LINUX_SLL(infile,byteOrder):
     else:
         pac_type = TcpPack.TYPE_ESTAB
 
-    return 1,TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
+    return 1, TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
 
 
-def readPcapPackage(infile):
+def read_package(infile):
     """ generator, read a *TCP* package once."""
 
     # check the header.
-    flag, endian, linktype = pcapCheck(infile)
+    flag, endian, linktype = pcap_check(infile)
     if not flag:
         # not a valid pcap file or we cannot handle this file.
         print "can't recognize this PCAP file format.(link type: %d)" % (linktype, )
         return
 
-    while True:
-        if linktype == Pcap_LinkType.LINKTYPE_ETHERNET:
-            state,pack =  parsePackage_Ethernet(infile,endian)
-        elif linktype == Pcap_LinkType.LINKTYPE_LINUX_SLL: 
-            state,pack = parsePackage_LINUX_SLL(infile,endian)
-        else:
-            print "unsupport pcap file format."
-            return
+    if linktype != LinkLayerType.LINKTYPE_ETHERNET and linktype != LinkLayerType.LINKTYPE_LINUX_SLL:
+        print "Link layer type %d not supported." % linktype
 
-        if state == 1 and pack != None:
+    while True:
+        state, pack = read_tcp_pac(infile, endian, linktype)
+
+        if state == 1 and pack:
             yield pack
             continue
-        elif state == -1:
-            break;
         else:
             continue
 
 
-def readPcapPackageRegular(infile):
+def read_package_r(infile):
     """
     clean up tcp packages.
     note:we abandon the last ack package after fin.
@@ -271,7 +290,7 @@ def readPcapPackageRegular(infile):
     conn_dict = {}
     reverse_conn_dict = {}
     direction_dict = {}
-    for pack in readPcapPackage(infile):
+    for pack in read_package(infile):
         key = pack.gen_key()
         if key not in conn_dict:
             conn_dict[key] = []
@@ -289,10 +308,10 @@ def readPcapPackageRegular(infile):
 
         if pack.body or pack.pac_type != TcpPack.TYPE_ESTAB:
             hold_packs.append(pack)
-        ack_packs = [ipack for ipack in fetch_packs if ipack.expectAck() <= pack.ack]
-        remain_packs = [ipack for ipack in fetch_packs if ipack.expectAck() > pack.ack]
+        ack_packs = [ipack for ipack in fetch_packs if ipack.expect_ack() <= pack.ack]
+        remain_packs = [ipack for ipack in fetch_packs if ipack.expect_ack() > pack.ack]
         cdict[key] = remain_packs
-        for ipack in sorted(ack_packs, key=lambda x:x.seq):
+        for ipack in sorted(ack_packs, key=lambda x: x.seq):
             yield ipack
 
-        # TODO: add close sokect logic, and delete elements from dicts.
+            # TODO: add close sokect logic, and delete elements from dicts.

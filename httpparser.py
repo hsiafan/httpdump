@@ -457,7 +457,7 @@ def parse_http_data(queue, outputfile, client_host, remote_host, parse_config):
                     outputfile.write('{Http response missing}\n\n')
                     break
                 if reader.fetchline() is None:
-                    outputfile.write('{Gttp response missing}\n\n')
+                    outputfile.write('{Http response missing}\n\n')
                     break
                 read_response(reader, outputfile, request_status, parse_config)
                 outputfile.write('\n')

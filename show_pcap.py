@@ -102,7 +102,7 @@ def main():
 
     with open(filepath, "rb") as pcap_file:
         conn_dict = OrderedDict()
-        for tcp_pac in pcap.readPcapPackageRegular(pcap_file):
+        for tcp_pac in pcap.read_package_r(pcap_file):
 
             #filter
             if port is not None and tcp_pac.source_port != port and tcp_pac.dest_port != port:
