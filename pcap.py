@@ -81,6 +81,7 @@ class TcpPack:
             return self.seq + 1
 
 
+# http://www.winpcap.org/ntar/draft/PCAP-DumpFileFormat.html
 def pcap_check(infile):
     """check the header of cap file, see it is a ledge pcap file.."""
 
@@ -201,7 +202,7 @@ def read_ip_pac(infile, endian, linklayer_parser):
     # not tcp, skip.
     if protocol != TransferProtocal.TCP:
         infile.seek(package_len - ip_header_len, 1)
-        return 0, None, None, None, None
+        return 0, None, None, None, None, None
 
     source = socket.inet_ntoa(ip_header[12:16])
     dest = socket.inet_ntoa(ip_header[16:])
@@ -212,7 +213,7 @@ def read_ip_pac(infile, endian, linklayer_parser):
 def read_tcp_pac(infile, endian, linklayer_parser):
     state, package_len, ip_header_len, ip_length, source, dest = read_ip_pac(infile, endian, linklayer_parser)
     if state == 0:
-        return None
+        return 0, None
 
     tcp_base_header_len = 20
     # tcp header
