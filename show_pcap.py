@@ -56,7 +56,6 @@ class HttpConn:
                 self.status = HttpConn.STATUS_CLOSED
             else:
                 self.status = HttpConn.STATUS_ERROR
-            return
 
         if tcp_pac.source == self.source_ip:
             httptype = HttpType.REQUEST
