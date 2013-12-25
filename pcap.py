@@ -27,6 +27,8 @@ class NetworkProtocal:
 
     IP = 2048
     IPV6 = 34525
+    # Virtual Bridged Local Area Networks
+    P802_1Q = 33024
 
 
 class TransferProtocal:
@@ -140,6 +142,14 @@ def dl_parse_ethernet(infile, byteorder):
         raise StopIteration()
 
     (n_protocol, ) = struct.unpack('!12xH', ethernet_header)
+    if n_protocol == NetworkProtocal.P802_1Q:
+        # 802.1q, we need to skip two bytes and read another two bytes to get protocal/len
+        eth_header_len += 4
+        type_or_len = infile.read(4)
+        n_protocol, = struct.unpack('!2xH', type_or_len)
+    if n_protocol < 1536:
+        #TODO n_protocol means package len
+        pass
     return n_protocol, package_len - eth_header_len
 
 
@@ -171,46 +181,48 @@ def get_linklayer_parser(linktype):
         return None
 
 
+#see http://en.wikipedia.org/wiki/Ethertype
 def read_ip_pac(infile, endian, linklayer_parser):
     # ip header
     n_protocol, package_len = linklayer_parser(infile, endian)
 
     if n_protocol == NetworkProtocal.IP:
-        pass
+        ip_base_header_len = 20
+        ip_header = infile.read(ip_base_header_len)
+        if not ip_header:
+            raise StopIteration()
+        (ip_info, ip_length, protocol) = struct.unpack('!BxH5xB10x', ip_header)
+        # real ip header len.
+        ip_header_len = (ip_info & 0xF) * 4
+        ip_version = (ip_info >> 4) & 0xF
+
+        # skip all extra header fields.
+        if ip_header_len > ip_base_header_len:
+            infile.seek(ip_header_len - ip_base_header_len, 1)
+
+        # not tcp, skip.
+        if protocol != TransferProtocal.TCP:
+            infile.seek(package_len - ip_header_len, 1)
+            return 0, None, None, None, None, None
+
+        source = socket.inet_ntoa(ip_header[12:16])
+        dest = socket.inet_ntoa(ip_header[16:])
+
+        return 1, package_len - ip_header_len, ip_header_len, ip_length, source, dest
     elif n_protocol == NetworkProtocal.IPV6:
         # TODO: deal with ipv6 package
         infile.seek(package_len, 1)
         return 0, package_len, None, None, None, None
+    elif n_protocol == NetworkProtocal.P802_1Q:
+        return 1, package_len, 0, package_len, "", ""
     else:
         # skip
         infile.seek(package_len, 1)
         return 0, package_len, None, None, None, None
 
-    ip_base_header_len = 20
-    ip_header = infile.read(ip_base_header_len)
-    if not ip_header:
-        raise StopIteration()
-    (ip_info, ip_length, protocol) = struct.unpack('!BxH5xB10x', ip_header)
-    # real ip header len.
-    ip_header_len = (ip_info & 0xF) * 4
-    ip_version = (ip_info >> 4) & 0xF
-
-    # skip all extra header fields.
-    if ip_header_len > ip_base_header_len:
-        infile.seek(ip_header_len - ip_base_header_len, 1)
-
-    # not tcp, skip.
-    if protocol != TransferProtocal.TCP:
-        infile.seek(package_len - ip_header_len, 1)
-        return 0, None, None, None, None, None
-
-    source = socket.inet_ntoa(ip_header[12:16])
-    dest = socket.inet_ntoa(ip_header[16:])
-
-    return 1, package_len - ip_header_len, ip_header_len, ip_length, source, dest
-
 
 def read_tcp_pac(infile, endian, linklayer_parser):
+    """read tcp data.http only builded on tcp, so we do not need to support other protocals."""
     state, package_len, ip_header_len, ip_length, source, dest = read_ip_pac(infile, endian, linklayer_parser)
     if state == 0:
         return 0, None
