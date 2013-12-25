@@ -213,8 +213,6 @@ def read_ip_pac(infile, endian, linklayer_parser):
         # TODO: deal with ipv6 package
         infile.seek(package_len, 1)
         return 0, package_len, None, None, None, None
-    elif n_protocol == NetworkProtocal.P802_1Q:
-        return 1, package_len, 0, package_len, "", ""
     else:
         # skip
         infile.seek(package_len, 1)
