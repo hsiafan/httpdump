@@ -1,41 +1,10 @@
 #coding=utf-8
-
+#see http://wiki.wireshark.org/Development/LibpcapFileFormat
 __author__ = 'dongliu'
 
 import struct
 import socket
-
-#Modifier: Lonkil (lonkil#gmail.com)
-#Date:   2013-10-11
-#add the Link-Type (LINKTYPE_LINUX_SLL) support.
-
-
-# all data-link data types: http://www.tcpdump.org/linktypes.html
-class LinkLayerType:
-    """support LinkType"""
-
-    def __init__(self):
-        pass
-
-    LINUX_SLL = 113
-    ETHERNET = 1
-
-
-class NetworkProtocal:
-    def __init__(self):
-        pass
-
-    IP = 2048
-    IPV6 = 34525
-    # Virtual Bridged Local Area Networks
-    P802_1Q = 33024
-
-
-class TransferProtocal:
-    def __init__(self):
-        pass
-
-    TCP = 6
+from constant import *
 
 
 class TcpPack:
