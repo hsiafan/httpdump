@@ -68,6 +68,37 @@ def parse_section_header_block(infile, section_info, block_header):
     section_info.length = section_len
 
 
+def parse_interface_description_block(infile, section_info, block_len):
+    # read linktype and capture size
+    buf = infile.read(4)
+    linktype, = struct.unpack(section_info.byteorder + 'H2x', buf)
+    buf = infile.read(4)
+    snap_len = struct.unpack(section_info.byteorder + 'I', buf)
+    section_info.linktype = linktype
+    section_info.snap_len = snap_len
+    infile.seek(block_len - 12 - 8, 1)
+
+
+def parse_enhanced_packet(infile, section_info, block_len):
+    buf = infile.read(4)
+    interface_id, = struct.unpack(section_info.byteorder + 'I', buf)
+
+    # skip timestamp
+    buf = infile.read(8)
+    h_timestamp, l_timestamp = struct.unpack(section_info.byteorder + 'II', buf)
+    timestamp = (h_timestamp << 32) + l_timestamp
+
+    # capture len
+    buf = infile.read(8)
+    capture_len, packet_len = struct.unpack(section_info.byteorder + 'II', buf)
+    padded_capture_len = ((capture_len-1)/4 + 1) * 4
+
+    # the captured data
+    infile.read(capture_len)
+
+    infile.seek(block_len - 12 - 20 - capture_len, 1)
+
+
 def parse_block(infile, section_info):
     block_header = infile.read(8)
     block_type, block_len = struct.unpack(section_info.byteorder + 'II', block_header)
@@ -75,19 +106,13 @@ def parse_block(infile, section_info):
         parse_section_header_block(infile, section_info, block_header)
     elif block_type == BlockType.INTERFACE_DESCRIPTOIN:
         # read linktype and capture size
-        buf = infile.read(4)
-        linktype, = struct.unpack(section_info.byteorder + 'H2x', buf)
-        buf = infile.read(4)
-        snap_len = struct.unpack(section_info.byteorder + 'I', buf)
-        section_info.linktype = linktype
-        section_info.snap_len = snap_len
-        infile.seek(block_len - 12 - 8, 1)
-    elif block_type == 0x80000001:
-        #what is this.....
-        infile.seek(block_len - 12)
-        print hex(block_type), block_len
+        parse_interface_description_block(infile, section_info, block_len)
+    elif block_type == BlockType.ENHANCED_PACKET:
+        parse_enhanced_packet(infile, section_info, block_len)
+    #TODO:add other block type we know
     else:
-        print hex(block_type)
+        infile.seek(block_len - 12, 1)
+        #print "unknow block type:%s, size:%d" % (hex(block_type), block_len)
 
     # read anthor block_len
     block_len_t = infile.read(4)
@@ -99,6 +124,8 @@ def parse_block(infile, section_info):
 def parse_section(infile):
     """read one block"""
     section_info = SectionInfo()
+    parse_block(infile, section_info)
+    parse_block(infile, section_info)
     parse_block(infile, section_info)
     parse_block(infile, section_info)
     parse_block(infile, section_info)
