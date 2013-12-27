@@ -3,6 +3,7 @@
 from Queue import Queue
 import StringIO
 import argparse
+import io
 import packet_parser
 import textutils
 
@@ -121,7 +122,7 @@ def main():
         outputfile = sys.stdout
 
     try:
-        with open(filepath, "rb") as pcap_file:
+        with io.open(filepath, "rb") as pcap_file:
             file_format = get_file_format(pcap_file)
             if file_format == FileFormat.PCAP:
                 read_packet = pcap.read_packet
