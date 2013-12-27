@@ -81,9 +81,9 @@ class ConnectionHandler(object):
     def proxy_data(self):
         """run the proxy"""
         sockets = [self.clientsocket, self.targetsocket]
-        emptyReadCount = 0
+        empty_read_count = 0
         while True:
-            emptyReadCount += 1
+            empty_read_count += 1
             (recv, _, error) = select.select(sockets, [], sockets, _READ_TIMEOUT)
             if error:
                 # connection closed, or error occured.
@@ -98,10 +98,10 @@ class ConnectionHandler(object):
                 httptype = (in_ is self.clientsocket) and HttpType.REQUEST or HttpType.RESPONSE
                 if data:
                     out.send(data)
-                    emptyReadCount = 0
+                    empty_read_count = 0
                     self.queue.put((httptype, data))
 
-            if emptyReadCount == _MAX_READ_RETRY_COUNT:
+            if empty_read_count == _MAX_READ_RETRY_COUNT:
                 break
 
 
@@ -162,7 +162,7 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
             workersocket, client = serversocket.accept()
             (clientip, clientport) = client
             workerthread = threading.Thread(target=_worker, args=(workersocket, clientip, clientport, outputfile))
-            workerthread.setDaemon(True)
+            workerthread.setDaemon(False)
             workerthread.start()
     finally:
         clean()

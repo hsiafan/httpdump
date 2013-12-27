@@ -14,9 +14,7 @@ class HttpType(object):
 
 
 class DataReader(object):
-    """
-    wrap http data for read.
-    """
+    """ wrap http data for read. """
 
     def __init__(self, data_generator):
         self.data_generaotr = data_generator
@@ -473,6 +471,6 @@ def parse_http_data(queue, outputfile, client_host, remote_host, parse_config):
                     break
 
     worker = threading.Thread(target=_work, args=(queue, outputfile))
-    worker.setDaemon(False)
+    worker.setDaemon(True)
     worker.start()
     return worker
