@@ -3,15 +3,17 @@
 from Queue import Queue
 import StringIO
 import argparse
-import config
+import packet_parser
 import textutils
 
 __author__ = 'dongliu'
 
 import sys
 from collections import OrderedDict
+import struct
 
 import pcap
+import pcapng
 from httpparser import HttpType, parse_http_data
 from config import parse_config
 
@@ -72,6 +74,25 @@ class HttpConn:
         self.outputfile.flush()
 
 
+class FileFormat(object):
+    PCAP = 0xA1B2C3D4
+    PCAP_NG = 0x0A0D0D0A
+    UNKNOW = -1
+
+
+def get_file_format(infile):
+    """get cap file format by magic num"""
+    buf = infile.read(4)
+    infile.seek(0)
+    magic_num, = struct.unpack('<I', buf)
+    if magic_num == 0xA1B2C3D4 or magic_num == 0x4D3C2B1A:
+        return FileFormat.PCAP
+    elif magic_num == 0x0A0D0D0A:
+        return FileFormat.PCAP_NG
+    else:
+        return FileFormat.UNKNOW
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("pcap_file", help="the pcap file to parse")
@@ -99,39 +120,48 @@ def main():
     else:
         outputfile = sys.stdout
 
-    with open(filepath, "rb") as pcap_file:
-        conn_dict = OrderedDict()
-        for tcp_pac in pcap.read_package_r(pcap_file):
+    try:
+        with open(filepath, "rb") as pcap_file:
+            file_format = get_file_format(pcap_file)
+            if file_format == FileFormat.PCAP:
+                read_packet = pcap.read_packet
+            elif file_format == FileFormat.PCAP_NG:
+                read_packet = pcapng.read_packet
+            else:
+                print >>sys.stderr, "unknow file format."
+                sys.exit(1)
 
-            #filter
-            if port is not None and tcp_pac.source_port != port and tcp_pac.dest_port != port:
-                continue
-            if ip is not None and tcp_pac.source != ip and tcp_pac.dest != ip:
-                continue
+            conn_dict = OrderedDict()
+            for tcp_pac in packet_parser.read_package_r(pcap_file, read_packet):
+                #filter
+                if port is not None and tcp_pac.source_port != port and tcp_pac.dest_port != port:
+                    continue
+                if ip is not None and tcp_pac.source != ip and tcp_pac.dest != ip:
+                    continue
 
-            key = tcp_pac.gen_key()
-            # we already have this conn
-            if key in conn_dict:
-                conn_dict[key].append(tcp_pac)
-                # conn closed.
-                if tcp_pac.pac_type == pcap.TcpPack.TYPE_CLOSE:
-                    conn_dict[key].finish()
-                    del conn_dict[key]
+                key = tcp_pac.gen_key()
+                # we already have this conn
+                if key in conn_dict:
+                    conn_dict[key].append(tcp_pac)
+                    # conn closed.
+                    if tcp_pac.pac_type == packet_parser.TcpPack.TYPE_CLOSE:
+                        conn_dict[key].finish()
+                        del conn_dict[key]
 
-            # begin tcp connection.
-            elif tcp_pac.pac_type == 1:
-                conn_dict[key] = HttpConn(tcp_pac, outputfile)
-            elif tcp_pac.pac_type == 0:
-                # tcp init before capature, we found a http request header, begin parse
-                # if is a http request?
-                if textutils.ishttprequest(tcp_pac.body):
+                # begin tcp connection.
+                elif tcp_pac.pac_type == 1:
                     conn_dict[key] = HttpConn(tcp_pac, outputfile)
+                elif tcp_pac.pac_type == 0:
+                    # tcp init before capature, we found a http request header, begin parse
+                    # if is a http request?
+                    if textutils.ishttprequest(tcp_pac.body):
+                        conn_dict[key] = HttpConn(tcp_pac, outputfile)
 
-        for conn in conn_dict.values():
-            conn.finish()
-
-    if args.output:
-        outputfile.close()
+            for conn in conn_dict.values():
+                conn.finish()
+    finally:
+        if args.output:
+            outputfile.close()
 
 if __name__ == "__main__":
     main()

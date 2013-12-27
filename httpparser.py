@@ -180,6 +180,11 @@ def read_http_headers(reader, outputfile, level):
     if line is None:
         return line
     line = line.strip()
+
+    #TODO: pcapng file have a leading '\0' paddings. find out it.
+    while line.startswith('\0'):
+        line = line[1:]
+
     if textutils.ishttprequest(line):
         headers = HttpRequestHeader()
         items = line.split(' ')

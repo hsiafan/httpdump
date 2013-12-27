@@ -11,18 +11,6 @@ import sys
 from constant import *
 
 
-class BlockType(object):
-    SECTION_HEADER = 0x0A0D0D0A
-    INTERFACE_DESCRIPTOIN = 0x00000001
-    PACKET = 0x00000002
-    SIMPILE_PACKET = 0x00000003
-    NAME_RESOLUTION = 0x00000004
-    INTERFACE_STATISTICS = 0x00000005
-    ENHANCED_PACKET = 0x00000006
-    IRIG_TIMESTAMP = 0x00000007
-    ARINC_429 = 0x00000008
-
-
 class SectionInfo(object):
     def __init__(self):
         self.byteorder = '@'
@@ -94,44 +82,47 @@ def parse_enhanced_packet(infile, section_info, block_len):
     padded_capture_len = ((capture_len-1)/4 + 1) * 4
 
     # the captured data
-    infile.read(capture_len)
+    data = infile.read(capture_len)
 
+    # skip other optional fields
     infile.seek(block_len - 12 - 20 - capture_len, 1)
+    return data
 
 
 def parse_block(infile, section_info):
+    """read and parse a block"""
     block_header = infile.read(8)
+    if len(block_header) < 8:
+        return None
     block_type, block_len = struct.unpack(section_info.byteorder + 'II', block_header)
+    data = ''
     if block_type == BlockType.SECTION_HEADER:
         parse_section_header_block(infile, section_info, block_header)
     elif block_type == BlockType.INTERFACE_DESCRIPTOIN:
         # read linktype and capture size
         parse_interface_description_block(infile, section_info, block_len)
     elif block_type == BlockType.ENHANCED_PACKET:
-        parse_enhanced_packet(infile, section_info, block_len)
+        data = parse_enhanced_packet(infile, section_info, block_len)
     #TODO:add other block type we know
     else:
         infile.seek(block_len - 12, 1)
-        #print "unknow block type:%s, size:%d" % (hex(block_type), block_len)
+        print >> sys.stderr, "unknow block type:%s, size:%d" % (hex(block_type), block_len)
 
     # read anthor block_len
     block_len_t = infile.read(4)
     block_len_t, = struct.unpack(section_info.byteorder + 'I', block_len_t)
     if block_len_t != block_len:
         print >>sys.stderr, "block_len not equal, header:%d, tail:%d." % (block_len, block_len_t)
+    return data
 
 
-def parse_section(infile):
-    """read one block"""
+def read_packet(infile):
     section_info = SectionInfo()
-    parse_block(infile, section_info)
-    parse_block(infile, section_info)
-    parse_block(infile, section_info)
-    parse_block(infile, section_info)
-    parse_block(infile, section_info)
-
-
-with open('test/baidu.pcapng', 'rb') as infile:
-    parse_section(infile)
-
-
+    while True:
+        link_packet = parse_block(infile, section_info)
+        if link_packet == '':
+            continue
+        elif link_packet is None:
+            return
+        else:
+            yield section_info.byteorder, section_info.linktype, link_packet
