@@ -1,6 +1,5 @@
 #coding=utf8
 from Queue import Queue
-import config
 
 __author__ = "dongliu"
 
@@ -27,8 +26,13 @@ class ConnectionHandler(object):
         self.httptype = HttpType.REQUEST
         self.queue = queue
         self.remote_host = None
+        self.path = None
+        self.method = None
+        self.protocol = None
+        self.targetsocket = None
 
     def init_connect(self):
+        end = -1
         while True:
             self.first_data += self.clientsocket.recv(_BUF_SIZE)
             end = self.first_data.find('\n')
@@ -39,7 +43,7 @@ class ConnectionHandler(object):
         if self.method == 'CONNECT':
             self.first_data = self.first_data[end + 1:]
             self.queue.put((HttpType.REQUEST, self.first_data[end + 1:]))
-            self._method_CONNECT()
+            self._method_connect()
         elif self.method in ('OPTIONS', 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE'):
             self.queue.put((HttpType.REQUEST, self.first_data))
             self._method_others()
@@ -49,19 +53,22 @@ class ConnectionHandler(object):
         self.clientsocket.close()
         self.targetsocket.close()
 
-    def _method_CONNECT(self):
+    def _method_connect(self):
         """for http proxy connect method. it is usually for https proxy"""
         self._connect_target(self.path)
         self.clientsocket.send('HTTP/1.1 200 Connection established\nProxy-agent: Python Proxy\n\n')
 
     def _method_others(self):
-        self.path = self.path[7:]
+        self.path = self.path[len('http://'):]
         i = self.path.find('/')
-        host = self.path[:i]
-        path = self.path[i:]
+        if i > 0:
+            host = self.path[:i]
+        else:
+            host = self.path
         self._connect_target(host)
 
     def _connect_target(self, host):
+        print host
         i = host.find(':')
         if i != -1:
             portstr = host[i + 1:]
@@ -176,7 +183,6 @@ if __name__ == '__main__':
     parser.add_argument("-o", "--output", help="output to file instead of stdout")
     parser.add_argument("-e", "--encoding", help="decode the data use specified encodings.")
     parser.add_argument("-b", "--beauty", help="output json in a pretty way.", action="store_true")
-
 
     args = parser.parse_args()
     setting = {"IPv6": args.ipv6}

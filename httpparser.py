@@ -17,13 +17,13 @@ class DataReader(object):
     """ wrap http data for read. """
 
     def __init__(self, data_generator):
-        self.data_generaotr = data_generator
+        self.data_generator = data_generator
         self.data = None
         self.finish = False
 
     def _fetchdata(self):
         try:
-            data = self.data_generaotr.next()
+            data = self.data_generator.next()
             return data
         except StopIteration:
             self.finish = True
