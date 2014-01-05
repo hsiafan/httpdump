@@ -1,5 +1,7 @@
 #coding=utf-8
+from Queue import Queue
 import threading
+import StringIO
 from config import OutputLevel
 
 __author__ = 'dongliu'
@@ -271,7 +273,7 @@ def read_chunked_body(pacReader, skip=False):
                 return ''.join(result)
             else:
                 return
-            # chunk size
+                # chunk size
         chunk_size_str = chunk_size_str.strip()
         try:
             chunk_len = int(chunk_size_str, 16)
@@ -299,6 +301,7 @@ def print_body(content, gzipped, charset, outputfile, form_encoded, pretty):
     content = textutils.decode_body(content, charset)
     if content and form_encoded and pretty:
         import urllib
+
         content = urllib.unquote(content)
     if content:
         if pretty:
@@ -315,8 +318,8 @@ def read_request(reader, outputfile, request_status, parse_config):
     read and output one http request.
     """
     if 'expect' in request_status and not textutils.ishttprequest(reader.fetchline()):
-            headers = request_status['expect']
-            del request_status['expect']
+        headers = request_status['expect']
+        del request_status['expect']
     else:
         headers = read_http_headers(reader, outputfile, parse_config.level)
         if headers is None or not isinstance(headers, HttpRequestHeader):
@@ -401,76 +404,96 @@ def read_response(reader, outputfile, request_status, parse_config):
         print_body(content, headers.gzip, charset, outputfile, False, parse_config.pretty)
 
 
-def parse_http_data(queue, outputfile, client_host, remote_host, parse_config):
-    class ResetableWrapper(object):
-        """a wrapper to distinct request and response datas."""
+class ResetableWrapper(object):
+    """a wrapper to distinct request and response datas."""
 
-        def __init__(self, queue):
-            self.queue = queue
-            self.cur_httptype = None
+    def __init__(self, queue):
+        self.queue = queue
+        self.cur_httptype = None
+        self.last_data = None
+        self.finish = False
+
+    def remains(self):
+        return not self.finish
+
+    def set_type(self, httptype):
+        self.cur_httptype = httptype
+
+    def wrap(self):
+        if self.last_data:
+            temp = self.last_data
             self.last_data = None
-            self.finish = False
+            yield temp
 
-        def remains(self):
-            return not self.finish
+        while True:
+            httptype, data = self.queue.get(block=True, timeout=None)
+            if data is None:
+                #None mean finish.
+                break
+            if httptype == self.cur_httptype:
+                yield data
+            else:
+                # save for next
+                self.last_data = data
+                return
+        self.finish = True
 
-        def setType(self, httptype):
-            self.cur_httptype = httptype
 
-        def wrap(self):
-            if self.last_data:
-                temp = self.last_data
-                self.last_data = None
-                yield temp
+class HttpParser(object):
+    def __init__(self, client_host, remote_host, parse_config):
+        self.buf = StringIO.StringIO()
+        self.client_host = client_host
+        self.remote_host = remote_host
+        self.parse_config = parse_config
+        self.queue = Queue()
 
-            while True:
-                httptype, data = self.queue.get(block=True, timeout=None)
-                if data is None:
-                    #None mean finish.
-                    break
-                if httptype == self.cur_httptype:
-                    yield data
-                else:
-                    # save for next
-                    self.last_data = data
-                    return
-            self.finish = True
+        self.worker = self._start()
 
-    def _work(queue, outputfile):
-        outputfile.write("Connection: [%s:%d] --- -- - > [%s:%d]\n" %
-                         (client_host[0], client_host[1], remote_host[0], remote_host[1]))
+    def send(self, data):
+        self.queue.put(data)
+
+    def _work(self):
+        self.buf.write("Connection: [%s:%d] --- -- - > [%s:%d]\n" %
+                       (self.client_host[0], self.client_host[1], self.remote_host[0], self.remote_host[1]))
 
         request_status = {}
-        wrapper = ResetableWrapper(queue)
+        wrapper = ResetableWrapper(self.queue)
         try:
             while wrapper.remains():
-                wrapper.setType(HttpType.REQUEST)
+                wrapper.set_type(HttpType.REQUEST)
                 reader = DataReader(wrapper.wrap())
                 if reader.fetchline() is None:
                     break
-                read_request(reader, outputfile, request_status, parse_config)
+                read_request(reader, self.buf, request_status, self.parse_config)
 
-                wrapper.setType(HttpType.RESPONSE)
+                wrapper.set_type(HttpType.RESPONSE)
                 reader = DataReader(wrapper.wrap())
                 if not wrapper.remains():
-                    outputfile.write('{Http response missing}\n\n')
+                    self.buf.write('{Http response missing}\n\n')
                     break
                 if reader.fetchline() is None:
-                    outputfile.write('{Http response missing}\n\n')
+                    self.buf.write('{Http response missing}\n\n')
                     break
-                read_response(reader, outputfile, request_status, parse_config)
-                outputfile.write('\n')
+                read_response(reader, self.buf, request_status, self.parse_config)
+                self.buf.write('\n')
         except Exception as e:
             import traceback
-            traceback.print_exc(file=outputfile)
+
+            traceback.print_exc(file=self.buf)
             # consume all datas.
             # for proxy mode, make sure http-proxy works well
             while True:
-                httptype, data = queue.get(block=True, timeout=None)
+                httptype, data = self.queue.get(block=True, timeout=None)
                 if data is None:
                     break
 
-    worker = threading.Thread(target=_work, args=(queue, outputfile))
-    worker.setDaemon(True)
-    worker.start()
-    return worker
+    def _start(self):
+        worker = threading.Thread(target=self._work)
+        worker.setDaemon(True)
+        worker.start()
+        return worker
+
+    def finish(self):
+        self.queue.put((None, None))
+        self.worker.join()
+        return self.buf.getvalue()

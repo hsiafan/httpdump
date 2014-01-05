@@ -15,7 +15,7 @@ import struct
 
 import pcap
 import pcapng
-from httpparser import HttpType, parse_http_data
+from httpparser import HttpType, HttpParser
 from config import parse_config
 
 
@@ -33,13 +33,11 @@ class HttpConn:
         self.dest_port = tcp_pac.dest_port
 
         self.status = HttpConn.STATUS_BEGIN
-        self.outputfile = outputfile
+        self.out = outputfile
 
-        self.queue = Queue()
-        self.buf = StringIO.StringIO()
         # start parser thread
-        self.parser_worker = parse_http_data(self.queue, self.buf, (self.source_ip, self.source_port),
-                                             (self.dest_ip, self.dest_port), parse_config)
+        self.http_parser = HttpParser((self.source_ip, self.source_port),
+                                      (self.dest_ip, self.dest_port), parse_config)
         self.append(tcp_pac)
 
     def append(self, tcp_pac):
@@ -66,13 +64,12 @@ class HttpConn:
             httptype = HttpType.RESPONSE
 
         if tcp_pac.body:
-            self.queue.put((httptype, tcp_pac.body))
+            self.http_parser.send((httptype, tcp_pac.body))
 
     def finish(self):
-        self.queue.put((None, None))
-        self.parser_worker.join()
-        self.outputfile.write(self.buf.getvalue())
-        self.outputfile.flush()
+        result = self.http_parser.finish()
+        self.out.write(result)
+        self.out.flush()
 
 
 class FileFormat(object):
@@ -96,7 +93,7 @@ def get_file_format(infile):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("pcap_file", help="the pcap file to parse")
+    parser.add_argument("infile", help="the pcap file to parse")
     parser.add_argument("-i", "--ip", help="only parse packages with specified source OR dest ip")
     parser.add_argument("-p", "--port", type=int, help="only parse packages with specified source OR dest port")
     parser.add_argument("-v", "--verbosity", help="increase output verbosity(-vv is recommended)", action="count")
@@ -106,7 +103,7 @@ def main():
 
     args = parser.parse_args()
 
-    filepath = args.pcap_file
+    filepath = args.infile
     port = args.port
     ip = args.ip
 
@@ -122,18 +119,18 @@ def main():
         outputfile = sys.stdout
 
     try:
-        with io.open(filepath, "rb") as pcap_file:
-            file_format = get_file_format(pcap_file)
+        with io.open(filepath, "rb") as infile:
+            file_format = get_file_format(infile)
             if file_format == FileFormat.PCAP:
-                read_packet = pcap.read_packet
+                pcap_file = pcap.PcapFile.read_packet
             elif file_format == FileFormat.PCAP_NG:
-                read_packet = pcapng.read_packet
+                pcap_file = pcapng.PcapNgFile(infile).read_packet
             else:
-                print >>sys.stderr, "unknow file format."
+                print >> sys.stderr, "unknow file format."
                 sys.exit(1)
 
             conn_dict = OrderedDict()
-            for tcp_pac in packet_parser.read_package_r(pcap_file, read_packet):
+            for tcp_pac in packet_parser.read_package_r(pcap_file):
                 #filter
                 if port is not None and tcp_pac.source_port != port and tcp_pac.dest_port != port:
                     continue
@@ -164,6 +161,7 @@ def main():
         if args.output:
             outputfile.close()
         sys.exit()
+
 
 if __name__ == "__main__":
     main()

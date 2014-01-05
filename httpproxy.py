@@ -9,8 +9,7 @@ import socket
 import select
 import threading
 import signal
-from StringIO import StringIO
-from httpparser import HttpType, parse_http_data
+from httpparser import HttpType, HttpParser
 from config import parse_config
 
 _BUF_SIZE = 8192
@@ -20,11 +19,10 @@ _READ_TIMEOUT = 3
 
 class ConnectionHandler(object):
     """handle one connection from client"""
-    def __init__(self, clientsocket, queue):
+    def __init__(self, clientsocket):
         self.clientsocket = clientsocket
         self.first_data = ''
         self.httptype = HttpType.REQUEST
-        self.queue = queue
         self.remote_host = None
         self.path = None
         self.method = None
@@ -42,14 +40,11 @@ class ConnectionHandler(object):
 
         if self.method == 'CONNECT':
             self.first_data = self.first_data[end + 1:]
-            self.queue.put((HttpType.REQUEST, self.first_data[end + 1:]))
             self._method_connect()
         elif self.method in ('OPTIONS', 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE'):
-            self.queue.put((HttpType.REQUEST, self.first_data))
             self._method_others()
 
     def close(self):
-        self.queue.put((None, None))
         self.clientsocket.close()
         self.targetsocket.close()
 
@@ -83,10 +78,12 @@ class ConnectionHandler(object):
         self.remote_host = address
         self.targetsocket = socket.socket(soc_family)
         self.targetsocket.connect(address)
-        self.targetsocket.send(self.first_data)
 
-    def proxy_data(self):
+    def proxy_data(self, http_parser):
         """run the proxy"""
+        self.targetsocket.send(self.first_data)
+        http_parser.send((HttpType.REQUEST, self.first_data))
+
         sockets = [self.clientsocket, self.targetsocket]
         empty_read_count = 0
         while True:
@@ -106,7 +103,7 @@ class ConnectionHandler(object):
                 if data:
                     out.send(data)
                     empty_read_count = 0
-                    self.queue.put((httptype, data))
+                    http_parser.send((httptype, data))
 
             if empty_read_count == _MAX_READ_RETRY_COUNT:
                 break
@@ -114,15 +111,13 @@ class ConnectionHandler(object):
 
 def _worker(workersocket, clientip, clientport, outputfile):
     try:
-        buf = StringIO()
-        queue = Queue()
-        handler = ConnectionHandler(workersocket, queue)
+        handler = ConnectionHandler(workersocket)
         handler.init_connect()
-        parser_worker = parse_http_data(queue, buf, (clientip, clientport), handler.remote_host, parse_config)
-        handler.proxy_data()
+        http_parser = HttpParser((clientip, clientport), handler.remote_host, parse_config)
+        handler.proxy_data(http_parser)
         handler.close()
-        parser_worker.join()
-        outputfile.write(buf.getvalue())
+        result = http_parser.finish()
+        outputfile.write(result)
         outputfile.flush()
     except Exception:
         import traceback
@@ -169,7 +164,7 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
             workersocket, client = serversocket.accept()
             (clientip, clientport) = client
             workerthread = threading.Thread(target=_worker, args=(workersocket, clientip, clientport, outputfile))
-            workerthread.setDaemon(False)
+            workerthread.setDaemon(True)
             workerthread.start()
     finally:
         clean()

@@ -179,10 +179,10 @@ def get_linklayer_parser(linktype):
         return None
 
 
-def read_tcp_packet(infile, read_packet):
+def read_tcp_packet(read_packet):
     """ generator, read a *TCP* package once."""
 
-    for byteorder, linktype, link_packet in read_packet(infile):
+    for byteorder, linktype, link_packet in read_packet():
         linklayer_parser = get_linklayer_parser(linktype)
         state, pack = read_tcp_pac(link_packet, byteorder, linklayer_parser)
         if state == 1 and pack:
@@ -192,7 +192,7 @@ def read_tcp_packet(infile, read_packet):
             continue
 
 
-def read_package_r(infile, read_packet):
+def read_package_r(pcap_file):
     """
     clean up tcp packages.
     note:we abandon the last ack package after fin.
@@ -200,7 +200,7 @@ def read_package_r(infile, read_packet):
     conn_dict = {}
     reverse_conn_dict = {}
     direction_dict = {}
-    for pack in read_tcp_packet(infile, read_packet):
+    for pack in read_tcp_packet(pcap_file):
         key = pack.gen_key()
         if key not in conn_dict:
             conn_dict[key] = []
