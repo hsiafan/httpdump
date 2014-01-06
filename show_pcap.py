@@ -122,7 +122,7 @@ def main():
         with io.open(filepath, "rb") as infile:
             file_format = get_file_format(infile)
             if file_format == FileFormat.PCAP:
-                pcap_file = pcap.PcapFile.read_packet
+                pcap_file = pcap.PcapFile(infile).read_packet
             elif file_format == FileFormat.PCAP_NG:
                 pcap_file = pcapng.PcapNgFile(infile).read_packet
             else:
