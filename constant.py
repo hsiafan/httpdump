@@ -3,6 +3,11 @@
 __author__ = 'dongliu'
 
 
+class HttpType(object):
+    REQUEST = 0
+    RESPONSE = 1
+
+
 # see http://www.tcpdump.org/linktypes.html
 # http://www.winpcap.org/ntar/draft/PCAP-DumpFileFormat.html#appendixLinkTypes
 class LinkLayerType(object):

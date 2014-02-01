@@ -9,9 +9,7 @@ from constant import *
 
 
 class TcpPack:
-    """
-    represent a tcp package.
-    """
+    """ a tcp packet, header fields and data. """
 
     TYPE_INIT = 1  # init tcp connection
     TYPE_INIT_ACK = 2
@@ -55,9 +53,7 @@ class TcpPack:
 
 # http://standards.ieee.org/about/get/802/802.3.html
 def dl_parse_ethernet(link_packet, byteorder):
-    """
-    parse the Link type is Ethernet type
-    """
+    """ parse Ethernet packet """
 
     eth_header_len = 14
     # ethernet header
@@ -77,9 +73,7 @@ def dl_parse_ethernet(link_packet, byteorder):
 
 # http://www.tcpdump.org/linktypes/LINKTYPE_LINUX_SLL.html
 def dl_parse_linux_sll(link_packet, byteorder):
-    """
-    parse the Link type is Ethernet type
-    """
+    """ parse linux sll packet """
 
     sll_header_len = 16
 

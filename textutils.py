@@ -91,7 +91,9 @@ def parse_content_type(content_type):
 def istextbody(mime):
     if not mime:
         return False
-    return 'text' in mime or 'html' in mime or 'xml' in mime or 'json' in mime or 'script' in mime or 'www-form-urlencoded' in mime
+    return 'text' in mime or 'html' in mime or 'xml' in mime or 'json' in mime or 'script' in mime \
+        or 'www-form-urlencoded' in mime
+
 
 def isbinarybody(mime):
     if not mime:
@@ -100,6 +102,7 @@ def isbinarybody(mime):
     # and we cannot exclude the reponse without content-type headers.
     # TODO: we need to judge if body is text by content.
     return 'image' in mime or 'octet-stream' in mime or 'video' in mime or 'pdf' in mime
+
 
 def decode_body(content, charset):
     if charset:
