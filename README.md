@@ -20,36 +20,40 @@ Features:
 ### Analysis pcap file
 
 Suppose we use tcpdump capture :
-+ tcpdump -wtest.pcap tcp port 80
-
+```
+tcpdump -wtest.pcap tcp port 80
+```
 Then:
-
-\# only display the requested URL and response status  
+```
+# only display the requested URL and response status  
 python show_pcap.py test.pcap  
-\# diplay http req/resp headers  
+# diplay http req/resp headers  
 python show_pcap.py -v test.pcap   
-\# display http req/resp headers and body which type is marked is text/html/xml.. in headers   
+# display http req/resp headers and body which type is marked is text/html/xml.. in headers   
 python show_pcap.py -vv test.pcap  
-\# display http req/resp headers and bodys, as long as not being judged as a binary type   
+# display http req/resp headers and bodys, as long as not being judged as a binary type   
 python show_pcap.py -vvv test.pcap   
-\# display and attempting urldecode and format json output   
+# display and attempting urldecode and format json output   
 python show_pcap.py -vv -b test.pcap  
-
+```
 In addition, you can use the -p/-i to specify the ip/port of source and destination, will only display http data meets the specified conditions:
-+ python show_pcap.py -p55419 -vv test.pcap
-+ python show_pcap.py -i192.168.109.91 -vv test.pcap
+```
+python show_pcap.py -p55419 -vv test.pcap
+python show_pcap.py -i192.168.109.91 -vv test.pcap
+```
 
 Use -e can forced the encoding http body used:
-+ python show_pcap.py -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
-
+```
+python show_pcap.py -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
+```
 
 ### Proxy mode
-
+```
 + python httpproxy.py
 + python httpproxy.py -vv                    # output http req & resp contentm, if are texts
 + python httpproxy.py -l127.0.0.1 -p8080 -vv # the ip and port the proxy listenen on
 + python httpproxy.py -vv -ohttp.log         # ouput result to http.log
-
+```
 
 The default port is 8000, just set the software(browsers or something else) 's proxy to this, the capture and parser will work.
 
