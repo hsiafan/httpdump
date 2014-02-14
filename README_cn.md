@@ -35,7 +35,7 @@ python ./show_pcap.py -i192.168.109.91 -vv test.pcap
 ```
 使用-e可以强制指定http包体的编码:
 ```
-python ./show_pcap.py -i192.168.109.91 -p80 -vv -eutf-8 -vv test.pcap
+python ./show_pcap.py -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
 ```
 
 ### 代理模式
