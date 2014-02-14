@@ -15,7 +15,7 @@
 * 动转换字符编码
 * json内容进行格式化输出
 
-### 分析pcap文件：
+### 分析pcap文件
 
 假设我们使用tcpdump抓包：
 + tcpdump -wtest.pcap tcp port 80
@@ -35,7 +35,7 @@
 + python ./show_pcap.py -i192.168.109.91 -p80 -vv -eutf-8 -vv test.pcap
 
 
-### 代理模式:
+### 代理模式
 
 + python httpproxy.py
 + python httpproxy.py -vv                        # output http req & resp contentm, if are texts
