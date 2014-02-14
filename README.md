@@ -1,46 +1,46 @@
-### pyhttpcap
+# # # Pyhttpcap
 
-分析和显示http请求
+Analysis and display http request/response. need python 2.7.*
 
-有两种功能:
+There are two functions :
 
-* show_pcap.py, 解析和显示pcap文件中的http数据包内容, pcap文件可通过tcpdump等抓包软件获得, 会忽略文件中非TCP/HTTP的数据包。
-* httpproxy.py, 启动一个http代理, 可以记录和显示经过此代理发送的所有http数据包
+* show_pcap.py, parse and display pcap/pcapng file http packet contents , pcap files can be obtained via tcpdump capture software , etc. , will ignore non-TCP/non-HTTP packets.
+* httpproxy.py, start a http proxy that can record and display all http packets sent through this agent
 
-特性：
+Features:
 
-* http请求/响应按TCP连接进行分组, 复用同一TCP连接的请求在一起显示
-* 显示http包的包头和包体中的文本内容
-* 动处理chunked/gzip
-* 动转换字符编码
-* json内容进行格式化输出
+* Http request grouped by tcp connections, the requests in one keep-alive http connection will dispay together
+* Display http packet header and content with text type
+* Auto handling chunked / gzip
+* Auto handling character encoding
+* Json content / UrlEncoded content formatted output
 
-### 分析pcap文件：
+# # # Analysis pcap file :
 
-假设我们使用tcpdump抓包：
+Suppose we use tcpdump capture :
 + tcpdump -wtest.pcap tcp port 80
 
-那么：
-+ python ./show_pcap.py test.pcap      #仅输出请求的URL和响应状态
-+ python ./show_pcap.py -v test.pcap   #输出http req/resp的头部内容
-+ python ./show_pcap.py -vv test.pcap  #输出http req/resp 文本类型的包体
-+ python ./show_pcap.py -vvv test.pcap  #强制输出http req/resp的包体，只要没有被判定为二进制的类型
-+ python ./show_pcap.py -vv -b test.pcap  #输出的时候试图进行urldecode和格式化json输出
+Then:
++ python show_pcap.py test.pcap       # only display the requested URL and response status
++ python show_pcap.py -v test.pcap    # diplay http req/resp headers
++ python show_pcap.py -vv test.pcap   # display http req/resp headers and body which type is marked is text/html/xml.. in headers
++ python show_pcap.py -vvv test.pcap  # display http req/resp headers and bodys, as long as not being judged as a binary type
++ python show_pcap.py -vv-b test.pcap # display and attempting urldecode and format json output
 
-此外，可以使用-p, -i指定源和目标的ip/端口，这是只输出符合指定条件的数据:
-+ python ./show_pcap.py -p55419 -vv test.pcap
-+ python ./show_pcap.py -i192.168.109.91 -vv test.pcap
+In addition, you can use the -p/-i to specify the ip/port of source and destination, will only display http data meets the specified conditions:
++ python show_pcap.py -p55419 -vv test.pcap
++ python show_pcap.py -i192.168.109.91 -vv test.pcap
 
-使用-e可以强制指定http包体的编码:
-+ python ./show_pcap.py -i192.168.109.91 -p80 -vv -eutf-8 -vv test.pcap
+Use -e can forced the encoding http body used:
++ python show_pcap.py -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
 
 
-### 代理模式:
+# # # Proxy mode :
 
 + python httpproxy.py
-+ python httpproxy.py -vv                        # output http req & resp contentm, if are texts
-+ python httpproxy.py -l127.0.0.1 -p8080 -vv     # the ip and port the proxy listenen on
-+ python httpproxy.py -vv -ohttp.log             # ouput result to http.log
++ python httpproxy.py -vv                    # output http req & resp contentm, if are texts
++ python httpproxy.py -l127.0.0.1 -p8080 -vv # the ip and port the proxy listenen on
++ python httpproxy.py -vv -ohttp.log         # ouput result to http.log
 
 
-默认端口是8000, 将需要抓包的软件的代理设置为此即可.
+The default port is 8000, just set the software(browsers or something else) 's proxy to this, the capture and parser will work.
