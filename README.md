@@ -4,7 +4,7 @@
 
 Analysis and display http request/response. need python 2.7.*
 
-There are two functions :
+There are two functions:
 
 * show_pcap.py, parse and display pcap/pcapng file http packet contents , pcap files can be obtained via tcpdump capture software , etc. , will ignore non-TCP/non-HTTP packets.
 * httpproxy.py, start a http proxy that can record and display all http packets sent through this agent
@@ -17,17 +17,23 @@ Features:
 * Auto handling character encoding
 * Json content / UrlEncoded content formatted output
 
-### Analysis pcap file :
+### Analysis pcap file
 
 Suppose we use tcpdump capture :
 + tcpdump -wtest.pcap tcp port 80
 
 Then:
-+ python show_pcap.py test.pcap       # only display the requested URL and response status
-+ python show_pcap.py -v test.pcap    # diplay http req/resp headers
-+ python show_pcap.py -vv test.pcap   # display http req/resp headers and body which type is marked is text/html/xml.. in headers
-+ python show_pcap.py -vvv test.pcap  # display http req/resp headers and bodys, as long as not being judged as a binary type
-+ python show_pcap.py -vv-b test.pcap # display and attempting urldecode and format json output
+
+\# only display the requested URL and response status  
+python show_pcap.py test.pcap  
+\# diplay http req/resp headers  
+python show_pcap.py -v test.pcap   
+\# display http req/resp headers and body which type is marked is text/html/xml.. in headers   
+python show_pcap.py -vv test.pcap  
+\# display http req/resp headers and bodys, as long as not being judged as a binary type   
+python show_pcap.py -vvv test.pcap   
+\# display and attempting urldecode and format json output   
+python show_pcap.py -vv-b test.pcap  
 
 In addition, you can use the -p/-i to specify the ip/port of source and destination, will only display http data meets the specified conditions:
 + python show_pcap.py -p55419 -vv test.pcap
@@ -37,7 +43,7 @@ Use -e can forced the encoding http body used:
 + python show_pcap.py -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
 
 
-### Proxy mode :
+### Proxy mode
 
 + python httpproxy.py
 + python httpproxy.py -vv                    # output http req & resp contentm, if are texts
