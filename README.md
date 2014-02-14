@@ -33,7 +33,7 @@ python show_pcap.py -vv test.pcap
 \# display http req/resp headers and bodys, as long as not being judged as a binary type   
 python show_pcap.py -vvv test.pcap   
 \# display and attempting urldecode and format json output   
-python show_pcap.py -vv-b test.pcap  
+python show_pcap.py -vv -b test.pcap  
 
 In addition, you can use the -p/-i to specify the ip/port of source and destination, will only display http data meets the specified conditions:
 + python show_pcap.py -p55419 -vv test.pcap
