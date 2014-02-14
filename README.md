@@ -1,4 +1,4 @@
-# # # Pyhttpcap
+### Pyhttpcap
 
 Analysis and display http request/response. need python 2.7.*
 
@@ -15,7 +15,7 @@ Features:
 * Auto handling character encoding
 * Json content / UrlEncoded content formatted output
 
-# # # Analysis pcap file :
+### Analysis pcap file :
 
 Suppose we use tcpdump capture :
 + tcpdump -wtest.pcap tcp port 80
@@ -35,7 +35,7 @@ Use -e can forced the encoding http body used:
 + python show_pcap.py -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
 
 
-# # # Proxy mode :
+### Proxy mode :
 
 + python httpproxy.py
 + python httpproxy.py -vv                    # output http req & resp contentm, if are texts
