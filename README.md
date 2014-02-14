@@ -1,5 +1,7 @@
 ### Pyhttpcap
 
+查看[中文版本][cn_mark]
+
 Analysis and display http request/response. need python 2.7.*
 
 There are two functions :
@@ -44,3 +46,6 @@ Use -e can forced the encoding http body used:
 
 
 The default port is 8000, just set the software(browsers or something else) 's proxy to this, the capture and parser will work.
+
+
+[cn_mark]: https://github.com/xiaxiaocao/pyhttpcap/blob/master/README_cn.md  "中文版本"
