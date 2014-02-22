@@ -30,7 +30,7 @@ class HttpRequestHeader(object):
 class HttpReponseHeader(object):
     def __init__(self):
         self.content_len = 0
-        self.status_code = ''
+        self.status_code = None
         self.protocal = ''
         self.transfer_encoding = ''
         self.content_encoding = ''
@@ -38,6 +38,12 @@ class HttpReponseHeader(object):
         self.gzip = False
         self.chunked = False
         self.connectionclose = False
+
+
+class RequestMessage(object):
+    """used to pass data between reqeusts"""
+    def __init__(self):
+        self.expect_header = None
 
 
 class HttpParser(object):
@@ -55,29 +61,31 @@ class HttpParser(object):
         self.queue.put(data)
 
     def _work(self):
-        self.buf.write(('*' * 10 + " [%s:%d] -- -- --> [%s:%d] " + '*' * 10 +  "\n") %
+        self.buf.write(('*' * 10 + " [%s:%d] -- -- --> [%s:%d] " + '*' * 10 + "\n") %
                        (self.client_host[0], self.client_host[1], self.remote_host[0], self.remote_host[1]))
 
-        request_status = {}
+        message = RequestMessage()
         wrapper = ResetableWrapper(self.queue)
         try:
             while wrapper.remains():
                 wrapper.settype(HttpType.REQUEST)
                 reader = DataReader(wrapper.next_stream())
-                if reader.fetchline() is None:
+                first_line = reader.fetchline()
+                if first_line is None:
                     break
-                self.read_request(reader, request_status)
+                if not textutils.ishttprequest(first_line) and not message.expect_header:
+                    break
+                self.read_request(reader, message)
 
                 wrapper.settype(HttpType.RESPONSE)
                 reader = DataReader(wrapper.next_stream())
-                if not wrapper.remains():
-                    self.buf.write('{Http response missing}\n\n')
+                if not wrapper.remains() or reader.fetchline() is None:
+                    self._line('{Http response missing}')
                     break
-                if reader.fetchline() is None:
-                    self.buf.write('{Http response missing}\n\n')
-                    break
-                self.read_response(reader, request_status)
-                self.buf.write('\n')
+                if message.expect_header:
+                    pass
+                self.read_response(reader, message)
+                self._line('')
         except Exception as e:
             import traceback
 
@@ -167,7 +175,6 @@ class HttpParser(object):
             self.buf.write('\n')
         return req_header
 
-
     def read_http_resp_header(self, reader):
         """read & parse http headers"""
         line = reader.readline()
@@ -180,7 +187,7 @@ class HttpParser(object):
         resp_header = HttpReponseHeader()
         items = line.split(' ')
         if len(items) == 3:
-            resp_header.status_code = items[1]
+            resp_header.status_code = int(items[1])
             resp_header.protocal = items[0]
 
         self._lineif(OutputLevel.HEADER, line)
@@ -197,8 +204,7 @@ class HttpParser(object):
         self._lineif(OutputLevel.HEADER, '')
 
         if self.config.level == OutputLevel.ONLY_URL:
-            self.buf.write(resp_header.status_code)
-            self.buf.write('\n')
+            self._line(resp_header.status_code)
         return resp_header
 
     def read_chunked_body(self, reader, skip=False):
@@ -222,7 +228,7 @@ class HttpParser(object):
             # the last chunk
             if chunk_size_str[0] == '0':
                 # chunk footer header
-                # todo: handle additional http headers.
+                # TODO: handle additional http headers.
                 while True:
                     cline = reader.readline()
                     if cline is None or len(cline.strip()) == 0:
@@ -252,7 +258,7 @@ class HttpParser(object):
             # a CRLF to end this chunked response
             reader.readline()
 
-    def _body(self, content, gzipped, charset, form_encoded):
+    def write_body(self, content, gzipped, charset, form_encoded):
         if gzipped:
             content = textutils.ungzip(content)
         content = textutils.decode_body(content, charset)
@@ -265,25 +271,24 @@ class HttpParser(object):
                 textutils.try_print_json(content, self.buf)
             else:
                 self.buf.write(content)
-        else:
-            self.buf.write("{empty body}")
-        self.buf.write('\n\n')
+            self._line('')
+        self._line('')
 
-
-    def read_request(self, reader, request_status):
+    def read_request(self, reader, message):
         """ read and output one http request. """
-        if 'expect' in request_status and not textutils.ishttprequest(reader.fetchline()):
-            req_header = request_status['expect']
-            del request_status['expect']
+        if message.expect_header and not textutils.ishttprequest(reader.fetchline()):
+            req_header = message.expect_header
+            message.expect_header = None
         else:
             req_header = self.read_http_req_header(reader)
             if req_header is None:
-                self._line("{Error, cannot parse http request headers.}")
+                # read header error, we skip all datas.
+                self._line("{parse http request header error}")
                 reader.skipall()
                 return
             if req_header.expect:
-                # assume it is expect:continue-100
-                request_status['expect'] = req_header
+                # it is expect:continue-100 post request
+                message.expect_header = req_header
 
         mime, charset = textutils.parse_content_type(req_header.content_type)
         # usually charset is not set in http post
@@ -307,23 +312,27 @@ class HttpParser(object):
 
         # if it is form url encode
 
-        if 'expect' in request_status and not content:
-            content = '{Expect-continue-100, see next content for http post body}'
         if output_body:
             #unescape www-form-encoded data.x-www-form-urlencoded
             if self.config.encoding and not charset:
                 charset = self.config.encoding
-            self._body(content, req_header.gzip, charset, mime and 'form-urlencoded' in mime)
+            self.write_body(content, req_header.gzip, charset, mime and 'form-urlencoded' in mime)
 
-    def read_response(self, reader, request_status):
+    def read_response(self, reader, message):
         """
         read and output one http response
         """
         resp_header = self.read_http_resp_header(reader)
         if resp_header is None:
-            self._line("{Error, cannot parse http response headers.}")
+            self._line("{parse http response headers error}")
             reader.skipall()
             return
+
+        if message.expect_header:
+            if resp_header.status_code == 100:
+                # expected 100, we do not read body
+                reader.skipall()
+                return
 
         # read body
         mime, charset = textutils.parse_content_type(resp_header.content_type)
@@ -339,18 +348,17 @@ class HttpParser(object):
             if resp_header.content_len == 0:
                 if resp_header.connectionclose:
                     # we can't get content length, so asume it till the end of data.
-                    #TODO: add readall method
                     resp_header.content_len = 10000000L
                 else:
-                    #TODO: we can't get content length, and is not a chunked body.
-                    pass
+                    # we can't get content length, and is not a chunked body, we cannot do nothing, just read all datas.
+                    resp_header.content_len = 10000000L
             if output_body:
                 content = reader.read(resp_header.content_len)
             else:
                 reader.skip(resp_header.content_len)
         else:
-            #TODO: could skip chunked data.
+            #TODO: we could skip chunked data other than read into memory.
             content = self.read_chunked_body(reader)
 
         if output_body:
-            self._body(content, resp_header.gzip, charset, False)
+            self.write_body(content, resp_header.gzip, charset, False)

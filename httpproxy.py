@@ -1,5 +1,4 @@
 #coding=utf8
-from Queue import Queue
 
 __author__ = "dongliu"
 
@@ -9,8 +8,10 @@ import socket
 import select
 import threading
 import signal
+
 from httpparser import HttpType, HttpParser
 from config import parse_config
+
 
 _BUF_SIZE = 8192
 _MAX_READ_RETRY_COUNT = 20
@@ -63,7 +64,6 @@ class ConnectionHandler(object):
         self._connect_target(host)
 
     def _connect_target(self, host):
-        print host
         i = host.find(':')
         if i != -1:
             portstr = host[i + 1:]
@@ -98,8 +98,8 @@ class ConnectionHandler(object):
 
             for in_ in recv:
                 data = in_.recv(_BUF_SIZE)
-                out = (in_ is self.clientsocket) and self.targetsocket or self.clientsocket
-                httptype = (in_ is self.clientsocket) and HttpType.REQUEST or HttpType.RESPONSE
+                out = self.targetsocket if in_ is self.clientsocket else self.clientsocket
+                httptype = HttpType.REQUEST if in_ is self.clientsocket else HttpType.RESPONSE
                 if data:
                     out.send(data)
                     empty_read_count = 0
