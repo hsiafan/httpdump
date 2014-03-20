@@ -8,7 +8,7 @@ import threading
 import StringIO
 from config import OutputLevel
 import textutils
-from reader import DataReader, ResetableWrapper
+from reader import DataReader
 from collections import defaultdict
 
 
@@ -30,8 +30,7 @@ class HttpRequestHeader(object):
 class HttpReponseHeader(object):
     def __init__(self):
         self.content_len = 0
-        self.status_code = None
-        self.protocal = ''
+        self.status_line = None
         self.transfer_encoding = ''
         self.content_encoding = ''
         self.content_type = ''
@@ -42,70 +41,91 @@ class HttpReponseHeader(object):
 
 class RequestMessage(object):
     """used to pass data between reqeusts"""
+
     def __init__(self):
         self.expect_header = None
 
 
 class HttpParser(object):
     """parse http req & resp"""
+
     def __init__(self, client_host, remote_host, parse_config):
         self.buf = StringIO.StringIO()
         self.client_host = client_host
         self.remote_host = remote_host
         self.config = parse_config
-        self.queue = Queue()
 
-        self.worker = self._start()
+        self.cur_type = None
+        self.cur_data_queue = None
+        self.inited = False
+        self.is_http = False
 
-    def send(self, data):
-        self.queue.put(data)
+        self.task_queue = None
+        self.worker = None
 
-    def _work(self):
-        self.buf.write(('*' * 10 + " [%s:%d] -- -- --> [%s:%d] " + '*' * 10 + "\n") %
-                       (self.client_host[0], self.client_host[1], self.remote_host[0], self.remote_host[1]))
+    def send(self, http_type, data):
+        if not self.inited:
+            self._init(http_type, data)
+            self.inited = True
+
+        if not self.is_http:
+            return
+
+        if self.cur_type == http_type:
+            self.cur_data_queue.put(data)
+            return
+
+        self.cur_type = http_type
+        if self.cur_data_queue is not None:
+            # finish last task
+            self.cur_data_queue.put(None)
+        # start new task
+        self.cur_data_queue = Queue()
+        self.cur_data_queue.put(data)
+        self.task_queue.put((self.cur_type, self.cur_data_queue))
+
+    def _init(self, http_type, data):
+        if not textutils.ishttprequest(data) or http_type != HttpType.REQUEST:
+            # not a http request
+            self.is_http = False
+        else:
+            self.is_http = True
+            self.task_queue = Queue()  # one task is an http request or http response strem
+            self.worker = threading.Thread(target=self.process_tasks, args=(self.task_queue,))
+            self.worker.setDaemon(True)
+            self.worker.start()
+
+    def process_tasks(self, task_queue):
+        self._line(('*' * 10 + " [%s:%d] -- -- --> [%s:%d] " + '*' * 10) %
+                   (self.client_host[0], self.client_host[1], self.remote_host[0], self.remote_host[1]))
 
         message = RequestMessage()
-        wrapper = ResetableWrapper(self.queue)
-        try:
-            while wrapper.remains():
-                wrapper.settype(HttpType.REQUEST)
-                reader = DataReader(wrapper.next_stream())
-                first_line = reader.fetchline()
-                if first_line is None:
-                    break
-                if not textutils.ishttprequest(first_line) and not message.expect_header:
-                    break
-                self.read_request(reader, message)
 
-                wrapper.settype(HttpType.RESPONSE)
-                reader = DataReader(wrapper.next_stream())
-                if not wrapper.remains() or reader.fetchline() is None:
-                    self._line('{Http response missing}')
-                    break
-                if message.expect_header:
-                    pass
-                self.read_response(reader, message)
-                self._line('')
-        except Exception as e:
-            import traceback
+        while True:
+            httptype, data_queue = task_queue.get()
+            if httptype is None:
+                break
 
-            traceback.print_exc(file=self.buf)
-            # consume all datas.
-            # for proxy mode, make sure http-proxy works well
-            while True:
-                httptype, data = self.queue.get(block=True, timeout=None)
-                if data is None:
-                    break
-
-    def _start(self):
-        worker = threading.Thread(target=self._work)
-        worker.setDaemon(True)
-        worker.start()
-        return worker
+            reader = DataReader(data_queue)
+            try:
+                if httptype == HttpType.REQUEST:
+                    self.read_request(reader, message)
+                elif httptype == HttpType.RESPONSE:
+                    self.read_response(reader, message)
+                    self._line('')
+            except Exception:
+                import traceback
+                traceback.print_exc()
+                # consume all datas.
+                reader.skipall()
+                break
 
     def finish(self):
-        self.queue.put((None, None))
-        self.worker.join()
+        if self.task_queue is not None:
+            self.task_queue.put((None, None))
+            if self.cur_data_queue is not None:
+                self.cur_data_queue.put(None)
+            self.worker.join()
         return self.buf.getvalue()
 
     def _line(self, line):
@@ -169,10 +189,9 @@ class HttpParser(object):
 
         if self.config.level == OutputLevel.ONLY_URL:
             if req_header.uri.startswith('http://'):
-                self.buf.write(req_header.method + " " + req_header.uri)
+                self._line(req_header.method + " " + req_header.uri)
             else:
-                self.buf.write(req_header.method + " http://" + req_header.host +  req_header.uri)
-            self.buf.write('\n')
+                self._line(req_header.method + " http://" + req_header.host + req_header.uri)
         return req_header
 
     def read_http_resp_header(self, reader):
@@ -185,10 +204,7 @@ class HttpParser(object):
         if not textutils.ishttpresponse(line):
             return None
         resp_header = HttpReponseHeader()
-        items = line.split(' ')
-        if len(items) == 3:
-            resp_header.status_code = int(items[1])
-            resp_header.protocal = items[0]
+        resp_header.status_line = line
 
         self._lineif(OutputLevel.HEADER, line)
 
@@ -204,7 +220,7 @@ class HttpParser(object):
         self._lineif(OutputLevel.HEADER, '')
 
         if self.config.level == OutputLevel.ONLY_URL:
-            self._line(resp_header.status_code)
+            self._line(resp_header.status_line)
         return resp_header
 
     def read_chunked_body(self, reader, skip=False):

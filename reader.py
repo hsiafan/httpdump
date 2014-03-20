@@ -2,56 +2,19 @@
 __author__ = 'dongliu'
 
 
-class ResetableWrapper(object):
-    """a wrapper to distinct request and response datas."""
-
-    def __init__(self, queue):
-        self.queue = queue
-        self.cur_httptype = None
-        self.last_data = None
-        self.finish = False
-
-    def remains(self):
-        return not self.finish
-
-    def settype(self, httptype):
-        self.cur_httptype = httptype
-
-    def next_stream(self):
-        if self.last_data:
-            temp = self.last_data
-            self.last_data = None
-            yield temp
-
-        while True:
-            httptype, data = self.queue.get(block=True, timeout=None)
-            if data is None:
-                #None mean finish.
-                break
-            if httptype == self.cur_httptype:
-                yield data
-            else:
-                # save for next
-                self.last_data = data
-                return
-        self.finish = True
-
-
 class DataReader(object):
     """ wrap http data for read. """
 
-    def __init__(self, data_generator):
-        self.data_generator = data_generator
+    def __init__(self, data_queue):
+        self.data_queue = data_queue
         self.data = None
         self.finish = False
 
     def _read(self):
-        try:
-            data = self.data_generator.next()
-            return data
-        except StopIteration:
+        data = self.data_queue.get()
+        if data is None:
             self.finish = True
-            return None
+        return data
 
     def readline(self):
         """read line from input data"""
@@ -161,8 +124,13 @@ class DataReader(object):
         return ''.join(buf)
 
     def skipall(self):
-        while self._read() is not None:
-            pass
+        if self.finish:
+            return
+
+        while True:
+            data = self._read()
+            if data is None:
+                break
 
     def finish(self):
         return self.finish

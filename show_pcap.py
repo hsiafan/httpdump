@@ -63,8 +63,8 @@ class HttpConn:
         else:
             httptype = HttpType.RESPONSE
 
-        if tcp_pac.body:
-            self.http_parser.send((httptype, tcp_pac.body))
+        if self.status == HttpConn.STATUS_RUNNING and tcp_pac.body:
+            self.http_parser.send(httptype, tcp_pac.body)
 
     def finish(self):
         result = self.http_parser.finish()
@@ -118,6 +118,7 @@ def main():
     else:
         outputfile = sys.stdout
 
+    conn_dict = OrderedDict()
     try:
         with io.open(filepath, "rb") as infile:
             file_format = get_file_format(infile)
@@ -129,7 +130,6 @@ def main():
                 print >> sys.stderr, "unknow file format."
                 sys.exit(1)
 
-            conn_dict = OrderedDict()
             for tcp_pac in packet_parser.read_package_r(pcap_file):
                 #filter
                 if port is not None and tcp_pac.source_port != port and tcp_pac.dest_port != port:
@@ -154,13 +154,11 @@ def main():
                     # if is a http request?
                     if textutils.ishttprequest(tcp_pac.body):
                         conn_dict[key] = HttpConn(tcp_pac, outputfile)
-
-            for conn in conn_dict.values():
-                conn.finish()
     finally:
+        for conn in conn_dict.values():
+                conn.finish()
         if args.output:
             outputfile.close()
-        sys.exit()
 
 
 if __name__ == "__main__":

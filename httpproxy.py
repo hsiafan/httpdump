@@ -82,7 +82,7 @@ class ConnectionHandler(object):
     def proxy_data(self, http_parser):
         """run the proxy"""
         self.targetsocket.send(self.first_data)
-        http_parser.send((HttpType.REQUEST, self.first_data))
+        http_parser.send(HttpType.REQUEST, self.first_data)
 
         sockets = [self.clientsocket, self.targetsocket]
         empty_read_count = 0
@@ -103,7 +103,7 @@ class ConnectionHandler(object):
                 if data:
                     out.send(data)
                     empty_read_count = 0
-                    http_parser.send((httptype, data))
+                    http_parser.send(httptype, data)
 
             if empty_read_count == _MAX_READ_RETRY_COUNT:
                 break
