@@ -1,4 +1,4 @@
-Has been rewritten use python3, see: https://github.com/xiaxiaocao/stcap .
+Has been rewritten using python3, see: https://github.com/xiaxiaocao/stcap .
 This repo will be not be updated, or doing bug fix, any more.
 
 
