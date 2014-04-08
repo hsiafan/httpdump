@@ -24,10 +24,10 @@ class HttpRequestHeader(object):
         self.gzip = False
         self.chunked = False
         self.expect = ''
-        self.protocal = ''
+        self.protocol = ''
 
 
-class HttpReponseHeader(object):
+class HttpResponseHeader(object):
     def __init__(self):
         self.content_len = 0
         self.status_line = None
@@ -36,11 +36,11 @@ class HttpReponseHeader(object):
         self.content_type = ''
         self.gzip = False
         self.chunked = False
-        self.connectionclose = False
+        self.connection_close = False
 
 
 class RequestMessage(object):
-    """used to pass data between reqeusts"""
+    """used to pass data between requests"""
 
     def __init__(self):
         self.expect_header = None
@@ -85,7 +85,7 @@ class HttpParser(object):
         self.task_queue.put((self.cur_type, self.cur_data_queue))
 
     def _init(self, http_type, data):
-        if not textutils.ishttprequest(data) or http_type != HttpType.REQUEST:
+        if not textutils.is_request(data) or http_type != HttpType.REQUEST:
             # not a http request
             self.is_http = False
         else:
@@ -163,14 +163,14 @@ class HttpParser(object):
             return None
         line = line.strip()
 
-        if not textutils.ishttprequest(line):
+        if not textutils.is_request(line):
             return None
         req_header = HttpRequestHeader()
         items = line.split(' ')
         if len(items) == 3:
             req_header.method = items[0]
             req_header.uri = items[1]
-            req_header.protocal = items[2]
+            req_header.protocol = items[2]
 
         self._lineif(OutputLevel.HEADER, line)
 
@@ -201,9 +201,9 @@ class HttpParser(object):
             return line
         line = line.strip()
 
-        if not textutils.ishttpresponse(line):
+        if not textutils.is_response(line):
             return None
-        resp_header = HttpReponseHeader()
+        resp_header = HttpResponseHeader()
         resp_header.status_line = line
 
         self._lineif(OutputLevel.HEADER, line)
@@ -215,7 +215,7 @@ class HttpParser(object):
             resp_header.chunked = True
         resp_header.content_type = header_dict['content-type']
         resp_header.gzip = ('gzip' in header_dict["content-encoding"])
-        resp_header.connectionclose = (header_dict['connection'] == 'close')
+        resp_header.connection_close = (header_dict['connection'] == 'close')
 
         self._lineif(OutputLevel.HEADER, '')
 
@@ -231,7 +231,7 @@ class HttpParser(object):
             # read chunk size line
             cline = reader.readline()
             if cline is None:
-                # error ocurred.
+                # error occurred.
                 if not skip:
                     return ''.join(result)
                 else:
@@ -263,7 +263,7 @@ class HttpParser(object):
             data = reader.read(chunk_len)
             if data is None:
                 # skip all
-                # error ocurred.
+                # error occurred.
                 if not skip:
                     return ''.join(result)
                 else:
@@ -292,13 +292,13 @@ class HttpParser(object):
 
     def read_request(self, reader, message):
         """ read and output one http request. """
-        if message.expect_header and not textutils.ishttprequest(reader.fetchline()):
+        if message.expect_header and not textutils.is_request(reader.fetchline()):
             req_header = message.expect_header
             message.expect_header = None
         else:
             req_header = self.read_http_req_header(reader)
             if req_header is None:
-                # read header error, we skip all datas.
+                # read header error, we skip all data.
                 self._line("{parse http request header error}")
                 reader.skipall()
                 return
@@ -308,8 +308,8 @@ class HttpParser(object):
 
         mime, charset = textutils.parse_content_type(req_header.content_type)
         # usually charset is not set in http post
-        output_body = self.config.level >= OutputLevel.ALL_BODY and not textutils.isbinarybody(mime) \
-            or self.config.level >= OutputLevel.TEXT_BODY and textutils.istextbody(mime)
+        output_body = self.config.level >= OutputLevel.ALL_BODY and not textutils.is_binary(mime) \
+            or self.config.level >= OutputLevel.TEXT_BODY and textutils.is_text(mime)
 
         content = ''
         # deal with body
@@ -324,7 +324,7 @@ class HttpParser(object):
         if not req_header.gzip:
             # if is gzip by content magic header
             # someone missed the content-encoding header
-            req_header.gzip = textutils.isgzip(content)
+            req_header.gzip = textutils.gzipped(content)
 
         # if it is form url encode
 
@@ -355,18 +355,18 @@ class HttpParser(object):
         if self.config.encoding and not charset:
             charset = self.config.encoding
 
-        output_body = self.config.level >= OutputLevel.ALL_BODY and not textutils.isbinarybody(mime) \
-            or self.config.level >= OutputLevel.TEXT_BODY and textutils.istextbody(mime)
+        output_body = self.config.level >= OutputLevel.ALL_BODY and not textutils.is_binary(mime) \
+            or self.config.level >= OutputLevel.TEXT_BODY and textutils.is_text(mime)
 
         content = ''
         # deal with body
         if not resp_header.chunked:
             if resp_header.content_len == 0:
-                if resp_header.connectionclose:
-                    # we can't get content length, so asume it till the end of data.
+                if resp_header.connection_close:
+                    # we can't get content length, so assume it till the end of data.
                     resp_header.content_len = 10000000L
                 else:
-                    # we can't get content length, and is not a chunked body, we cannot do nothing, just read all datas.
+                    # we can't get content length, and is not a chunked body, we cannot do nothing, just read all data.
                     resp_header.content_len = 10000000L
             if output_body:
                 content = reader.read(resp_header.content_len)

@@ -6,29 +6,29 @@ import StringIO
 import gzip
 
 
-def try_print_json(text, outputfile):
+def try_print_json(text, output_file):
 
     if text is None:
         return
     if len(text) > 500000:
         # do not process to large text
-        outputfile.write(text)
+        output_file.write(text)
         return False
     if text.startswith('{') and text.endswith('}') or text.startswith('{') and text.endswith('}'):
         # do not process a non-list-dict json
         try:
             data = json.loads(text)
-            outputfile.write(json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')).encode('utf-8'))
+            output_file.write(json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')).encode('utf-8'))
             return True
         except Exception as e:
-            outputfile.write(text)
+            output_file.write(text)
             return False
     else:
-        outputfile.write(text)
+        output_file.write(text)
         return False
 
 
-def isgzip(content):
+def gzipped(content):
     """
     test if content is gzipped by magic num.
     """
@@ -40,11 +40,11 @@ def isgzip(content):
 
 
 def ungzip(content):
-    """ungip content"""
+    """ungzip content"""
     try:
-        compresssteam = StringIO.StringIO(content)
-        gzipper = gzip.GzipFile(fileobj=compresssteam)
-        content = gzipper.read()
+        buf = StringIO.StringIO(content)
+        gzip_file = gzip.GzipFile(fileobj=buf)
+        content = gzip_file.read()
         return content
     except:
         return content
@@ -59,7 +59,7 @@ def parse_http_header(header):
         return header[0:idx].strip(), header[idx + 1:].strip()
 
 
-def ishttprequest(body):
+def is_request(body):
     idx = body.find(' ')
     if idx < 0:
         return False
@@ -67,7 +67,7 @@ def ishttprequest(body):
     return method in ('get', 'post', 'put', 'delete')
 
 
-def ishttpresponse(body):
+def is_response(body):
     return body.startswith('HTTP/') or body.startswith('http/')
 
 
@@ -88,18 +88,18 @@ def parse_content_type(content_type):
     return mime.strip().lower(), encoding.strip().lower()
 
 
-def istextbody(mime):
+def is_text(mime):
     if not mime:
         return False
     return 'text' in mime or 'html' in mime or 'xml' in mime or 'json' in mime or 'script' in mime \
         or 'www-form-urlencoded' in mime
 
 
-def isbinarybody(mime):
+def is_binary(mime):
     if not mime:
         return False
     # some stupid client set mime to octet-stream even if it is a text content.
-    # and we cannot exclude the reponse without content-type headers.
+    # and we cannot exclude the response without content-type headers.
     # TODO: we need to judge if body is text by content.
     return 'image' in mime or 'octet-stream' in mime or 'video' in mime or 'pdf' in mime
 

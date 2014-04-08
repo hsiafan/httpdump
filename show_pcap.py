@@ -49,7 +49,7 @@ class HttpConn:
 
         if self.status == HttpConn.STATUS_BEGIN:
             if tcp_pac.body:
-                if textutils.ishttprequest(tcp_pac.body):
+                if textutils.is_request(tcp_pac.body):
                     self.status = HttpConn.STATUS_RUNNING
         if tcp_pac.pac_type == -1:
             # end of connection
@@ -59,12 +59,12 @@ class HttpConn:
                 self.status = HttpConn.STATUS_ERROR
 
         if tcp_pac.source == self.source_ip:
-            httptype = HttpType.REQUEST
+            http_type = HttpType.REQUEST
         else:
-            httptype = HttpType.RESPONSE
+            http_type = HttpType.RESPONSE
 
         if self.status == HttpConn.STATUS_RUNNING and tcp_pac.body:
-            self.http_parser.send(httptype, tcp_pac.body)
+            self.http_parser.send(http_type, tcp_pac.body)
 
     def finish(self):
         result = self.http_parser.finish()
@@ -75,7 +75,7 @@ class HttpConn:
 class FileFormat(object):
     PCAP = 0xA1B2C3D4
     PCAP_NG = 0x0A0D0D0A
-    UNKNOW = -1
+    UNKNOWN = -1
 
 
 def get_file_format(infile):
@@ -88,7 +88,7 @@ def get_file_format(infile):
     elif magic_num == 0x0A0D0D0A:
         return FileFormat.PCAP_NG
     else:
-        return FileFormat.UNKNOW
+        return FileFormat.UNKNOWN
 
 
 def main():
@@ -127,7 +127,7 @@ def main():
             elif file_format == FileFormat.PCAP_NG:
                 pcap_file = pcapng.PcapNgFile(infile).read_packet
             else:
-                print >> sys.stderr, "unknow file format."
+                print >> sys.stderr, "unknown file format."
                 sys.exit(1)
 
             for tcp_pac in packet_parser.read_package_r(pcap_file):
@@ -150,9 +150,9 @@ def main():
                 elif tcp_pac.pac_type == 1:
                     conn_dict[key] = HttpConn(tcp_pac, outputfile)
                 elif tcp_pac.pac_type == 0:
-                    # tcp init before capature, we found a http request header, begin parse
+                    # tcp init before capture, we found a http request header, begin parse
                     # if is a http request?
-                    if textutils.ishttprequest(tcp_pac.body):
+                    if textutils.is_request(tcp_pac.body):
                         conn_dict[key] = HttpConn(tcp_pac, outputfile)
     finally:
         for conn in conn_dict.values():

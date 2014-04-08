@@ -18,7 +18,7 @@ class SectionInfo(object):
         self.length = -1
         self.major = -1
         self.minor = -1
-        self.linktype = -1
+        self.link_type = -1
         self.capture_len = -1
 
 
@@ -29,7 +29,7 @@ class PcapNgFile(object):
         self.section_info = SectionInfo()
 
     def parse_section_header_block(self, block_header):
-        """get section infos from section header block"""
+        """get section info from section header block"""
 
         # read byte order info first.
         byteorder_magic = self.infile.read(4)
@@ -45,8 +45,8 @@ class PcapNgFile(object):
         block_len, = struct.unpack(byteorder + '4xI', block_header)
 
         # read version, should be 1, 0
-        versoins = self.infile.read(4)
-        major, minor = struct.unpack(byteorder + 'HH', versoins)
+        versions = self.infile.read(4)
+        major, minor = struct.unpack(byteorder + 'HH', versions)
 
         # section len
         section_len = self.infile.read(8)
@@ -63,12 +63,12 @@ class PcapNgFile(object):
         self.section_info.length = section_len
 
     def parse_interface_description_block(self, block_len):
-        # read linktype and capture size
+        # read link type and capture size
         buf = self.infile.read(4)
-        linktype, = struct.unpack(self.section_info.byteorder + 'H2x', buf)
+        link_type, = struct.unpack(self.section_info.byteorder + 'H2x', buf)
         buf = self.infile.read(4)
         snap_len = struct.unpack(self.section_info.byteorder + 'I', buf)
-        self.section_info.linktype = linktype
+        self.section_info.link_type = link_type
         self.section_info.snap_len = snap_len
         self.infile.seek(block_len - 12 - 8, 1)
 
@@ -102,17 +102,17 @@ class PcapNgFile(object):
         data = ''
         if block_type == BlockType.SECTION_HEADER:
             self.parse_section_header_block(block_header)
-        elif block_type == BlockType.INTERFACE_DESCRIPTOIN:
-            # read linktype and capture size
+        elif block_type == BlockType.INTERFACE_DESCRIPTION:
+            # read link type and capture size
             self.parse_interface_description_block(block_len)
         elif block_type == BlockType.ENHANCED_PACKET:
             data = self.parse_enhanced_packet(block_len)
         #TODO:add other block type we have know
         else:
             self.infile.seek(block_len - 12, 1)
-            print >> sys.stderr, "unknow block type:%s, size:%d" % (hex(block_type), block_len)
+            print >> sys.stderr, "unknown block type:%s, size:%d" % (hex(block_type), block_len)
 
-        # read anthor block_len
+        # read author block_len
         block_len_t = self.infile.read(4)
         block_len_t, = struct.unpack(self.section_info.byteorder + 'I', block_len_t)
         if block_len_t != block_len:
@@ -127,4 +127,4 @@ class PcapNgFile(object):
             elif link_packet is None:
                 return
             else:
-                yield self.section_info.byteorder, self.section_info.linktype, link_packet
+                yield self.section_info.byteorder, self.section_info.link_type, link_packet

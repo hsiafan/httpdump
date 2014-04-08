@@ -12,7 +12,7 @@ class PcapFile(object):
     def __init__(self, infile):
         self.infile = infile
         self.byteorder = '@'
-        self.linktype = None
+        self.link_type = None
 
     # http://www.winpcap.org/ntar/draft/PCAP-DumpFileFormat.html
     def pcap_check(self):
@@ -34,7 +34,7 @@ class PcapFile(object):
         else:
             return False
 
-        version_major, version_minor, timezone, timestamp, max_package_len, self.linktype\
+        version_major, version_minor, timezone, timestamp, max_package_len, self.link_type\
             = struct.unpack(self.byteorder + '4xHHIIII', global_head)
 
         return True
@@ -52,8 +52,8 @@ class PcapFile(object):
         if not package_header:
             return None, None
 
-        seconds, suseconds, packet_len, rawlen = struct.unpack(self.byteorder + 'IIII', package_header)
-        # note: packet_len contains paddings.
+        seconds, suseconds, packet_len, raw_len = struct.unpack(self.byteorder + 'IIII', package_header)
+        # note: packet_len contains padding.
         link_packet = self.infile.read(packet_len)
         if len(link_packet) < packet_len:
             return None, None
@@ -68,6 +68,6 @@ class PcapFile(object):
         while True:
             packet_len, link_packet = self.read_pcap_pac()
             if link_packet:
-                yield self.byteorder, self.linktype, link_packet
+                yield self.byteorder, self.link_type, link_packet
             else:
                 return

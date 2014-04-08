@@ -16,7 +16,7 @@ class LinkLayerType(object):
     LINUX_SLL = 113
 
 
-class NetworkProtocal(object):
+class NetworkProtocol(object):
     IP = 2048
     IPV6 = 34525
     # Virtual Bridged Local Area Networks
@@ -29,9 +29,9 @@ class TransferProtocal(object):
 
 class BlockType(object):
     SECTION_HEADER = 0x0A0D0D0A
-    INTERFACE_DESCRIPTOIN = 0x00000001
+    INTERFACE_DESCRIPTION = 0x00000001
     PACKET = 0x00000002
-    SIMPILE_PACKET = 0x00000003
+    SIMPLE_PACKET = 0x00000003
     NAME_RESOLUTION = 0x00000004
     INTERFACE_STATISTICS = 0x00000005
     ENHANCED_PACKET = 0x00000006

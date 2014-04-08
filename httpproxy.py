@@ -20,20 +20,20 @@ _READ_TIMEOUT = 3
 
 class ConnectionHandler(object):
     """handle one connection from client"""
-    def __init__(self, clientsocket):
-        self.clientsocket = clientsocket
+    def __init__(self, client_socket):
+        self.client_socket = client_socket
         self.first_data = ''
-        self.httptype = HttpType.REQUEST
+        self.http_type = HttpType.REQUEST
         self.remote_host = None
         self.path = None
         self.method = None
         self.protocol = None
-        self.targetsocket = None
+        self.target_socket = None
 
     def init_connect(self):
         end = -1
         while True:
-            self.first_data += self.clientsocket.recv(_BUF_SIZE)
+            self.first_data += self.client_socket.recv(_BUF_SIZE)
             end = self.first_data.find('\n')
             if end != -1:
                 break
@@ -46,13 +46,13 @@ class ConnectionHandler(object):
             self._method_others()
 
     def close(self):
-        self.clientsocket.close()
-        self.targetsocket.close()
+        self.client_socket.close()
+        self.target_socket.close()
 
     def _method_connect(self):
         """for http proxy connect method. it is usually for https proxy"""
         self._connect_target(self.path)
-        self.clientsocket.send('HTTP/1.1 200 Connection established\nProxy-agent: Python Proxy\n\n')
+        self.client_socket.send('HTTP/1.1 200 Connection established\nProxy-agent: Python Proxy\n\n')
 
     def _method_others(self):
         self.path = self.path[len('http://'):]
@@ -66,8 +66,8 @@ class ConnectionHandler(object):
     def _connect_target(self, host):
         i = host.find(':')
         if i != -1:
-            portstr = host[i + 1:]
-            if portstr:
+            port_str = host[i + 1:]
+            if port_str:
                 port = int(host[i + 1:])
             else:
                 port = 80
@@ -76,49 +76,49 @@ class ConnectionHandler(object):
             port = 80
         (soc_family, _, _, _, address) = socket.getaddrinfo(host, port)[0]
         self.remote_host = address
-        self.targetsocket = socket.socket(soc_family)
-        self.targetsocket.connect(address)
+        self.target_socket = socket.socket(soc_family)
+        self.target_socket.connect(address)
 
     def proxy_data(self, http_parser):
         """run the proxy"""
-        self.targetsocket.send(self.first_data)
+        self.target_socket.send(self.first_data)
         http_parser.send(HttpType.REQUEST, self.first_data)
 
-        sockets = [self.clientsocket, self.targetsocket]
+        sockets = [self.client_socket, self.target_socket]
         empty_read_count = 0
         while True:
             empty_read_count += 1
-            (recv, _, error) = select.select(sockets, [], sockets, _READ_TIMEOUT)
+            (data, _, error) = select.select(sockets, [], sockets, _READ_TIMEOUT)
             if error:
-                # connection closed, or error occured.
+                # connection closed, or error occurred.
                 break
 
-            if not recv:
+            if not data:
                 continue
 
-            for in_ in recv:
+            for in_ in data:
                 data = in_.recv(_BUF_SIZE)
-                out = self.targetsocket if in_ is self.clientsocket else self.clientsocket
-                httptype = HttpType.REQUEST if in_ is self.clientsocket else HttpType.RESPONSE
+                out = self.target_socket if in_ is self.client_socket else self.client_socket
+                http_type = HttpType.REQUEST if in_ is self.client_socket else HttpType.RESPONSE
                 if data:
                     out.send(data)
                     empty_read_count = 0
-                    http_parser.send(httptype, data)
+                    http_parser.send(http_type, data)
 
             if empty_read_count == _MAX_READ_RETRY_COUNT:
                 break
 
 
-def _worker(workersocket, clientip, clientport, outputfile):
+def _worker(worker_socket, client_ip, client_port, output_file):
     try:
-        handler = ConnectionHandler(workersocket)
+        handler = ConnectionHandler(worker_socket)
         handler.init_connect()
-        http_parser = HttpParser((clientip, clientport), handler.remote_host, parse_config)
+        http_parser = HttpParser((client_ip, client_port), handler.remote_host, parse_config)
         handler.proxy_data(http_parser)
         handler.close()
         result = http_parser.finish()
-        outputfile.write(result)
-        outputfile.flush()
+        output_file.write(result)
+        output_file.flush()
     except Exception:
         import traceback
         traceback.print_exc()
@@ -126,28 +126,28 @@ def _worker(workersocket, clientip, clientport, outputfile):
 
 def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
     """start proxy server."""
-    ipver = IPv6 and socket.AF_INET6 or socket.AF_INET
-    serversocket = socket.socket(ipver)
-    serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    ip_version = IPv6 and socket.AF_INET6 or socket.AF_INET
+    server_socket = socket.socket(ip_version)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     try:
-        serversocket.bind((host, port))
+        server_socket.bind((host, port))
     except Exception as e:
         print e
         sys.exit(-1)
     print "Proxy start on %s:%d" % (host, port)
-    serversocket.listen(0)
+    server_socket.listen(0)
 
-    outputfile = output and open(output, "w+") or sys.stdout
+    output_file = output and open(output, "w+") or sys.stdout
 
     def clean():
         """do clean job after process terminated"""
         try:
-            serversocket.close()
+            server_socket.close()
         except:
             pass
         try:
-            outputfile.close()
+            output_file.close()
         except:
             pass
 
@@ -161,11 +161,11 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
 
     try:
         while True:
-            workersocket, client = serversocket.accept()
-            (clientip, clientport) = client
-            workerthread = threading.Thread(target=_worker, args=(workersocket, clientip, clientport, outputfile))
-            workerthread.setDaemon(True)
-            workerthread.start()
+            worker_socket, client = server_socket.accept()
+            (client_ip, client_port) = client
+            worker_thread = threading.Thread(target=_worker, args=(worker_socket, client_ip, client_port, output_file))
+            worker_thread.setDaemon(True)
+            worker_thread.start()
     finally:
         clean()
 

@@ -13,7 +13,7 @@ class TcpPack:
 
     TYPE_INIT = 1  # init tcp connection
     TYPE_INIT_ACK = 2
-    TYPE_ESTAB = 0  # establish conn
+    TYPE_ESTABLISH = 0  # establish conn
     TYPE_CLOSE = -1  # close tcp connection
 
     def __init__(self, source, source_port, dest, dest_port, pac_type, seq, ack, body):
@@ -45,7 +45,7 @@ class TcpPack:
         return self.key
 
     def expect_ack(self):
-        if self.pac_type == TcpPack.TYPE_ESTAB:
+        if self.pac_type == TcpPack.TYPE_ESTABLISH:
             return self.seq + len(self.body)
         else:
             return self.seq + 1
@@ -60,7 +60,7 @@ def dl_parse_ethernet(link_packet, byteorder):
     ethernet_header = link_packet[0:eth_header_len]
 
     (n_protocol, ) = struct.unpack('!12xH', ethernet_header)
-    if n_protocol == NetworkProtocal.P802_1Q:
+    if n_protocol == NetworkProtocol.P802_1Q:
         # 802.1q, we need to skip two bytes and read another two bytes to get protocal/len
         type_or_len = link_packet[eth_header_len:eth_header_len + 4]
         eth_header_len += 4
@@ -86,11 +86,11 @@ def dl_parse_linux_sll(link_packet, byteorder):
 
 
 #see http://en.wikipedia.org/wiki/Ethertype
-def read_ip_pac(link_packet, endian, linklayer_parser):
+def read_ip_pac(link_packet, endian, link_layer_parser):
     # ip header
-    n_protocol, ip_packet = linklayer_parser(link_packet, endian)
+    n_protocol, ip_packet = link_layer_parser(link_packet, endian)
 
-    if n_protocol == NetworkProtocal.IP:
+    if n_protocol == NetworkProtocol.IP:
         ip_base_header_len = 20
         ip_header = ip_packet[0:ip_base_header_len]
         (ip_info, ip_length, protocol) = struct.unpack('!BxH5xB10x', ip_header)
@@ -110,7 +110,7 @@ def read_ip_pac(link_packet, endian, linklayer_parser):
         dest = socket.inet_ntoa(ip_header[16:])
 
         return 1, source, dest, ip_packet[ip_header_len:ip_header_len + ip_length]
-    elif n_protocol == NetworkProtocal.IPV6:
+    elif n_protocol == NetworkProtocol.IPV6:
         # TODO: deal with ipv6 package
         return 0, None, None, None
     else:
@@ -118,9 +118,9 @@ def read_ip_pac(link_packet, endian, linklayer_parser):
         return 0, None, None, None
 
 
-def read_tcp_pac(link_packet, byteorder, linklayer_parser):
-    """read tcp data.http only builded on tcp, so we do not need to support other protocals."""
-    state, source, dest, tcp_packet = read_ip_pac(link_packet, byteorder, linklayer_parser)
+def read_tcp_pac(link_packet, byteorder, link_layer_parser):
+    """read tcp data.http only build on tcp, so we do not need to support other protocols."""
+    state, source, dest, tcp_packet = read_ip_pac(link_packet, byteorder, link_layer_parser)
     if state == 0:
         return 0, None
 
@@ -143,7 +143,7 @@ def read_tcp_pac(link_packet, byteorder, linklayer_parser):
 
     # body
     body = tcp_packet[tcp_header_len:]
-    # workaround to ingore no-data tcp packs
+    # workaround to ignore no-data tcp packs
     if 0 < len(body) < 20:
         total = 0
         for ch in body:
@@ -159,15 +159,15 @@ def read_tcp_pac(link_packet, byteorder, linklayer_parser):
     elif fin == 1:
         pac_type = TcpPack.TYPE_CLOSE
     else:
-        pac_type = TcpPack.TYPE_ESTAB
+        pac_type = TcpPack.TYPE_ESTABLISH
 
     return 1, TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
 
 
-def get_linklayer_parser(linktype):
-    if linktype == LinkLayerType.ETHERNET:
+def get_link_layer_parser(link_type):
+    if link_type == LinkLayerType.ETHERNET:
         return dl_parse_ethernet
-    elif linktype == LinkLayerType.LINUX_SLL:
+    elif link_type == LinkLayerType.LINUX_SLL:
         return dl_parse_linux_sll
     else:
         return None
@@ -176,9 +176,9 @@ def get_linklayer_parser(linktype):
 def read_tcp_packet(read_packet):
     """ generator, read a *TCP* package once."""
 
-    for byteorder, linktype, link_packet in read_packet():
-        linklayer_parser = get_linklayer_parser(linktype)
-        state, pack = read_tcp_pac(link_packet, byteorder, linklayer_parser)
+    for byteorder, link_type, link_packet in read_packet():
+        link_layer_parser = get_link_layer_parser(link_type)
+        state, pack = read_tcp_pac(link_packet, byteorder, link_layer_parser)
         if state == 1 and pack:
             yield pack
             continue
@@ -204,17 +204,17 @@ def read_package_r(pcap_file):
         if pack.source + str(pack.source_port) == direction_dict[key]:
             hold_packs = conn_dict[key]
             fetch_packs = reverse_conn_dict[key]
-            cdict = reverse_conn_dict
+            connections = reverse_conn_dict
         else:
             hold_packs = reverse_conn_dict[key]
             fetch_packs = conn_dict[key]
-            cdict = conn_dict
+            connections = conn_dict
 
-        if pack.body or pack.pac_type != TcpPack.TYPE_ESTAB:
+        if pack.body or pack.pac_type != TcpPack.TYPE_ESTABLISH:
             hold_packs.append(pack)
         ack_packs = [ipack for ipack in fetch_packs if ipack.expect_ack() <= pack.ack]
         remain_packs = [ipack for ipack in fetch_packs if ipack.expect_ack() > pack.ack]
-        cdict[key] = remain_packs
+        connections[key] = remain_packs
         for ipack in sorted(ack_packs, key=lambda x: x.seq):
             yield ipack
 
