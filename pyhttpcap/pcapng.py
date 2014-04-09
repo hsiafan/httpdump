@@ -9,7 +9,8 @@ __author__ = 'dongliu'
 
 import struct
 import sys
-from constant import *
+
+from pyhttpcap.constant import *
 
 
 class SectionInfo(object):

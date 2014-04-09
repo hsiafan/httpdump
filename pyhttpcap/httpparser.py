@@ -1,14 +1,14 @@
 #coding=utf-8
-from constant import HttpType
+from pyhttpcap import textutils
+from pyhttpcap.constant import HttpType
 
 __author__ = 'dongliu'
 
 from Queue import Queue
 import threading
 import StringIO
-from config import OutputLevel
-import textutils
-from reader import DataReader
+from pyhttpcap.config import OutputLevel
+from pyhttpcap.reader import DataReader
 from collections import defaultdict
 
 
