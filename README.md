@@ -1,5 +1,7 @@
 ### pyhttpcap
 
+pyhttpcap has been rewritten using python3, as [stcap].
+
 Analysis and display http request/response. Python 2.7.* required
 
 This can be used in two ways:
@@ -60,3 +62,5 @@ proxy_cap -vv -ohttp.log         # ouput result to http.log
 ```
 
 The default port is 8000, just set the software(browsers or something else) 's proxy to this, the capture and parser will work.
+
+[stcap]: https://github.com/xiaxiaocao/pyhttpcap "stcap"
