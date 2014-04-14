@@ -1,6 +1,4 @@
-### pyhttpcap
-
-pyhttpcap has been rewritten using python3, as [stcap].
+Pyhttpcap has been rewritten using python3, as [stcap].
 
 Analysis and display http request/response. Python 2.7.* required
 
