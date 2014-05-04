@@ -6,8 +6,22 @@ import StringIO
 import gzip
 
 
-def try_print_json(text, output_file):
+class Mime(object):
+    def __init__(self, mime_str):
+        if not mime_str:
+            self.top_level = None
+            self.subtype = None
+            return
+        idx = mime_str.find('/')
+        if idx < 0:
+            self.top_level = mime_str
+            self.subtype = None
+            return
+        self.top_level = mime_str[:idx]
+        self.subtype = mime_str[idx + 1:]
 
+
+def try_print_json(text, output_file):
     if text is None:
         return
     if len(text) > 500000:
@@ -33,8 +47,8 @@ def gzipped(content):
     test if content is gzipped by magic num.
     """
     if content is not None and len(content) > 10 \
-        and ord(content[0:1]) == 31 and ord(content[1:2]) == 139 \
-        and ord(content[2:3]) == 8:
+            and ord(content[0:1]) == 31 and ord(content[1:2]) == 139 \
+            and ord(content[2:3]) == 8:
         return True
     return False
 
@@ -46,8 +60,29 @@ def ungzip(content):
         gzip_file = gzip.GzipFile(fileobj=buf)
         content = gzip_file.read()
         return content
-    except:
+    except IOError:
+        content = ungzip_carefully(content)
         return content
+    except:
+        import traceback
+        traceback.print_exc()
+        return content
+
+
+def ungzip_carefully(content):
+    """
+    deal with corrupted gzip file, read one word once
+    """
+    compress_steam = StringIO.StringIO(content)
+    gzip_file = gzip.GzipFile(fileobj=compress_steam)
+    buf = StringIO.StringIO()
+    try:
+        while True:
+            data = gzip_file.read(4)
+            buf.write(data)
+        return buf.getvalue()
+    except IOError:
+        return buf.getvalue()
 
 
 def parse_http_header(header):
@@ -88,20 +123,21 @@ def parse_content_type(content_type):
     return mime.strip().lower(), encoding.strip().lower()
 
 
-def is_text(mime):
-    if not mime:
-        return False
-    return 'text' in mime or 'html' in mime or 'xml' in mime or 'json' in mime or 'script' in mime \
-        or 'www-form-urlencoded' in mime
+_text_mime_top_levels = {b'text'}
+_text_mime_subtypes = {b'html', b'xml', b'json', b'javascript', b'ecmascript', b'atom+xml', b'rss+xml',
+                       b'xhtml+xml', b'rdf+xml', b'x-www-form-urlencoded'}
+def is_text(mime_str):
+    mime = Mime(mime_str)
+    return mime.top_level in _text_mime_top_levels or mime.subtype in _text_mime_subtypes
 
 
-def is_binary(mime):
-    if not mime:
-        return False
-    # some stupid client set mime to octet-stream even if it is a text content.
-    # and we cannot exclude the response without content-type headers.
-    # TODO: we need to judge if body is text by content.
-    return 'image' in mime or 'octet-stream' in mime or 'video' in mime or 'pdf' in mime
+_binary_mime_top_levels = {'audio', 'image', 'video'}
+_binary_mime_subtypes = {'octet-stream', 'pdf', 'postscript', 'zip', 'gzip'}
+
+
+def is_binary(mime_str):
+    mime = Mime(mime_str)
+    return mime.top_level in _binary_mime_top_levels or mime.subtype in _binary_mime_subtypes
 
 
 def decode_body(content, charset):

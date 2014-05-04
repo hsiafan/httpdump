@@ -11,7 +11,7 @@ url = 'https://github.com/xiaxiaocao/pyhttpcap'
 version = __import__(PACKAGE).__version__
 
 try:
-    with open('README.rst') as f:
+    with open('README.rst', 'rb') as f:
         long_description = f.read()
 except:
     long_description = description
