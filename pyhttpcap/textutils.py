@@ -1,8 +1,9 @@
 #coding=utf-8
+from __future__ import unicode_literals, print_function, division
 __author__ = 'dongliu'
 
 import json
-import StringIO
+from io import BytesIO
 import gzip
 
 
@@ -12,7 +13,7 @@ class Mime(object):
             self.top_level = None
             self.subtype = None
             return
-        idx = mime_str.find('/')
+        idx = mime_str.find(b'/')
         if idx < 0:
             self.top_level = mime_str
             self.subtype = None
@@ -24,15 +25,11 @@ class Mime(object):
 def try_print_json(text, output_file):
     if text is None:
         return
-    if len(text) > 500000:
-        # do not process to large text
-        output_file.write(text)
-        return False
     if text.startswith('{') and text.endswith('}') or text.startswith('{') and text.endswith('}'):
         # do not process a non-list-dict json
         try:
             data = json.loads(text)
-            output_file.write(json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')).encode('utf-8'))
+            output_file.write(json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')))
             return True
         except Exception as e:
             output_file.write(text)
@@ -56,7 +53,7 @@ def gzipped(content):
 def ungzip(content):
     """ungzip content"""
     try:
-        buf = StringIO.StringIO(content)
+        buf = BytesIO(content)
         gzip_file = gzip.GzipFile(fileobj=buf)
         content = gzip_file.read()
         return content
@@ -65,6 +62,7 @@ def ungzip(content):
         return content
     except:
         import traceback
+
         traceback.print_exc()
         return content
 
@@ -73,9 +71,9 @@ def ungzip_carefully(content):
     """
     deal with corrupted gzip file, read one word once
     """
-    compress_steam = StringIO.StringIO(content)
+    compress_steam = BytesIO(content)
     gzip_file = gzip.GzipFile(fileobj=compress_steam)
-    buf = StringIO.StringIO()
+    buf = BytesIO()
     try:
         while True:
             data = gzip_file.read(4)
@@ -87,7 +85,7 @@ def ungzip_carefully(content):
 
 def parse_http_header(header):
     header = header.strip()
-    idx = header.find(':')
+    idx = header.find(b':')
     if idx < 0:
         return None, None
     else:
@@ -95,44 +93,46 @@ def parse_http_header(header):
 
 
 def is_request(body):
-    idx = body.find(' ')
+    idx = body.find(b' ')
     if idx < 0:
         return False
     method = body[0:idx].lower()
-    return method in ('get', 'post', 'put', 'delete')
+    return method in (b'get', b'post', b'put', b'delete')
 
 
 def is_response(body):
-    return body.startswith('HTTP/') or body.startswith('http/')
+    return body.startswith(b'HTTP/') or body.startswith(b'http/')
 
 
 def parse_content_type(content_type):
     if not content_type:
         return None, None
-    idx = content_type.find(';')
+    idx = content_type.find(b';')
     if idx < 0:
         idx = len(content_type)
     mime = content_type[0:idx]
     encoding = content_type[idx + 1:]
     if len(encoding) > 0:
-        eidx = encoding.find('=')
+        eidx = encoding.find(b'=')
         if eidx > 0:
             encoding = encoding[eidx + 1:]
         else:
-            encoding = ''
+            encoding = b''
     return mime.strip().lower(), encoding.strip().lower()
 
 
 _text_mime_top_levels = {b'text'}
 _text_mime_subtypes = {b'html', b'xml', b'json', b'javascript', b'ecmascript', b'atom+xml', b'rss+xml',
                        b'xhtml+xml', b'rdf+xml', b'x-www-form-urlencoded'}
+
+
 def is_text(mime_str):
     mime = Mime(mime_str)
     return mime.top_level in _text_mime_top_levels or mime.subtype in _text_mime_subtypes
 
 
-_binary_mime_top_levels = {'audio', 'image', 'video'}
-_binary_mime_subtypes = {'octet-stream', 'pdf', 'postscript', 'zip', 'gzip'}
+_binary_mime_top_levels = {b'audio', b'image', b'video'}
+_binary_mime_subtypes = {b'octet-stream', b'pdf', b'postscript', b'zip', b'gzip'}
 
 
 def is_binary(mime_str):
@@ -142,18 +142,20 @@ def is_binary(mime_str):
 
 def decode_body(content, charset):
     if charset:
+        if type(charset) == type(b''):
+            charset = charset.decode('utf-8')
         try:
-            return content.decode(charset).encode('utf-8')
+            return content.decode(charset)
         except:
-            return content
-    else:
-        # todo: encoding detect
-        try:
-            return content.decode('utf-8').encode('utf-8')
-        except:
-            pass
-        try:
-            return content.decode('gb18030').encode('utf-8')
-        except:
-            pass
-        return content
+            return '{decode content failed with charset: %s}' % charset
+
+    # todo: encoding detect
+    try:
+        return content.decode('utf-8')
+    except:
+        pass
+    try:
+        return content.decode('gb18030')
+    except:
+        pass
+    return '{decode content failed, unknown charset}'

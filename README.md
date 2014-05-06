@@ -1,4 +1,4 @@
-Analysis and display http request/response. Python 2.7.* required
+Analysis and display http request/response. Python 2.7+ / Python 3.3+ required
 
 This can be used in two ways:
 

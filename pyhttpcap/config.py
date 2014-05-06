@@ -1,4 +1,5 @@
 #coding=utf-8
+from __future__ import unicode_literals, print_function, division
 __author__ = 'dongliu'
 
 
@@ -11,9 +12,11 @@ class OutputLevel(object):
 
 class _Config(object):
     """ global settings """
+
     def __init__(self):
         self.level = OutputLevel.ONLY_URL
         self.pretty = False
         self.encoding = None
+
 
 parse_config = _Config()

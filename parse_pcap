@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-#coding=utf-8
+#coding=utf8
+from __future__ import unicode_literals, print_function, division
+
 import argparse
 import io
 
@@ -66,7 +68,10 @@ class HttpConn:
 
     def finish(self):
         result = self.http_parser.finish()
-        self.out.write(result)
+        if sys.version < '3':
+            print(result.encode('utf8'), file=self.out)
+        else:
+            print(result, file=self.out)
         self.out.flush()
 
 
@@ -80,7 +85,7 @@ def get_file_format(infile):
     """get cap file format by magic num"""
     buf = infile.read(4)
     infile.seek(0)
-    magic_num, = struct.unpack('<I', buf)
+    magic_num, = struct.unpack(b'<I', buf)
     if magic_num == 0xA1B2C3D4 or magic_num == 0x4D3C2B1A:
         return FileFormat.PCAP
     elif magic_num == 0x0A0D0D0A:
@@ -125,7 +130,7 @@ def main():
             elif file_format == FileFormat.PCAP_NG:
                 pcap_file = pcapng.PcapNgFile(infile).read_packet
             else:
-                print >> sys.stderr, "unknown file format."
+                print("unknown file format.", file=sys.stderr)
                 sys.exit(1)
 
             for tcp_pac in packet_parser.read_package_r(pcap_file):
@@ -154,7 +159,7 @@ def main():
                         conn_dict[key] = HttpConn(tcp_pac, outputfile)
     finally:
         for conn in conn_dict.values():
-                conn.finish()
+            conn.finish()
         if args.output:
             outputfile.close()
 

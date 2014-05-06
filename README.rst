@@ -1,7 +1,5 @@
-pyhttpcap
-~~~~~~~~~
-
-Analysis and display http request/response. Python 2.7.\* required
+Analysis and display http request/response. Python 2.7+ / Python 3.3+
+required
 
 This can be used in two ways:
 
@@ -48,9 +46,9 @@ Then:
     parse_pcap -v test.pcap
     # display http req/resp headers and body which type is marked is text/html/xml.. and other text types in resp's headers
     parse_pcap -vv test.pcap
-    # display http req/resp headers and bodys, as long as not being judged as binary content
+    # display http req/resp headers and body, as long as not being judged as binary content
     parse_pcap -vvv test.pcap
-    # display and attempt to do urldecoding and formatting json output
+    # display and attempt to do url decoding and formatting json output
     parse_pcap -vv -b test.pcap
 
 In addition, you can use the -p/-i to specify the ip/port of source and
@@ -73,9 +71,9 @@ Proxy mode
 ::
 
     proxy_cap                        # start a http proxy at localhost:8000, and show urls via this proxy
-    proxy_cap -vv                    # output http req & resp contentm, if are texts
-    proxy_cap -l127.0.0.1 -p8080 -vv # the ip and port the proxy listenen on
-    proxy_cap -vv -ohttp.log         # ouput result to http.log
+    proxy_cap -vv                    # output http req & resp content, if are texts
+    proxy_cap -l127.0.0.1 -p8080 -vv # the ip and port the proxy listened on
+    proxy_cap -vv -ohttp.log         # output result to http.log
 
 The default port is 8000, just set the software(browsers or something
 else) 's proxy to this, the capture and parser will work.

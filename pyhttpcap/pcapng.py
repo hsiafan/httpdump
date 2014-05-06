@@ -4,18 +4,16 @@
 # see
 #http://www.winpcap.org/ntar/draft/PCAP-DumpFileFormat.html
 #http://wiki.wireshark.org/Development/PcapNg
+from __future__ import unicode_literals, print_function, division
+import struct
+import sys
+from pyhttpcap.constant import *
 
 __author__ = 'dongliu'
 
-import struct
-import sys
-
-from pyhttpcap.constant import *
-
-
 class SectionInfo(object):
     def __init__(self):
-        self.byteorder = '@'
+        self.byteorder = b'@'
         self.length = -1
         self.major = -1
         self.minor = -1
@@ -24,7 +22,6 @@ class SectionInfo(object):
 
 
 class PcapNgFile(object):
-
     def __init__(self, infile):
         self.infile = infile
         self.section_info = SectionInfo()
@@ -34,24 +31,24 @@ class PcapNgFile(object):
 
         # read byte order info first.
         byteorder_magic = self.infile.read(4)
-        byteorder_magic, = struct.unpack('>I', byteorder_magic)
+        byteorder_magic, = struct.unpack(b'>I', byteorder_magic)
         if byteorder_magic == 0x1A2B3C4D:
-            byteorder = '>'
+            byteorder = b'>'
         elif byteorder_magic == 0x4D3C2B1A:
-            byteorder = '<'
+            byteorder = b'<'
         else:
-            print >>sys.stderr, "Not a byteorder magic num:" + byteorder_magic
+            print("Not a byteorder magic num: %d" % byteorder_magic, file=sys.stderr)
             return None
 
-        block_len, = struct.unpack(byteorder + '4xI', block_header)
+        block_len, = struct.unpack(byteorder + b'4xI', block_header)
 
         # read version, should be 1, 0
         versions = self.infile.read(4)
-        major, minor = struct.unpack(byteorder + 'HH', versions)
+        major, minor = struct.unpack(byteorder + b'HH', versions)
 
         # section len
         section_len = self.infile.read(8)
-        section_len, = struct.unpack(byteorder + 'q', section_len)
+        section_len, = struct.unpack(byteorder + b'q', section_len)
         if section_len == -1:
             # usually did not have a known section length
             pass
@@ -66,26 +63,26 @@ class PcapNgFile(object):
     def parse_interface_description_block(self, block_len):
         # read link type and capture size
         buf = self.infile.read(4)
-        link_type, = struct.unpack(self.section_info.byteorder + 'H2x', buf)
+        link_type, = struct.unpack(self.section_info.byteorder + b'H2x', buf)
         buf = self.infile.read(4)
-        snap_len = struct.unpack(self.section_info.byteorder + 'I', buf)
+        snap_len = struct.unpack(self.section_info.byteorder + b'I', buf)
         self.section_info.link_type = link_type
         self.section_info.snap_len = snap_len
         self.infile.seek(block_len - 12 - 8, 1)
 
     def parse_enhanced_packet(self, block_len):
         buf = self.infile.read(4)
-        interface_id, = struct.unpack(self.section_info.byteorder + 'I', buf)
+        interface_id, = struct.unpack(self.section_info.byteorder + b'I', buf)
 
         # skip timestamp
         buf = self.infile.read(8)
-        h_timestamp, l_timestamp = struct.unpack(self.section_info.byteorder + 'II', buf)
+        h_timestamp, l_timestamp = struct.unpack(self.section_info.byteorder + b'II', buf)
         timestamp = (h_timestamp << 32) + l_timestamp
 
         # capture len
         buf = self.infile.read(8)
-        capture_len, packet_len = struct.unpack(self.section_info.byteorder + 'II', buf)
-        padded_capture_len = ((capture_len-1)/4 + 1) * 4
+        capture_len, packet_len = struct.unpack(self.section_info.byteorder + b'II', buf)
+        padded_capture_len = ((capture_len - 1) // 4 + 1) * 4
 
         # the captured data
         data = self.infile.read(capture_len)
@@ -99,7 +96,7 @@ class PcapNgFile(object):
         block_header = self.infile.read(8)
         if len(block_header) < 8:
             return None
-        block_type, block_len = struct.unpack(self.section_info.byteorder + 'II', block_header)
+        block_type, block_len = struct.unpack(self.section_info.byteorder + b'II', block_header)
         data = ''
         if block_type == BlockType.SECTION_HEADER:
             self.parse_section_header_block(block_header)
@@ -111,21 +108,20 @@ class PcapNgFile(object):
         #TODO:add other block type we have know
         else:
             self.infile.seek(block_len - 12, 1)
-            print >> sys.stderr, "unknown block type:%s, size:%d" % (hex(block_type), block_len)
+            print("unknown block type:%s, size:%d" % (hex(block_type), block_len), file=sys.stderr)
 
         # read author block_len
         block_len_t = self.infile.read(4)
-        block_len_t, = struct.unpack(self.section_info.byteorder + 'I', block_len_t)
+        block_len_t, = struct.unpack(self.section_info.byteorder + b'I', block_len_t)
         if block_len_t != block_len:
-            print >>sys.stderr, "block_len not equal, header:%d, tail:%d." % (block_len, block_len_t)
+            print("block_len not equal, header:%d, tail:%d." % (block_len, block_len_t), file=sys.stderr)
         return data
 
     def read_packet(self):
         while True:
             link_packet = self.parse_block()
-            if link_packet == '':
-                continue
-            elif link_packet is None:
+            if link_packet is None:
                 return
-            else:
-                yield self.section_info.byteorder, self.section_info.link_type, link_packet
+            if len(link_packet) == 0:
+                continue
+            yield self.section_info.byteorder, self.section_info.link_type, link_packet

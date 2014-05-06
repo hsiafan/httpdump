@@ -1,5 +1,6 @@
 #coding=utf-8
 
+from __future__ import unicode_literals, print_function, division
 __author__ = 'dongliu'
 
 # read and parse pcap file
@@ -11,7 +12,7 @@ import struct
 class PcapFile(object):
     def __init__(self, infile):
         self.infile = infile
-        self.byteorder = '@'
+        self.byteorder = b'@'
         self.link_type = None
 
     # http://www.winpcap.org/ntar/draft/PCAP-DumpFileFormat.html
@@ -25,17 +26,17 @@ class PcapFile(object):
         if not global_head:
             raise StopIteration()
 
-        magic_num, = struct.unpack('<I', global_head[0:4])
+        magic_num, = struct.unpack(b'<I', global_head[0:4])
         # judge the endian of file.
         if magic_num == 0xA1B2C3D4:
-            self.byteorder = '<'
+            self.byteorder = b'<'
         elif magic_num == 0x4D3C2B1A:
-            self.byteorder = '>'
+            self.byteorder = b'>'
         else:
             return False
 
-        version_major, version_minor, timezone, timestamp, max_package_len, self.link_type\
-            = struct.unpack(self.byteorder + '4xHHIIII', global_head)
+        version_major, version_minor, timezone, timestamp, max_package_len, self.link_type \
+            = struct.unpack(self.byteorder + b'4xHHIIII', global_head)
 
         return True
 
@@ -52,7 +53,7 @@ class PcapFile(object):
         if not package_header:
             return None, None
 
-        seconds, suseconds, packet_len, raw_len = struct.unpack(self.byteorder + 'IIII', package_header)
+        seconds, suseconds, packet_len, raw_len = struct.unpack(self.byteorder + b'IIII', package_header)
         # note: packet_len contains padding.
         link_packet = self.infile.read(packet_len)
         if len(link_packet) < packet_len:
@@ -63,7 +64,7 @@ class PcapFile(object):
         flag = self.pcap_check()
         if not flag:
             # not a valid pcap file or we cannot handle this file.
-            print >>sys.stderr, "Can't recognize this PCAP file format."
+            print("Can't recognize this PCAP file format.", file=sys.stderr)
             return
         while True:
             packet_len, link_packet = self.read_pcap_pac()

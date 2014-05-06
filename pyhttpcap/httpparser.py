@@ -1,39 +1,48 @@
 #coding=utf-8
+from __future__ import unicode_literals, print_function, division
+
+import threading
+from collections import defaultdict
+import sys
+
+try:
+    # python2
+    from Queue import Queue
+    from StringIO import StringIO
+except:
+    # python3
+    from queue import Queue
+    from io import StringIO
 from pyhttpcap import textutils
 from pyhttpcap.constant import HttpType
-
-__author__ = 'dongliu'
-
-from Queue import Queue
-import threading
-import StringIO
 from pyhttpcap.config import OutputLevel
 from pyhttpcap.reader import DataReader
-from collections import defaultdict
+
+__author__ = 'dongliu'
 
 
 class HttpRequestHeader(object):
     def __init__(self):
         self.content_len = 0
-        self.method = ''
-        self.host = ''
-        self.uri = ''
-        self.transfer_encoding = ''
-        self.content_encoding = ''
-        self.content_type = ''
+        self.method = b''
+        self.host = b''
+        self.uri = b''
+        self.transfer_encoding = b''
+        self.content_encoding = b''
+        self.content_type = b''
         self.gzip = False
         self.chunked = False
-        self.expect = ''
-        self.protocol = ''
+        self.expect = b''
+        self.protocol = b''
 
 
 class HttpResponseHeader(object):
     def __init__(self):
         self.content_len = 0
         self.status_line = None
-        self.transfer_encoding = ''
-        self.content_encoding = ''
-        self.content_type = ''
+        self.transfer_encoding = b''
+        self.content_encoding = b''
+        self.content_type = b''
         self.gzip = False
         self.chunked = False
         self.connection_close = False
@@ -50,7 +59,7 @@ class HttpParser(object):
     """parse http req & resp"""
 
     def __init__(self, client_host, remote_host, parse_config):
-        self.buf = StringIO.StringIO()
+        self.buf = StringIO()
         self.client_host = client_host
         self.remote_host = remote_host
         self.config = parse_config
@@ -115,6 +124,7 @@ class HttpParser(object):
                     self._line('')
             except Exception:
                 import traceback
+
                 traceback.print_exc()
                 # consume all datas.
                 reader.skipall()
@@ -129,16 +139,20 @@ class HttpParser(object):
         return self.buf.getvalue()
 
     def _line(self, line):
+        if type(line) == type(b''):
+            line = line.decode('utf-8')
         self.buf.write(line)
         self.buf.write('\n')
 
     def _lineif(self, level, line):
         if self.config.level >= level:
-            self.buf.write(line)
-            self.buf.write('\n')
+            self._line(line)
 
     def read_headers(self, reader):
-        header_dict = defaultdict(str)
+        if sys.version < '3':
+            header_dict = defaultdict(str)
+        else:
+            header_dict = defaultdict(bytes)
         while True:
             line = reader.readline()
             if line is None:
@@ -166,7 +180,7 @@ class HttpParser(object):
         if not textutils.is_request(line):
             return None
         req_header = HttpRequestHeader()
-        items = line.split(' ')
+        items = line.split(b' ')
         if len(items) == 3:
             req_header.method = items[0]
             req_header.uri = items[1]
@@ -175,23 +189,23 @@ class HttpParser(object):
         self._lineif(OutputLevel.HEADER, line)
 
         header_dict = self.read_headers(reader)
-        if "content-length" in header_dict:
-            req_header.content_len = int(header_dict["content-length"])
-        if 'chunked' in header_dict["transfer-encoding"]:
+        if b"content-length" in header_dict:
+            req_header.content_len = int(header_dict[b"content-length"])
+        if b'chunked' in header_dict[b"transfer-encoding"]:
             req_header.chunked = True
-        req_header.content_type = header_dict['content-type']
-        req_header.gzip = ('gzip' in header_dict["content-encoding"])
-        req_header.host = header_dict["host"]
-        if 'expect' in header_dict:
-            req_header.expect = header_dict['expect']
+        req_header.content_type = header_dict[b'content-type']
+        req_header.gzip = (b'gzip' in header_dict[b"content-encoding"])
+        req_header.host = header_dict[b"host"]
+        if b'expect' in header_dict:
+            req_header.expect = header_dict[b'expect']
 
-        self._lineif(OutputLevel.HEADER, '')
+        self._lineif(OutputLevel.HEADER, b'')
 
         if self.config.level == OutputLevel.ONLY_URL:
-            if req_header.uri.startswith('http://'):
-                self._line(req_header.method + " " + req_header.uri)
+            if req_header.uri.startswith(b'http://'):
+                self._line(req_header.method + b" " + req_header.uri)
             else:
-                self._line(req_header.method + " http://" + req_header.host + req_header.uri)
+                self._line(req_header.method + b" http://" + req_header.host + req_header.uri)
         return req_header
 
     def read_http_resp_header(self, reader):
@@ -209,13 +223,13 @@ class HttpParser(object):
         self._lineif(OutputLevel.HEADER, line)
 
         header_dict = self.read_headers(reader)
-        if "content-length" in header_dict:
-            resp_header.content_len = int(header_dict["content-length"])
-        if 'chunked' in header_dict["transfer-encoding"]:
+        if b"content-length" in header_dict:
+            resp_header.content_len = int(header_dict[b"content-length"])
+        if b'chunked' in header_dict[b"transfer-encoding"]:
             resp_header.chunked = True
-        resp_header.content_type = header_dict['content-type']
-        resp_header.gzip = ('gzip' in header_dict["content-encoding"])
-        resp_header.connection_close = (header_dict['connection'] == 'close')
+        resp_header.content_type = header_dict[b'content-type']
+        resp_header.gzip = (b'gzip' in header_dict[b"content-encoding"])
+        resp_header.connection_close = (header_dict[b'connection'] == b'close')
 
         self._lineif(OutputLevel.HEADER, '')
 
@@ -233,16 +247,16 @@ class HttpParser(object):
             if cline is None:
                 # error occurred.
                 if not skip:
-                    return ''.join(result)
+                    return b''.join(result)
                 else:
                     return
-            chunk_size_end = cline.find(';')
+            chunk_size_end = cline.find(b';')
             if chunk_size_end < 0:
                 chunk_size_end = len(cline)
                 # skip chunk extension
             chunk_size_str = cline[0:chunk_size_end]
             # the last chunk
-            if chunk_size_str[0] == '0':
+            if chunk_size_str[0] == b'0':
                 # chunk footer header
                 # TODO: handle additional http headers.
                 while True:
@@ -250,7 +264,7 @@ class HttpParser(object):
                     if cline is None or len(cline.strip()) == 0:
                         break
                 if not skip:
-                    return ''.join(result)
+                    return b''.join(result)
                 else:
                     return
                     # chunk size
@@ -258,14 +272,14 @@ class HttpParser(object):
             try:
                 chunk_len = int(chunk_size_str, 16)
             except:
-                return ''.join(result)
+                return b''.join(result)
 
             data = reader.read(chunk_len)
             if data is None:
                 # skip all
                 # error occurred.
                 if not skip:
-                    return ''.join(result)
+                    return b''.join(result)
                 else:
                     return
             if not skip:
@@ -278,10 +292,9 @@ class HttpParser(object):
         if gzipped:
             content = textutils.ungzip(content)
         content = textutils.decode_body(content, charset)
-        if content and form_encoded and self.config.pretty:
-            import urllib
-
-            content = urllib.unquote(content)
+        # if content and form_encoded and self.config.pretty:
+        #     import urllib
+        #     content = urllib.unquote(content)
         if content:
             if self.config.pretty:
                 textutils.try_print_json(content, self.buf)
@@ -311,7 +324,7 @@ class HttpParser(object):
         output_body = self.config.level >= OutputLevel.ALL_BODY and not textutils.is_binary(mime) \
             or self.config.level >= OutputLevel.TEXT_BODY and textutils.is_text(mime)
 
-        content = ''
+        content = b''
         # deal with body
         if not req_header.chunked:
             if output_body:
@@ -332,7 +345,7 @@ class HttpParser(object):
             #unescape www-form-encoded data.x-www-form-urlencoded
             if self.config.encoding and not charset:
                 charset = self.config.encoding
-            self.write_body(content, req_header.gzip, charset, mime and 'form-urlencoded' in mime)
+            self.write_body(content, req_header.gzip, charset, mime and b'form-urlencoded' in mime)
 
     def read_response(self, reader, message):
         """
@@ -358,16 +371,16 @@ class HttpParser(object):
         output_body = self.config.level >= OutputLevel.ALL_BODY and not textutils.is_binary(mime) \
             or self.config.level >= OutputLevel.TEXT_BODY and textutils.is_text(mime)
 
-        content = ''
+        content = b''
         # deal with body
         if not resp_header.chunked:
             if resp_header.content_len == 0:
                 if resp_header.connection_close:
                     # we can't get content length, so assume it till the end of data.
-                    resp_header.content_len = 10000000L
+                    resp_header.content_len = 10000000
                 else:
                     # we can't get content length, and is not a chunked body, we cannot do nothing, just read all data.
-                    resp_header.content_len = 10000000L
+                    resp_header.content_len = 10000000
             if output_body:
                 content = reader.read(resp_header.content_len)
             else:

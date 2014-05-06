@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 #coding=utf8
+from __future__ import unicode_literals, print_function, division
 
 __author__ = "dongliu"
 
@@ -21,9 +22,10 @@ _READ_TIMEOUT = 3
 
 class ConnectionHandler(object):
     """handle one connection from client"""
+
     def __init__(self, client_socket):
         self.client_socket = client_socket
-        self.first_data = ''
+        self.first_data = b''
         self.http_type = HttpType.REQUEST
         self.remote_host = None
         self.path = None
@@ -35,15 +37,15 @@ class ConnectionHandler(object):
         end = -1
         while True:
             self.first_data += self.client_socket.recv(_BUF_SIZE)
-            end = self.first_data.find('\n')
+            end = self.first_data.find(b'\n')
             if end != -1:
                 break
         self.method, self.path, self.protocol = self.first_data[:end + 1].split()
 
-        if self.method == 'CONNECT':
+        if self.method == b'CONNECT':
             self.first_data = self.first_data[end + 1:]
             self._method_connect()
-        elif self.method in ('OPTIONS', 'GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'TRACE'):
+        elif self.method in (b'OPTIONS', b'GET', b'HEAD', b'POST', b'PUT', b'DELETE', b'TRACE'):
             self._method_others()
 
     def close(self):
@@ -53,11 +55,11 @@ class ConnectionHandler(object):
     def _method_connect(self):
         """for http proxy connect method. it is usually for https proxy"""
         self._connect_target(self.path)
-        self.client_socket.send('HTTP/1.1 200 Connection established\nProxy-agent: Python Proxy\n\n')
+        self.client_socket.send(b'HTTP/1.1 200 Connection established\nProxy-agent: Python Proxy\n\n')
 
     def _method_others(self):
-        self.path = self.path[len('http://'):]
-        i = self.path.find('/')
+        self.path = self.path[len(b'http://'):]
+        i = self.path.find(b'/')
         if i > 0:
             host = self.path[:i]
         else:
@@ -65,7 +67,7 @@ class ConnectionHandler(object):
         self._connect_target(host)
 
     def _connect_target(self, host):
-        i = host.find(':')
+        i = host.find(b':')
         if i != -1:
             port_str = host[i + 1:]
             if port_str:
@@ -118,10 +120,14 @@ def _worker(worker_socket, client_ip, client_port, output_file):
         handler.proxy_data(http_parser)
         handler.close()
         result = http_parser.finish()
-        output_file.write(result)
+        if sys.version < '3':
+            print(result.encode('utf-8'), file=output_file)
+        else:
+            print(result, file=output_file)
         output_file.flush()
     except Exception:
         import traceback
+
         traceback.print_exc()
 
 
@@ -134,9 +140,9 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
     try:
         server_socket.bind((host, port))
     except Exception as e:
-        print e
+        print(e)
         sys.exit(-1)
-    print "Proxy start on %s:%d" % (host, port)
+    print("Proxy start on %s:%d" % (host, port))
     server_socket.listen(0)
 
     output_file = output and open(output, "w+") or sys.stdout
@@ -154,10 +160,11 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
 
     # when press Ctrl+C, stop the proxy.
     def signal_handler(signal, frame):
-        print '\nStopping proxy...'
+        print('\nStopping proxy...')
         clean()
         # TODO:stop all threads and close all files and sockets.
         sys.exit(0)
+
     signal.signal(signal.SIGINT, signal_handler)
 
     try:
@@ -170,10 +177,11 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
     finally:
         clean()
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("-l", "--listen", help="the IP of the interface which the proxy listend on")
-    parser.add_argument("-p", "--port", type=int, help="the port of the interface which the proxy listend on")
+    parser.add_argument("-l", "--listen", help="the IP of the interface which the proxy listened on")
+    parser.add_argument("-p", "--port", type=int, help="the port of the interface which the proxy listened on")
     parser.add_argument("-6", "--ipv6", help="use ipv6", action="store_true")
     parser.add_argument("-v", "--verbosity", help="increase output verbosity(-vv is recommended)", action="count")
     parser.add_argument("-o", "--output", help="output to file instead of stdout")

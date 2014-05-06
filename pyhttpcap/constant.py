@@ -1,5 +1,5 @@
 #coding=utf-8
-
+from __future__ import unicode_literals, print_function, division
 __author__ = 'dongliu'
 
 
@@ -23,7 +23,7 @@ class NetworkProtocol(object):
     P802_1Q = 33024
 
 
-class TransferProtocal(object):
+class TransferProtocol(object):
     TCP = 6
 
 

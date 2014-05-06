@@ -1,4 +1,6 @@
 #coding=utf8
+from __future__ import unicode_literals, print_function, division
+
 __author__ = 'dongliu'
 
 
@@ -29,7 +31,7 @@ class DataReader(object):
                 self.data = self._read()
                 continue
 
-            idx = self.data.find('\n')
+            idx = self.data.find(b'\n')
             if idx >= 0:
                 buffers.append(self.data[0:idx + 1])
                 self.data = self.data[idx + 1:]
@@ -40,7 +42,7 @@ class DataReader(object):
 
         if not buffers and self.finish:
             return None
-        return ''.join(buffers)
+        return b''.join(buffers)
 
     def fetchline(self):
         """fetch a line, but not modify pos"""
@@ -83,7 +85,7 @@ class DataReader(object):
 
         if not buffers and self.finish:
             return None
-        return ''.join(buffers)
+        return b''.join(buffers)
 
     def skip(self, size):
         if self.finish:
@@ -121,7 +123,7 @@ class DataReader(object):
 
         if not buf and self.finish:
             return None
-        return ''.join(buf)
+        return b''.join(buf)
 
     def skipall(self):
         if self.finish:

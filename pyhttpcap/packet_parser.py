@@ -1,10 +1,11 @@
 #coding=utf-8
+from __future__ import unicode_literals, print_function, division
+import sys
 
 __author__ = 'dongliu'
 
 import struct
 import socket
-
 from pyhttpcap.constant import *
 
 
@@ -36,9 +37,9 @@ class TcpPack:
     def gen_key(self):
         if self.key:
             return self.key
-        skey = self.source + ':' + str(self.source_port)
-        dkey = self.dest + ':' + str(self.dest_port)
-        if cmp(skey, dkey) < 0:
+        skey = '%s:%d' % (self.source, self.source_port)
+        dkey = '%s:%d' % (self.dest, self.dest_port)
+        if skey < dkey:
             self.key = skey + '-' + dkey
         else:
             self.key = dkey + '-' + skey
@@ -59,12 +60,12 @@ def dl_parse_ethernet(link_packet, byteorder):
     # ethernet header
     ethernet_header = link_packet[0:eth_header_len]
 
-    (n_protocol, ) = struct.unpack('!12xH', ethernet_header)
+    (n_protocol, ) = struct.unpack(b'!12xH', ethernet_header)
     if n_protocol == NetworkProtocol.P802_1Q:
         # 802.1q, we need to skip two bytes and read another two bytes to get protocal/len
         type_or_len = link_packet[eth_header_len:eth_header_len + 4]
         eth_header_len += 4
-        n_protocol, = struct.unpack('!2xH', type_or_len)
+        n_protocol, = struct.unpack(b'!2xH', type_or_len)
     if n_protocol < 1536:
         #TODO n_protocol means package len
         pass
@@ -81,7 +82,7 @@ def dl_parse_linux_sll(link_packet, byteorder):
     linux_cooked = link_packet[0:sll_header_len]
 
     packet_type, link_type_address_type, link_type_address_len, link_type_address, n_protocol \
-        = struct.unpack('!HHHQH', linux_cooked)
+        = struct.unpack(b'!HHHQH', linux_cooked)
     return n_protocol, link_packet[sll_header_len:]
 
 
@@ -93,7 +94,7 @@ def read_ip_pac(link_packet, endian, link_layer_parser):
     if n_protocol == NetworkProtocol.IP:
         ip_base_header_len = 20
         ip_header = ip_packet[0:ip_base_header_len]
-        (ip_info, ip_length, protocol) = struct.unpack('!BxH5xB10x', ip_header)
+        (ip_info, ip_length, protocol) = struct.unpack(b'!BxH5xB10x', ip_header)
         # real ip header len.
         ip_header_len = (ip_info & 0xF) * 4
         ip_version = (ip_info >> 4) & 0xF
@@ -103,7 +104,7 @@ def read_ip_pac(link_packet, endian, link_layer_parser):
             pass
 
         # not tcp, skip.
-        if protocol != TransferProtocal.TCP:
+        if protocol != TransferProtocol.TCP:
             return 0, None, None, None
 
         source = socket.inet_ntoa(ip_header[12:16])
@@ -127,7 +128,7 @@ def read_tcp_pac(link_packet, byteorder, link_layer_parser):
     tcp_base_header_len = 20
     # tcp header
     tcp_header = tcp_packet[0:tcp_base_header_len]
-    source_port, dest_port, seq, ack_seq, t_f, flags = struct.unpack('!HHIIBB6x', tcp_header)
+    source_port, dest_port, seq, ack_seq, t_f, flags = struct.unpack(b'!HHIIBB6x', tcp_header)
     # real tcp header len
     tcp_header_len = ((t_f >> 4) & 0xF) * 4
     # skip extension headers
@@ -147,9 +148,12 @@ def read_tcp_pac(link_packet, byteorder, link_layer_parser):
     if 0 < len(body) < 20:
         total = 0
         for ch in body:
-            total += ord(ch)
+            if sys.version < '3':
+                total += ord(ch)
+            else:
+                total += ch
         if total == 0:
-            body = ''
+            body = b''
 
     if syn == 1 and ack == 0:
         # init tcp connection
