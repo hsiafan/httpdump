@@ -25,8 +25,8 @@ class Mime(object):
 def try_print_json(text, output_file):
     if text is None:
         return
-    if text.startswith('{') and text.endswith('}') or text.startswith('{') and text.endswith('}'):
-        # do not process a non-list-dict json
+    if text.startswith('{') and text.endswith('}') or text.startswith('[') and text.endswith(']'):
+        # may be json
         try:
             data = json.loads(text)
             output_file.write(json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')))
