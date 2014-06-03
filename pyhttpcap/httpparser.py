@@ -188,7 +188,7 @@ class HttpParser(object):
         if b'expect' in header_dict:
             req_header.expect = header_dict[b'expect']
 
-        req_header.raw_data = '\n'.join(lines)
+        req_header.raw_data = b'\n'.join(lines)
         return req_header
 
     def read_http_resp_header(self, reader):
@@ -212,7 +212,7 @@ class HttpParser(object):
         resp_header.content_type = header_dict[b'content-type']
         resp_header.gzip = (b'gzip' in header_dict[b"content-encoding"])
         resp_header.connection_close = (header_dict[b'connection'] == b'close')
-        resp_header.raw_data = '\n'.join(lines)
+        resp_header.raw_data = b'\n'.join(lines)
         return resp_header
 
     def read_chunked_body(self, reader, skip=False):

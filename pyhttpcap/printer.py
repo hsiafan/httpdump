@@ -3,10 +3,10 @@ from __future__ import unicode_literals, print_function, division
 
 from io import StringIO
 
-from config import OutputLevel
+from pyhttpcap.config import OutputLevel
 # print http req/resp
 from pyhttpcap import textutils
-from pyhttpcap.httpdataprocessor import HttpDataProcessor
+from pyhttpcap.processor import HttpDataProcessor
 
 
 class HttpPrinter(HttpDataProcessor):
