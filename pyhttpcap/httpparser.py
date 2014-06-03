@@ -8,14 +8,13 @@ import sys
 try:
     # python2
     from Queue import Queue
-    from StringIO import StringIO
+    from urllib import unquote
 except:
     # python3
     from queue import Queue
-    from io import StringIO
+    from urllib.parse import unquote
 from pyhttpcap import textutils
 from pyhttpcap.constant import HttpType
-from pyhttpcap.config import OutputLevel
 from pyhttpcap.reader import DataReader
 
 __author__ = 'dongliu'
@@ -34,6 +33,7 @@ class HttpRequestHeader(object):
         self.chunked = False
         self.expect = b''
         self.protocol = b''
+        self.raw_data = None
 
 
 class HttpResponseHeader(object):
@@ -46,6 +46,7 @@ class HttpResponseHeader(object):
         self.gzip = False
         self.chunked = False
         self.connection_close = False
+        self.raw_data = None
 
 
 class RequestMessage(object):
@@ -58,12 +59,10 @@ class RequestMessage(object):
 class HttpParser(object):
     """parse http req & resp"""
 
-    def __init__(self, client_host, remote_host, parse_config):
-        self.buf = StringIO()
-        self.client_host = client_host
-        self.remote_host = remote_host
-        self.config = parse_config
-
+    def __init__(self, processor):
+        """
+        :type processor: HttpDataProcessor
+        """
         self.cur_type = None
         self.cur_data_queue = None
         self.inited = False
@@ -71,6 +70,7 @@ class HttpParser(object):
 
         self.task_queue = None
         self.worker = None
+        self.processor = processor
 
     def send(self, http_type, data):
         if not self.inited:
@@ -105,9 +105,6 @@ class HttpParser(object):
             self.worker.start()
 
     def process_tasks(self, task_queue):
-        self._line(('*' * 10 + " [%s:%d] -- -- --> [%s:%d] " + '*' * 10) %
-                   (self.client_host[0], self.client_host[1], self.remote_host[0], self.remote_host[1]))
-
         message = RequestMessage()
 
         while True:
@@ -121,7 +118,6 @@ class HttpParser(object):
                     self.read_request(reader, message)
                 elif httptype == HttpType.RESPONSE:
                     self.read_response(reader, message)
-                    self._line('')
             except Exception:
                 import traceback
 
@@ -136,19 +132,13 @@ class HttpParser(object):
             if self.cur_data_queue is not None:
                 self.cur_data_queue.put(None)
             self.worker.join()
-        return self.buf.getvalue()
 
-    def _line(self, line):
-        if type(line) == type(b''):
-            line = line.decode('utf-8')
-        self.buf.write(line)
-        self.buf.write('\n')
-
-    def _lineif(self, level, line):
-        if self.config.level >= level:
-            self._line(line)
-
-    def read_headers(self, reader):
+    def read_headers(self, reader, lines):
+        """
+        :type reader: DataReader
+        :type lines: list
+        :return: dict
+        """
         if sys.version < '3':
             header_dict = defaultdict(str)
         else:
@@ -160,7 +150,7 @@ class HttpParser(object):
             line = line.strip()
             if not line:
                 break
-            self._lineif(OutputLevel.HEADER, line)
+            lines.append(line)
 
             key, value = textutils.parse_http_header(line)
             if key is None:
@@ -176,9 +166,9 @@ class HttpParser(object):
         if line is None:
             return None
         line = line.strip()
-
         if not textutils.is_request(line):
             return None
+
         req_header = HttpRequestHeader()
         items = line.split(b' ')
         if len(items) == 3:
@@ -186,9 +176,8 @@ class HttpParser(object):
             req_header.uri = items[1]
             req_header.protocol = items[2]
 
-        self._lineif(OutputLevel.HEADER, line)
-
-        header_dict = self.read_headers(reader)
+        lines = [line]
+        header_dict = self.read_headers(reader, lines)
         if b"content-length" in header_dict:
             req_header.content_len = int(header_dict[b"content-length"])
         if b'chunked' in header_dict[b"transfer-encoding"]:
@@ -199,13 +188,7 @@ class HttpParser(object):
         if b'expect' in header_dict:
             req_header.expect = header_dict[b'expect']
 
-        self._lineif(OutputLevel.HEADER, b'')
-
-        if self.config.level == OutputLevel.ONLY_URL:
-            if req_header.uri.startswith(b'http://'):
-                self._line(req_header.method + b" " + req_header.uri)
-            else:
-                self._line(req_header.method + b" http://" + req_header.host + req_header.uri)
+        req_header.raw_data = '\n'.join(lines)
         return req_header
 
     def read_http_resp_header(self, reader):
@@ -220,9 +203,8 @@ class HttpParser(object):
         resp_header = HttpResponseHeader()
         resp_header.status_line = line
 
-        self._lineif(OutputLevel.HEADER, line)
-
-        header_dict = self.read_headers(reader)
+        lines = [line]
+        header_dict = self.read_headers(reader, lines)
         if b"content-length" in header_dict:
             resp_header.content_len = int(header_dict[b"content-length"])
         if b'chunked' in header_dict[b"transfer-encoding"]:
@@ -230,11 +212,7 @@ class HttpParser(object):
         resp_header.content_type = header_dict[b'content-type']
         resp_header.gzip = (b'gzip' in header_dict[b"content-encoding"])
         resp_header.connection_close = (header_dict[b'connection'] == b'close')
-
-        self._lineif(OutputLevel.HEADER, '')
-
-        if self.config.level == OutputLevel.ONLY_URL:
-            self._line(resp_header.status_line)
+        resp_header.raw_data = '\n'.join(lines)
         return resp_header
 
     def read_chunked_body(self, reader, skip=False):
@@ -288,21 +266,6 @@ class HttpParser(object):
             # a CRLF to end this chunked response
             reader.readline()
 
-    def write_body(self, content, gzipped, charset, form_encoded):
-        if gzipped:
-            content = textutils.ungzip(content)
-        content = textutils.decode_body(content, charset)
-        # if content and form_encoded and self.config.pretty:
-        #     import urllib
-        #     content = urllib.unquote(content)
-        if content:
-            if self.config.pretty:
-                textutils.try_print_json(content, self.buf)
-            else:
-                self.buf.write(content)
-            self._line('')
-        self._line('')
-
     def read_request(self, reader, message):
         """ read and output one http request. """
         if message.expect_header and not textutils.is_request(reader.fetchline()):
@@ -312,40 +275,20 @@ class HttpParser(object):
             req_header = self.read_http_req_header(reader)
             if req_header is None:
                 # read header error, we skip all data.
-                self._line("{parse http request header error}")
                 reader.skipall()
                 return
             if req_header.expect:
                 # it is expect:continue-100 post request
                 message.expect_header = req_header
 
-        mime, charset = textutils.parse_content_type(req_header.content_type)
-        # usually charset is not set in http post
-        output_body = self.config.level >= OutputLevel.ALL_BODY and not textutils.is_binary(mime) \
-            or self.config.level >= OutputLevel.TEXT_BODY and textutils.is_text(mime)
-
-        content = b''
         # deal with body
         if not req_header.chunked:
-            if output_body:
-                content = reader.read(req_header.content_len)
-            else:
-                reader.skip(req_header.content_len)
+            content = reader.read(req_header.content_len)
         else:
             content = self.read_chunked_body(reader)
 
-        if not req_header.gzip:
-            # if is gzip by content magic header
-            # someone missed the content-encoding header
-            req_header.gzip = textutils.gzipped(content)
-
         # if it is form url encode
-
-        if output_body:
-            #unescape www-form-encoded data.x-www-form-urlencoded
-            if self.config.encoding and not charset:
-                charset = self.config.encoding
-            self.write_body(content, req_header.gzip, charset, mime and b'form-urlencoded' in mime)
+        self.processor.on_http_req(req_header, content)
 
     def read_response(self, reader, message):
         """
@@ -353,7 +296,6 @@ class HttpParser(object):
         """
         resp_header = self.read_http_resp_header(reader)
         if resp_header is None:
-            self._line("{parse http response headers error}")
             reader.skipall()
             return
 
@@ -364,15 +306,6 @@ class HttpParser(object):
                 return
 
         # read body
-        mime, charset = textutils.parse_content_type(resp_header.content_type)
-        if self.config.encoding and not charset:
-            charset = self.config.encoding
-
-        output_body = self.config.level >= OutputLevel.ALL_BODY and not textutils.is_binary(mime) \
-            or self.config.level >= OutputLevel.TEXT_BODY and textutils.is_text(mime)
-
-        content = b''
-        # deal with body
         if not resp_header.chunked:
             if resp_header.content_len == 0:
                 if resp_header.connection_close:
@@ -381,13 +314,8 @@ class HttpParser(object):
                 else:
                     # we can't get content length, and is not a chunked body, we cannot do nothing, just read all data.
                     resp_header.content_len = 10000000
-            if output_body:
-                content = reader.read(resp_header.content_len)
-            else:
-                reader.skip(resp_header.content_len)
+            content = reader.read(resp_header.content_len)
         else:
-            #TODO: we could skip chunked data other than read into memory.
             content = self.read_chunked_body(reader)
 
-        if output_body:
-            self.write_body(content, resp_header.gzip, charset, False)
+        self.processor.on_http_resp(resp_header, content)

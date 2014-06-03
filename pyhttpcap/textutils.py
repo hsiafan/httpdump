@@ -62,7 +62,6 @@ def ungzip(content):
         return content
     except:
         import traceback
-
         traceback.print_exc()
         return content
 
@@ -81,6 +80,10 @@ def ungzip_carefully(content):
         return buf.getvalue()
     except IOError:
         return buf.getvalue()
+    except:
+        import traceback
+        traceback.print_exc()
+        return content
 
 
 def parse_http_header(header):
@@ -141,6 +144,10 @@ def is_binary(mime_str):
 
 
 def decode_body(content, charset):
+    if content is None:
+        return None
+    if content == b'':
+        return ''
     if charset:
         if type(charset) == type(b''):
             charset = charset.decode('utf-8')

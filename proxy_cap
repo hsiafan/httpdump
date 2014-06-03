@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 #coding=utf8
 from __future__ import unicode_literals, print_function, division
+from pyhttpcap.printer import HttpPrinter
 
 __author__ = "dongliu"
 
@@ -12,7 +13,7 @@ import threading
 import signal
 
 from pyhttpcap.httpparser import HttpType, HttpParser
-from pyhttpcap.config import parse_config
+from pyhttpcap.config import ParseConfig
 
 
 _BUF_SIZE = 8192
@@ -112,14 +113,17 @@ class ConnectionHandler(object):
                 break
 
 
-def _worker(worker_socket, client_ip, client_port, output_file):
+def _worker(worker_socket, client_ip, client_port, output_file, parse_config):
     try:
         handler = ConnectionHandler(worker_socket)
         handler.init_connect()
-        http_parser = HttpParser((client_ip, client_port), handler.remote_host, parse_config)
+        processor = HttpPrinter((client_ip, client_port), handler.remote_host, parse_config)
+        http_parser = HttpParser(processor)
         handler.proxy_data(http_parser)
         handler.close()
-        result = http_parser.finish()
+        http_parser.finish()
+        result = processor.getvalue()
+
         if sys.version < '3':
             print(result.encode('utf-8'), file=output_file)
         else:
@@ -131,7 +135,7 @@ def _worker(worker_socket, client_ip, client_port, output_file):
         traceback.print_exc()
 
 
-def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
+def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None, parse_config=None):
     """start proxy server."""
     ip_version = IPv6 and socket.AF_INET6 or socket.AF_INET
     server_socket = socket.socket(ip_version)
@@ -171,14 +175,15 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
         while True:
             worker_socket, client = server_socket.accept()
             (client_ip, client_port) = client
-            worker_thread = threading.Thread(target=_worker, args=(worker_socket, client_ip, client_port, output_file))
+            worker_thread = threading.Thread(target=_worker, args=(worker_socket, client_ip, client_port, output_file,
+            parse_config))
             worker_thread.setDaemon(True)
             worker_thread.start()
     finally:
         clean()
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-l", "--listen", help="the IP of the interface which the proxy listened on")
     parser.add_argument("-p", "--port", type=int, help="the port of the interface which the proxy listened on")
@@ -197,10 +202,17 @@ if __name__ == '__main__':
     if args.output:
         setting["output"] = args.output
 
+    parse_config = ParseConfig()
     if args.verbosity:
         parse_config.level = args.verbosity
     if args.encoding:
         parse_config.encoding = args.encoding
     parse_config.pretty = args.beauty
 
+    setting["parse_config"] = parse_config
+
     start_server(**setting)
+
+
+if __name__ == '__main__':
+    main()

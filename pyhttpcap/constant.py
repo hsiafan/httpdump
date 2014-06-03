@@ -27,6 +27,11 @@ class TransferProtocol(object):
     TCP = 6
 
 
+class FileFormat(object):
+    PCAP = 0xA1B2C3D4
+    PCAP_NG = 0x0A0D0D0A
+    UNKNOWN = -1
+
 class BlockType(object):
     SECTION_HEADER = 0x0A0D0D0A
     INTERFACE_DESCRIPTION = 0x00000001

@@ -7,6 +7,8 @@ import io
 
 from pyhttpcap import packet_parser
 from pyhttpcap import pcap, pcapng, textutils
+from pyhttpcap.constant import FileFormat
+from pyhttpcap.printer import HttpPrinter
 
 
 __author__ = 'dongliu'
@@ -16,7 +18,7 @@ from collections import OrderedDict
 import struct
 
 from pyhttpcap.httpparser import HttpType, HttpParser
-from pyhttpcap.config import parse_config
+from pyhttpcap.config import ParseConfig
 
 
 class HttpConn:
@@ -26,7 +28,7 @@ class HttpConn:
     STATUS_CLOSED = 2
     STATUS_ERROR = -1
 
-    def __init__(self, tcp_pac, output_file):
+    def __init__(self, tcp_pac, output_file, parse_config):
         self.source_ip = tcp_pac.source
         self.source_port = tcp_pac.source_port
         self.dest_ip = tcp_pac.dest
@@ -36,8 +38,8 @@ class HttpConn:
         self.out = output_file
 
         # start parser thread
-        self.http_parser = HttpParser((self.source_ip, self.source_port),
-                                      (self.dest_ip, self.dest_port), parse_config)
+        self.processor = HttpPrinter((self.source_ip, self.source_port), (self.dest_ip, self.dest_port), parse_config)
+        self.http_parser = HttpParser(self.processor)
         self.append(tcp_pac)
 
     def append(self, tcp_pac):
@@ -67,18 +69,13 @@ class HttpConn:
             self.http_parser.send(http_type, tcp_pac.body)
 
     def finish(self):
-        result = self.http_parser.finish()
+        self.http_parser.finish()
+        result = self.processor.getvalue()
         if sys.version < '3':
             print(result.encode('utf8'), file=self.out)
         else:
             print(result, file=self.out)
         self.out.flush()
-
-
-class FileFormat(object):
-    PCAP = 0xA1B2C3D4
-    PCAP_NG = 0x0A0D0D0A
-    UNKNOWN = -1
 
 
 def get_file_format(infile):
@@ -106,10 +103,11 @@ def main():
 
     args = parser.parse_args()
 
-    filepath = args.infile
+    file_path = args.infile
     port = args.port
     ip = args.ip
 
+    parse_config = ParseConfig()
     if args.verbosity:
         parse_config.level = args.verbosity
     if args.encoding:
@@ -117,13 +115,13 @@ def main():
     parse_config.pretty = args.beauty
 
     if args.output:
-        outputfile = open(args.output, "w+")
+        output_file = open(args.output, "w+")
     else:
-        outputfile = sys.stdout
+        output_file = sys.stdout
 
     conn_dict = OrderedDict()
     try:
-        with io.open(filepath, "rb") as infile:
+        with io.open(file_path, "rb") as infile:
             file_format = get_file_format(infile)
             if file_format == FileFormat.PCAP:
                 pcap_file = pcap.PcapFile(infile).read_packet
@@ -134,7 +132,7 @@ def main():
                 sys.exit(1)
 
             for tcp_pac in packet_parser.read_package_r(pcap_file):
-                #filter
+                # filter
                 if port is not None and tcp_pac.source_port != port and tcp_pac.dest_port != port:
                     continue
                 if ip is not None and tcp_pac.source != ip and tcp_pac.dest != ip:
@@ -151,17 +149,17 @@ def main():
 
                 # begin tcp connection.
                 elif tcp_pac.pac_type == 1:
-                    conn_dict[key] = HttpConn(tcp_pac, outputfile)
+                    conn_dict[key] = HttpConn(tcp_pac, output_file, parse_config)
                 elif tcp_pac.pac_type == 0:
                     # tcp init before capture, we found a http request header, begin parse
                     # if is a http request?
                     if textutils.is_request(tcp_pac.body):
-                        conn_dict[key] = HttpConn(tcp_pac, outputfile)
+                        conn_dict[key] = HttpConn(tcp_pac, output_file, parse_config)
     finally:
         for conn in conn_dict.values():
             conn.finish()
         if args.output:
-            outputfile.close()
+            output_file.close()
 
 
 if __name__ == "__main__":
