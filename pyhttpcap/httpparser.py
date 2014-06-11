@@ -1,4 +1,4 @@
-#coding=utf-8
+# coding=utf-8
 from __future__ import unicode_literals, print_function, division
 
 import threading
@@ -40,6 +40,7 @@ class HttpResponseHeader(object):
     def __init__(self):
         self.content_len = 0
         self.status_line = None
+        self.status_code = None
         self.transfer_encoding = b''
         self.content_encoding = b''
         self.content_type = b''
@@ -202,6 +203,10 @@ class HttpParser(object):
             return None
         resp_header = HttpResponseHeader()
         resp_header.status_line = line
+        try:
+            resp_header.status_code = int(line.split(' ')[1])
+        except:
+            pass
 
         lines = [line]
         header_dict = self.read_headers(reader, lines)
