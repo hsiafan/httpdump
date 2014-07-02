@@ -5,10 +5,10 @@ from __future__ import unicode_literals, print_function, division
 import argparse
 import io
 
-from pyhttpcap import packet_parser
-from pyhttpcap import pcap, pcapng, textutils
-from pyhttpcap.constant import FileFormat
-from pyhttpcap.printer import HttpPrinter
+from pycapture import packet_parser
+from pycapture import pcap, pcapng, textutils
+from pycapture.constant import FileFormat
+from pycapture.printer import HttpPrinter
 
 
 __author__ = 'dongliu'
@@ -17,8 +17,8 @@ import sys
 from collections import OrderedDict
 import struct
 
-from pyhttpcap.httpparser import HttpType, HttpParser
-from pyhttpcap.config import ParseConfig
+from pycapture.httpparser import HttpType, HttpParser
+from pycapture.config import ParseConfig
 
 
 class HttpConn:

@@ -13,9 +13,9 @@ except:
     # python3
     from queue import Queue
     from urllib.parse import unquote
-from pyhttpcap import textutils
-from pyhttpcap.constant import HttpType
-from pyhttpcap.reader import DataReader
+from pycapture import textutils
+from pycapture.constant import HttpType
+from pycapture.reader import DataReader
 
 __author__ = 'dongliu'
 
