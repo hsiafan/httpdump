@@ -6,7 +6,7 @@ __author__ = 'dongliu'
 
 import struct
 import socket
-from pycapture.constant import *
+from pyhttpcap.constant import *
 
 
 class TcpPack:

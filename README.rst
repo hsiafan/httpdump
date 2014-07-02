@@ -25,7 +25,7 @@ You can install this tool via pip:
 
 ::
 
-    pip install pycapture
+    pip install pyhttpcap
 
 Analysis pcap file
 ~~~~~~~~~~~~~~~~~~

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #coding=utf8
 from __future__ import unicode_literals, print_function, division
-from pycapture.printer import HttpPrinter
+from pyhttpcap.printer import HttpPrinter
 
 __author__ = "dongliu"
 
@@ -12,8 +12,8 @@ import select
 import threading
 import signal
 
-from pycapture.httpparser import HttpType, HttpParser
-from pycapture.config import ParseConfig
+from pyhttpcap.httpparser import HttpType, HttpParser
+from pyhttpcap.config import ParseConfig
 
 
 _BUF_SIZE = 8192

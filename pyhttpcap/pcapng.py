@@ -7,7 +7,7 @@
 from __future__ import unicode_literals, print_function, division
 import struct
 import sys
-from pycapture.constant import *
+from pyhttpcap.constant import *
 
 __author__ = 'dongliu'
 

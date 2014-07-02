@@ -2,12 +2,12 @@
 
 from setuptools import setup, find_packages
 
-PACKAGE = 'pycapture'
-name = 'pycapture'
+PACKAGE = 'pyhttpcap'
+name = 'pyhttpcap'
 description = 'Parse pcap file with python'
 author = 'xiaxiaocao'
 author_email = 'dongliu@live.cn'
-url = 'https://github.com/xiaxiaocao/pycapture'
+url = 'https://github.com/xiaxiaocao/pyhttpcap'
 version = __import__(PACKAGE).__version__
 
 try:
