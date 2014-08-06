@@ -3,19 +3,12 @@ from __future__ import unicode_literals, print_function, division
 
 import threading
 from collections import defaultdict
-import sys
+from Queue import Queue
 
-try:
-    # python2
-    from Queue import Queue
-    from urllib import unquote
-except:
-    # python3
-    from queue import Queue
-    from urllib.parse import unquote
 from pycapture import textutils
 from pycapture.constant import HttpType
 from pycapture.reader import DataReader
+
 
 __author__ = 'dongliu'
 
@@ -140,10 +133,7 @@ class HttpParser(object):
         :type lines: list
         :return: dict
         """
-        if sys.version < '3':
-            header_dict = defaultdict(str)
-        else:
-            header_dict = defaultdict(bytes)
+        header_dict = defaultdict(str)
         while True:
             line = reader.readline()
             if line is None:

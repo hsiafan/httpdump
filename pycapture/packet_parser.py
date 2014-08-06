@@ -1,6 +1,5 @@
 #coding=utf-8
 from __future__ import unicode_literals, print_function, division
-import sys
 
 __author__ = 'dongliu'
 
@@ -148,10 +147,7 @@ def read_tcp_pac(link_packet, byteorder, link_layer_parser):
     if 0 < len(body) < 20:
         total = 0
         for ch in body:
-            if sys.version < '3':
-                total += ord(ch)
-            else:
-                total += ch
+            total += ord(ch)
         if total == 0:
             body = b''
 
