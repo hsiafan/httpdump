@@ -1,4 +1,4 @@
-#coding=utf-8
+# coding=utf-8
 from __future__ import unicode_literals, print_function, division
 
 __author__ = 'dongliu'
@@ -61,7 +61,7 @@ def dl_parse_ethernet(link_packet, byteorder):
 
     (n_protocol, ) = struct.unpack(b'!12xH', ethernet_header)
     if n_protocol == NetworkProtocol.P802_1Q:
-        # 802.1q, we need to skip two bytes and read another two bytes to get protocal/len
+        # 802.1q, we need to skip two bytes and read another two bytes to get protocol/len
         type_or_len = link_packet[eth_header_len:eth_header_len + 4]
         eth_header_len += 4
         n_protocol, = struct.unpack(b'!2xH', type_or_len)
@@ -109,7 +109,7 @@ def read_ip_pac(link_packet, endian, link_layer_parser):
         source = socket.inet_ntoa(ip_header[12:16])
         dest = socket.inet_ntoa(ip_header[16:])
 
-        return 1, source, dest, ip_packet[ip_header_len:ip_header_len + ip_length]
+        return 1, source, dest, ip_packet[ip_header_len:ip_length]
     elif n_protocol == NetworkProtocol.IPV6:
         # TODO: deal with ipv6 package
         return 0, None, None, None
@@ -218,4 +218,4 @@ def read_package_r(pcap_file):
         for ipack in sorted(ack_packs, key=lambda x: x.seq):
             yield ipack
 
-            # TODO: add close sokect logic, and delete elements from dicts.
+            # TODO: add close socket logic, and delete elements from dicts.
