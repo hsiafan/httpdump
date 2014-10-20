@@ -50,12 +50,16 @@ Use -e can forced the encoding http body used:
 parse_pcap -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
 ```
 
-### Proxy mode
+### Used as a Proxy
 ```sh
-proxy_cap                        # start a http proxy at localhost:8000, and show urls via this proxy
-proxy_cap -vv                    # output http req & resp content, if are texts
-proxy_cap -l127.0.0.1 -p8080 -vv # the ip and port the proxy listened on
-proxy_cap -vv -ohttp.log         # output result to http.log
+# start a http proxy at localhost:8000, and show urls via this proxy
+proxy_cap
+# output http req & resp content, if are texts
+proxy_cap -vv
+# the ip and port the proxy listened on
+proxy_cap -l127.0.0.1 -p8080 -vv
+# output result to http.log
+proxy_cap -vv -ohttp.log
 ```
 
 The default port is 8000, just set the software(browsers or something else) 's proxy to this, the capture and parser will work.
