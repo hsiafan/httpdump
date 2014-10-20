@@ -16,18 +16,18 @@ Features:
 
 ### Install
 You can install this tool via pip:
-```
+```sh
 pip install pycapture
 ```
 
 ### Analysis pcap file
 
 Suppose we use tcpdump to capture packets:
-```
+```sh
 tcpdump -wtest.pcap tcp port 80
 ```
 Then:
-```
+```sh
 # only display the requested URL and response status  
 parse_pcap test.pcap
 # display http req/resp headers
@@ -40,18 +40,18 @@ parse_pcap -vvv test.pcap
 parse_pcap -vv -b test.pcap
 ```
 In addition, you can use the -p/-i to specify the ip/port of source and destination, will only display http data meets the specified conditions:
-```
+```sh
 parse_pcap -p55419 -vv test.pcap
 parse_pcap -i192.168.109.91 -vv test.pcap
 ```
 
 Use -e can forced the encoding http body used:
-```
+```sh
 parse_pcap -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
 ```
 
 ### Proxy mode
-```
+```sh
 proxy_cap                        # start a http proxy at localhost:8000, and show urls via this proxy
 proxy_cap -vv                    # output http req & resp content, if are texts
 proxy_cap -l127.0.0.1 -p8080 -vv # the ip and port the proxy listened on
