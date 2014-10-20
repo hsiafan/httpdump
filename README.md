@@ -20,7 +20,7 @@ You can install this tool via pip:
 pip install pycapture
 ```
 
-### Analysis pcap file
+### Parse Pcap File
 
 Suppose we use tcpdump to capture packets:
 ```sh
