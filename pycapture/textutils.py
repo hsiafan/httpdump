@@ -117,7 +117,7 @@ def parse_content_type(content_type):
     encoding = content_type[idx + 1:]
     if len(encoding) > 0:
         eidx = encoding.find(b'=')
-        if eidx > 0:
+        if eidx > 0 and encoding[0:eidx].strip() == b'charset':
             encoding = encoding[eidx + 1:]
         else:
             encoding = b''
