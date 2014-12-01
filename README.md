@@ -1,50 +1,52 @@
-Analysis and display http request/response. 
-Python 2.7+ required.
+Parse and show http traffics.
+Python 2.7.* required.
 
-This can be used in two ways:
+This module contains two tools:
 
-* parse_pcap, parse and display pcap/pcapng file http packet contents , pcap files can be obtained via tcpdump capture software , etc. , will ignore non-TCP/non-HTTP packets.
-* proxy_cap, start a http proxy that can record and display all http packets sent through this agent
+* parse_pcap, parse pcap/pcapng file, retrieve http data and show as text. Pcap files can be obtained via tcpdump or wireshark or other network traffic capture tools.
+* proxy_cap, start a http proxy that can record and display all http packets sent through this agent.
 
 Features:
 
-* Http request grouped by tcp connections, the requests in one keep-alive http connection will display together
-* Display http packet header and content with text type
-* Auto handling chunked / gzip
-* Auto handling character encoding
-* Json content / UrlEncoded content formatted output
+* Http requests/responses grouped by tcp connections, the requests in one keep-alive http connection will display together.
+* Managed chunked and compressed http requests/responses.
+* Managed character encoding
+* Formate json content to a beautiful way.
 
 ### Install
-You can install this tool via pip:
+This module can be installed via pip:
 ```sh
 pip install pycapture
 ```
 
 ### Parse Pcap File
 
-Suppose we use tcpdump to capture packets:
+Use tcpdump to capture packets:
 ```sh
 tcpdump -wtest.pcap tcp port 80
 ```
 Then:
 ```sh
-# only display the requested URL and response status  
+# only ouput the requested URL and response status  
 parse_pcap test.pcap
-# display http req/resp headers
+# output http req/resp headers
 parse_pcap -v test.pcap
-# display http req/resp headers and body which type is marked is text/html/xml.. and other text types in resp's headers
+# output http req/resp headers and body which belong to text type
 parse_pcap -vv test.pcap
-# display http req/resp headers and body, as long as not being judged as binary content
+# output http req/resp headers and body
 parse_pcap -vvv test.pcap
 # display and attempt to do url decoding and formatting json output
 parse_pcap -vv -b test.pcap
 ```
-In addition, you can use the -p/-i to specify the ip/port of source and destination, will only display http data meets the specified conditions:
+
+### Filter
+You can use the -p/-i to specify the ip/port of source and destination, will only display http data meets the specified conditions:
 ```sh
 parse_pcap -p55419 -vv test.pcap
 parse_pcap -i192.168.109.91 -vv test.pcap
 ```
 
+### encoding
 Use -e can forced the encoding http body used:
 ```sh
 parse_pcap -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
