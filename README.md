@@ -1,5 +1,4 @@
-Parse and show http traffics.
-Python 2.7.* required.
+Parse and show http traffics. Python 2.7.* required.
 
 This module contains two tools:
 
