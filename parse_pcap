@@ -1,6 +1,14 @@
 #!/usr/bin/env python
-# coding=utf8
 from __future__ import unicode_literals, print_function, division
+
+__author__ = 'dongliu'
+
+import sys
+# check python version
+major, minor, = sys.version_info[:2]
+if major != 2 or minor < 7:
+    print("Python version 2.7.* needed.", file=sys.stderr)
+    sys.exit(1)
 
 import argparse
 import io
@@ -9,11 +17,6 @@ from pcapparser import packet_parser
 from pcapparser import pcap, pcapng, textutils
 from pcapparser.constant import FileFormat
 from pcapparser.printer import HttpPrinter
-
-
-__author__ = 'dongliu'
-
-import sys
 from collections import OrderedDict
 import struct
 

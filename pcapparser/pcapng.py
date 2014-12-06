@@ -1,5 +1,3 @@
-#coding=utf-8
-
 # read and parse pcapng file
 # see
 # http://www.winpcap.org/ntar/draft/PCAP-DumpFileFormat.html
