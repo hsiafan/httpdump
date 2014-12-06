@@ -5,10 +5,10 @@ from __future__ import unicode_literals, print_function, division
 import argparse
 import io
 
-from pycapture import packet_parser
-from pycapture import pcap, pcapng, textutils
-from pycapture.constant import FileFormat
-from pycapture.printer import HttpPrinter
+from pcapparser import packet_parser
+from pcapparser import pcap, pcapng, textutils
+from pcapparser.constant import FileFormat
+from pcapparser.printer import HttpPrinter
 
 
 __author__ = 'dongliu'
@@ -17,8 +17,8 @@ import sys
 from collections import OrderedDict
 import struct
 
-from pycapture.httpparser import HttpType, HttpParser
-from pycapture.config import ParseConfig
+from pcapparser.httpparser import HttpType, HttpParser
+from pcapparser.config import ParseConfig
 
 
 class HttpConn:
@@ -126,7 +126,7 @@ def main():
             if file_format == FileFormat.PCAP:
                 pcap_file = pcap.PcapFile(infile).read_packet
             elif file_format == FileFormat.PCAP_NG:
-                pcap_file = pcapng.PcapNgFile(infile).read_packet
+                pcap_file = pcapng.PcapngFile(infile).read_packet
             else:
                 print("unknown file format.", file=sys.stderr)
                 sys.exit(1)

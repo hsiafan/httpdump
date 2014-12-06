@@ -5,7 +5,7 @@ __author__ = 'dongliu'
 
 import struct
 import socket
-from pycapture.constant import *
+from pcapparser.constant import *
 
 
 class TcpPack:

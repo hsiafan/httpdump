@@ -15,7 +15,7 @@ Features:
 ### Install
 This module can be installed via pip:
 ```sh
-pip install pycapture
+pip install pcap-parser
 ```
 
 ### Parse Pcap File
@@ -50,18 +50,3 @@ Use -e can forced the encoding http body used:
 ```sh
 parse_pcap -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
 ```
-
-### Used as a Proxy
-```sh
-# start a http proxy at localhost:8000, and show urls via this proxy
-proxy_cap
-# output http req & resp content, if are texts
-proxy_cap -vv
-# the ip and port the proxy listened on
-proxy_cap -l127.0.0.1 -p8080 -vv
-# output result to http.log
-proxy_cap -vv -ohttp.log
-```
-
-The default port is 8000, just set the software(browsers or something else) 's proxy to this, the capture and parser will work.
-

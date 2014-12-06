@@ -2,14 +2,15 @@
 
 # read and parse pcapng file
 # see
-#http://www.winpcap.org/ntar/draft/PCAP-DumpFileFormat.html
-#http://wiki.wireshark.org/Development/PcapNg
+# http://www.winpcap.org/ntar/draft/PCAP-DumpFileFormat.html
+# http://wiki.wireshark.org/Development/PcapNg
 from __future__ import unicode_literals, print_function, division
 import struct
 import sys
-from pycapture.constant import *
+from pcapparser.constant import *
 
 __author__ = 'dongliu'
+
 
 class SectionInfo(object):
     def __init__(self):
@@ -21,7 +22,7 @@ class SectionInfo(object):
         self.capture_len = -1
 
 
-class PcapNgFile(object):
+class PcapngFile(object):
     def __init__(self, infile):
         self.infile = infile
         self.section_info = SectionInfo()
@@ -77,7 +78,6 @@ class PcapNgFile(object):
         # skip timestamp
         buf = self.infile.read(8)
         h_timestamp, l_timestamp = struct.unpack(self.section_info.byteorder + b'II', buf)
-        timestamp = (h_timestamp << 32) + l_timestamp
 
         # capture len
         buf = self.infile.read(8)

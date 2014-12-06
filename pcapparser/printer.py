@@ -3,10 +3,10 @@ from __future__ import unicode_literals, print_function, division
 
 from io import StringIO
 
-from pycapture.config import OutputLevel
+from pcapparser.config import OutputLevel
 # print http req/resp
-from pycapture import textutils
-from pycapture.processor import HttpDataProcessor
+from pcapparser import textutils
+from pcapparser.processor import HttpDataProcessor
 
 
 class HttpPrinter(HttpDataProcessor):
@@ -17,7 +17,7 @@ class HttpPrinter(HttpDataProcessor):
         self.parse_config = parse_config
         self.buf = StringIO()
         self._println(('*' * 10 + " [%s:%d] -- -- --> [%s:%d] " + '*' * 10) %
-                   (client_host[0], client_host[1], remote_host[0], remote_host[1]))
+                      (client_host[0], client_host[1], remote_host[0], remote_host[1]))
 
     def on_http_req(self, req_header, req_body):
         """
@@ -25,7 +25,8 @@ class HttpPrinter(HttpDataProcessor):
         :type req_body: bytes
         """
         if self.parse_config.level == OutputLevel.ONLY_URL:
-            self._println(req_header.method + b" " + self._get_full_url(req_header.uri, req_header.host))
+            self._println(
+                req_header.method + b" " + self._get_full_url(req_header.uri, req_header.host))
         elif self.parse_config.level == OutputLevel.HEADER:
             self._println(req_header.raw_data)
             self._println('')
@@ -35,8 +36,10 @@ class HttpPrinter(HttpDataProcessor):
 
             mime, charset = textutils.parse_content_type(req_header.content_type)
             # usually charset is not set in http post
-            output_body = self.parse_config.level >= OutputLevel.ALL_BODY and not textutils.is_binary(mime) \
-                          or self.parse_config.level >= OutputLevel.TEXT_BODY and textutils.is_text(mime)
+            output_body = self.parse_config.level >= OutputLevel.ALL_BODY \
+                          and not textutils.is_binary(mime) \
+                          or self.parse_config.level >= OutputLevel.TEXT_BODY \
+                             and textutils.is_text(mime)
             if self.parse_config.encoding and not charset:
                 charset = self.parse_config.encoding
             if not req_header.gzip:
@@ -63,8 +66,10 @@ class HttpPrinter(HttpDataProcessor):
 
             mime, charset = textutils.parse_content_type(resp_header.content_type)
             # usually charset is not set in http post
-            output_body = self.parse_config.level >= OutputLevel.ALL_BODY and not textutils.is_binary(mime) \
-                          or self.parse_config.level >= OutputLevel.TEXT_BODY and textutils.is_text(mime)
+            output_body = self.parse_config.level >= OutputLevel.ALL_BODY \
+                          and not textutils.is_binary(mime) \
+                          or self.parse_config.level >= OutputLevel.TEXT_BODY \
+                             and textutils.is_text(mime)
             if self.parse_config.encoding and not charset:
                 charset = self.parse_config.encoding
             if not resp_header.gzip:
@@ -79,7 +84,7 @@ class HttpPrinter(HttpDataProcessor):
         if uri.startswith(b'http://') or uri.startswith(b'https://'):
             return uri
         else:
-            return b' http://' + host + b'/' + uri
+            return b' http://' + host + uri
 
     def _println(self, line):
         if type(line) == type(b''):

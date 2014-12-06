@@ -32,6 +32,7 @@ class FileFormat(object):
     PCAP_NG = 0x0A0D0D0A
     UNKNOWN = -1
 
+
 class BlockType(object):
     SECTION_HEADER = 0x0A0D0D0A
     INTERFACE_DESCRIPTION = 0x00000001

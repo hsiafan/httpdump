@@ -2,12 +2,12 @@
 
 from setuptools import setup, find_packages
 
-PACKAGE = 'pycapture'
-name = 'pycapture'
+PACKAGE = 'pcapparser'
+name = 'pcap-parser'
 description = 'Parse pcap file with python'
 author = 'xiaxiaocao'
 author_email = 'dongliu@live.cn'
-url = 'https://github.com/xiaxiaocao/pycapture'
+url = 'https://github.com/xiaxiaocao/pcap-parser'
 version = __import__(PACKAGE).__version__
 
 try:
@@ -37,5 +37,5 @@ setup(
         'Programming Language :: Python :: 2.7',
     ],
     zip_safe=False,
-    scripts=['parse_pcap', 'proxy_cap'],
+    scripts=['parse_pcap'],
 )

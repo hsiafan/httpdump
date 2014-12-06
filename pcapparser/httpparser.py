@@ -5,9 +5,9 @@ import threading
 from collections import defaultdict
 from Queue import Queue
 
-from pycapture import textutils
-from pycapture.constant import HttpType
-from pycapture.reader import DataReader
+from pcapparser import textutils
+from pcapparser.constant import HttpType
+from pcapparser.reader import DataReader
 
 
 __author__ = 'dongliu'
