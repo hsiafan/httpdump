@@ -5,9 +5,9 @@ from io import StringIO
 
 from pcapparser.config import OutputLevel
 # print http req/resp
-from pcapparser import textutils
+from pcapparser import utils
 from pcapparser.processor import HttpDataProcessor
-
+from pcapparser import config
 
 def _get_full_url(uri, host):
     if uri.startswith(b'http://') or uri.startswith(b'https://'):
@@ -17,11 +17,8 @@ def _get_full_url(uri, host):
 
 
 class HttpPrinter(HttpDataProcessor):
-    def __init__(self, client_host, remote_host, parse_config):
-        """
-        :type parse_config: ParseConfig
-        """
-        self.parse_config = parse_config
+    def __init__(self, client_host, remote_host):
+        self.parse_config = config.get_config()
         self.buf = StringIO()
         self._println(('*' * 10 + " [%s:%d] -- -- --> [%s:%d] " + '*' * 10) %
                       (client_host[0], client_host[1], remote_host[0], remote_host[1]))
@@ -41,18 +38,18 @@ class HttpPrinter(HttpDataProcessor):
             self._println(req_header.raw_data)
             self._println('')
 
-            mime, charset = textutils.parse_content_type(req_header.content_type)
+            mime, charset = utils.parse_content_type(req_header.content_type)
             # usually charset is not set in http post
             output_body = self.parse_config.level >= OutputLevel.ALL_BODY \
-                          and not textutils.is_binary(mime) \
+                          and not utils.is_binary(mime) \
                           or self.parse_config.level >= OutputLevel.TEXT_BODY \
-                             and textutils.is_text(mime)
+                             and utils.is_text(mime)
             if self.parse_config.encoding and not charset:
                 charset = self.parse_config.encoding
             if not req_header.gzip:
                 # if is gzip by content magic header
                 # someone missed the content-encoding header
-                req_header.gzip = textutils.gzipped(req_body)
+                req_header.gzip = utils.gzipped(req_body)
             if output_body:
                 self._print_body(req_body, req_header.gzip, charset)
                 self._println('')
@@ -71,18 +68,18 @@ class HttpPrinter(HttpDataProcessor):
             self._println(resp_header.raw_data)
             self._println('')
 
-            mime, charset = textutils.parse_content_type(resp_header.content_type)
+            mime, charset = utils.parse_content_type(resp_header.content_type)
             # usually charset is not set in http post
             output_body = self.parse_config.level >= OutputLevel.ALL_BODY \
-                          and not textutils.is_binary(mime) \
+                          and not utils.is_binary(mime) \
                           or self.parse_config.level >= OutputLevel.TEXT_BODY \
-                             and textutils.is_text(mime)
+                             and utils.is_text(mime)
             if self.parse_config.encoding and not charset:
                 charset = self.parse_config.encoding
             if not resp_header.gzip:
                 # if is gzip by content magic header
                 # someone missed the content-encoding header
-                resp_header.gzip = textutils.gzipped(resp_body)
+                resp_header.gzip = utils.gzipped(resp_body)
             if output_body:
                 self._print_body(resp_body, resp_header.gzip, charset)
                 self._println('')
@@ -99,12 +96,12 @@ class HttpPrinter(HttpDataProcessor):
 
     def _print_body(self, body, gzipped, charset):
         if gzipped:
-            body = textutils.ungzip(body)
+            body = utils.ungzip(body)
 
-        content = textutils.decode_body(body, charset)
+        content = utils.decode_body(body, charset)
         if content:
             if self.parse_config.pretty:
-                textutils.try_print_json(content, self.buf)
+                utils.try_print_json(content, self.buf)
             else:
                 self.buf.write(content)
             self.buf.write('\n')

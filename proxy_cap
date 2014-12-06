@@ -12,7 +12,7 @@ import threading
 import signal
 
 from pcapparser.httpparser import HttpType, HttpParser
-from pcapparser.config import ParseConfig
+from pcapparser import config
 
 
 _BUF_SIZE = 8192
@@ -55,7 +55,8 @@ class ConnectionHandler(object):
     def _method_connect(self):
         """for http proxy connect method. it is usually for https proxy"""
         self._connect_target(self.path)
-        self.client_socket.send(b'HTTP/1.1 200 Connection established\nProxy-agent: Python Proxy\n\n')
+        self.client_socket.send(
+            b'HTTP/1.1 200 Connection established\nProxy-agent: Python Proxy\n\n')
 
     def _method_others(self):
         self.path = self.path[len(b'http://'):]
@@ -112,11 +113,11 @@ class ConnectionHandler(object):
                 break
 
 
-def _worker(worker_socket, client_ip, client_port, output_file, parse_config):
+def _worker(worker_socket, client_ip, client_port, output_file):
     try:
         handler = ConnectionHandler(worker_socket)
         handler.init_connect()
-        processor = HttpPrinter((client_ip, client_port), handler.remote_host, parse_config)
+        processor = HttpPrinter((client_ip, client_port), handler.remote_host)
         http_parser = HttpParser(processor)
         handler.proxy_data(http_parser)
         handler.close()
@@ -127,10 +128,11 @@ def _worker(worker_socket, client_ip, client_port, output_file, parse_config):
         output_file.flush()
     except Exception:
         import traceback
+
         traceback.print_exc()
 
 
-def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None, parse_config=None):
+def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
     """start proxy server."""
     ip_version = IPv6 and socket.AF_INET6 or socket.AF_INET
     server_socket = socket.socket(ip_version)
@@ -170,8 +172,10 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None, parse_confi
         while True:
             worker_socket, client = server_socket.accept()
             (client_ip, client_port) = client
-            worker_thread = threading.Thread(target=_worker, args=(worker_socket, client_ip, client_port, output_file,
-            parse_config))
+            worker_thread = threading.Thread(
+                target=_worker,
+                args=(worker_socket, client_ip, client_port, output_file)
+            )
             worker_thread.setDaemon(True)
             worker_thread.start()
     finally:
@@ -180,10 +184,13 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None, parse_confi
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-l", "--listen", help="the IP of the interface which the proxy listened on")
-    parser.add_argument("-p", "--port", type=int, help="the port of the interface which the proxy listened on")
+    parser.add_argument("-l", "--listen",
+                        help="the IP of the interface which the proxy listened on")
+    parser.add_argument("-p", "--port", type=int,
+                        help="the port of the interface which the proxy listened on")
     parser.add_argument("-6", "--ipv6", help="use ipv6", action="store_true")
-    parser.add_argument("-v", "--verbosity", help="increase output verbosity(-vv is recommended)", action="count")
+    parser.add_argument("-v", "--verbosity", help="increase output verbosity(-vv is recommended)",
+                        action="count")
     parser.add_argument("-o", "--output", help="output to file instead of stdout")
     parser.add_argument("-e", "--encoding", help="decode the data use specified encodings.")
     parser.add_argument("-b", "--beauty", help="output json in a pretty way.", action="store_true")
@@ -197,14 +204,14 @@ def main():
     if args.output:
         setting["output"] = args.output
 
-    parse_config = ParseConfig()
+    # output config
+    parse_config = config.ParseConfig()
     if args.verbosity:
         parse_config.level = args.verbosity
     if args.encoding:
         parse_config.encoding = args.encoding
     parse_config.pretty = args.beauty
-
-    setting["parse_config"] = parse_config
+    config.set_config(config)
 
     start_server(**setting)
 

@@ -1,4 +1,5 @@
 from __future__ import unicode_literals, print_function, division
+
 __author__ = 'dongliu'
 
 import json
@@ -28,9 +29,10 @@ def try_print_json(text, output_file):
         # may be json
         try:
             data = json.loads(text)
-            output_file.write(json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')))
+            output_file.write(
+                json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')))
             return True
-        except Exception as e:
+        except Exception:
             output_file.write(text)
             return False
     else:
@@ -61,6 +63,7 @@ def ungzip(content):
         return content
     except:
         import traceback
+
         traceback.print_exc()
         return content
 
@@ -81,6 +84,7 @@ def ungzip_carefully(content):
         return buf.getvalue()
     except:
         import traceback
+
         traceback.print_exc()
         return content
 
@@ -124,8 +128,10 @@ def parse_content_type(content_type):
 
 
 _text_mime_top_levels = {b'text'}
-_text_mime_subtypes = {b'html', b'xml', b'json', b'javascript', b'ecmascript', b'atom+xml', b'rss+xml',
-                       b'xhtml+xml', b'rdf+xml', b'x-www-form-urlencoded'}
+_text_mime_subtypes = {
+    b'html', b'xml', b'json', b'javascript', b'ecmascript', b'atom+xml',
+    b'rss+xml', b'xhtml+xml', b'rdf+xml', b'x-www-form-urlencoded'
+}
 
 
 def is_text(mime_str):

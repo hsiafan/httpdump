@@ -17,3 +17,16 @@ class ParseConfig(object):
         self.level = OutputLevel.ONLY_URL
         self.pretty = False
         self.encoding = None
+
+
+_parse_config = ParseConfig()
+
+
+def set_config(config):
+    global _parse_config
+    _parse_config = config
+
+
+def get_config():
+    global _parse_config
+    return _parse_config

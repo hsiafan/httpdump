@@ -14,14 +14,14 @@ import argparse
 import io
 
 from pcapparser import packet_parser
-from pcapparser import pcap, pcapng, textutils
+from pcapparser import pcap, pcapng, utils
 from pcapparser.constant import FileFormat
 from pcapparser.printer import HttpPrinter
 from collections import OrderedDict
 import struct
 
 from pcapparser.httpparser import HttpType, HttpParser
-from pcapparser.config import ParseConfig
+from pcapparser import config
 
 
 class HttpConn:
@@ -31,7 +31,7 @@ class HttpConn:
     STATUS_CLOSED = 2
     STATUS_ERROR = -1
 
-    def __init__(self, tcp_pac, output_file, parse_config):
+    def __init__(self, tcp_pac, output_file):
         self.source_ip = tcp_pac.source
         self.source_port = tcp_pac.source_port
         self.dest_ip = tcp_pac.dest
@@ -42,7 +42,7 @@ class HttpConn:
 
         # start parser thread
         self.processor = HttpPrinter((self.source_ip, self.source_port),
-                                     (self.dest_ip, self.dest_port), parse_config)
+                                     (self.dest_ip, self.dest_port))
         self.http_parser = HttpParser(self.processor)
         self.append(tcp_pac)
 
@@ -55,7 +55,7 @@ class HttpConn:
 
         if self.status == HttpConn.STATUS_BEGIN:
             if tcp_pac.body:
-                if textutils.is_request(tcp_pac.body):
+                if utils.is_request(tcp_pac.body):
                     self.status = HttpConn.STATUS_RUNNING
         if tcp_pac.pac_type == -1:
             # end of connection
@@ -110,12 +110,14 @@ def main():
     port = args.port
     ip = args.ip
 
-    parse_config = ParseConfig()
+    # deal with configs
+    parse_config = config.ParseConfig()
     if args.verbosity:
         parse_config.level = args.verbosity
     if args.encoding:
         parse_config.encoding = args.encoding
     parse_config.pretty = args.beauty
+    config.set_config(parse_config)
 
     if args.output:
         output_file = open(args.output, "w+")
@@ -152,12 +154,12 @@ def main():
 
                 # begin tcp connection.
                 elif tcp_pac.pac_type == 1:
-                    conn_dict[key] = HttpConn(tcp_pac, output_file, parse_config)
+                    conn_dict[key] = HttpConn(tcp_pac, output_file)
                 elif tcp_pac.pac_type == 0:
                     # tcp init before capture, we found a http request header, begin parse
                     # if is a http request?
-                    if textutils.is_request(tcp_pac.body):
-                        conn_dict[key] = HttpConn(tcp_pac, output_file, parse_config)
+                    if utils.is_request(tcp_pac.body):
+                        conn_dict[key] = HttpConn(tcp_pac, output_file)
     finally:
         for conn in conn_dict.values():
             conn.finish()

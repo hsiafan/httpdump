@@ -4,7 +4,7 @@ import threading
 from collections import defaultdict
 from Queue import Queue
 
-from pcapparser import textutils
+from pcapparser import utils
 from pcapparser.constant import HttpType
 from pcapparser.reader import DataReader
 
@@ -87,12 +87,12 @@ class HttpParser(object):
         self.task_queue.put((self.cur_type, self.cur_data_queue))
 
     def _init(self, http_type, data):
-        if not textutils.is_request(data) or http_type != HttpType.REQUEST:
+        if not utils.is_request(data) or http_type != HttpType.REQUEST:
             # not a http request
             self.is_http = False
         else:
             self.is_http = True
-            self.task_queue = Queue()  # one task is an http request or http response strem
+            self.task_queue = Queue()  # one task is an http request or http response stream
             self.worker = threading.Thread(target=self.process_tasks, args=(self.task_queue,))
             self.worker.setDaemon(True)
             self.worker.start()
@@ -115,7 +115,7 @@ class HttpParser(object):
                 import traceback
 
                 traceback.print_exc()
-                # consume all datas.
+                # consume all data.
                 reader.skipall()
                 break
 
@@ -142,7 +142,7 @@ class HttpParser(object):
                 break
             lines.append(line)
 
-            key, value = textutils.parse_http_header(line)
+            key, value = utils.parse_http_header(line)
             if key is None:
                 # incorrect headers.
                 continue
@@ -156,7 +156,7 @@ class HttpParser(object):
         if line is None:
             return None
         line = line.strip()
-        if not textutils.is_request(line):
+        if not utils.is_request(line):
             return None
 
         req_header = HttpRequestHeader()
@@ -188,7 +188,7 @@ class HttpParser(object):
             return line
         line = line.strip()
 
-        if not textutils.is_response(line):
+        if not utils.is_response(line):
             return None
         resp_header = HttpResponseHeader()
         resp_header.status_line = line
@@ -257,12 +257,12 @@ class HttpParser(object):
             if not skip:
                 result.append(data)
 
-            # a CRLF to end this chunked response
+            # a CR-LF to end this chunked response
             reader.readline()
 
     def read_request(self, reader, message):
         """ read and output one http request. """
-        if message.expect_header and not textutils.is_request(reader.fetchline()):
+        if message.expect_header and not utils.is_request(reader.fetchline()):
             req_header = message.expect_header
             message.expect_header = None
         else:
@@ -306,7 +306,8 @@ class HttpParser(object):
                     # we can't get content length, so assume it till the end of data.
                     resp_header.content_len = 10000000
                 else:
-                    # we can't get content length, and is not a chunked body, we cannot do nothing, just read all data.
+                    # we can't get content length, and is not a chunked body, we cannot do nothing,
+                    # just read all data.
                     resp_header.content_len = 10000000
             content = reader.read(resp_header.content_len)
         else:
