@@ -65,7 +65,7 @@ def dl_parse_ethernet(link_packet, byteorder):
         eth_header_len += 4
         n_protocol, = struct.unpack(b'!2xH', type_or_len)
     if n_protocol < 1536:
-        #TODO n_protocol means package len
+        # TODO n_protocol means package len
         pass
     return n_protocol, link_packet[eth_header_len:]
 
@@ -76,7 +76,7 @@ def dl_parse_linux_sll(link_packet, byteorder):
 
     sll_header_len = 16
 
-    #Linux cooked header
+    # Linux cooked header
     linux_cooked = link_packet[0:sll_header_len]
 
     packet_type, link_type_address_type, link_type_address_len, link_type_address, n_protocol \
@@ -84,7 +84,7 @@ def dl_parse_linux_sll(link_packet, byteorder):
     return n_protocol, link_packet[sll_header_len:]
 
 
-#see http://en.wikipedia.org/wiki/Ethertype
+# see http://en.wikipedia.org/wiki/Ethertype
 def read_ip_pac(link_packet, endian, link_layer_parser):
     # ip header
     n_protocol, ip_packet = link_layer_parser(link_packet, endian)

@@ -21,9 +21,11 @@ class SectionInfo(object):
 
 
 class PcapngFile(object):
-    def __init__(self, infile):
+    def __init__(self, infile, head):
         self.infile = infile
         self.section_info = SectionInfo()
+        # the first 4 byte head has been read by pcap file format checker
+        self.head = head
 
     def parse_section_header_block(self, block_header):
         """get section info from section header block"""
@@ -52,7 +54,7 @@ class PcapngFile(object):
             # usually did not have a known section length
             pass
 
-        self.infile.seek(block_len - 12 - 16, 1)
+        self.infile.read(block_len - 12 - 16)
 
         self.section_info.byteorder = byteorder
         self.section_info.major = major
@@ -67,7 +69,7 @@ class PcapngFile(object):
         snap_len = struct.unpack(self.section_info.byteorder + b'I', buf)
         self.section_info.link_type = link_type
         self.section_info.snap_len = snap_len
-        self.infile.seek(block_len - 12 - 8, 1)
+        self.infile.read(block_len - 12 - 8)
 
     def parse_enhanced_packet(self, block_len):
         buf = self.infile.read(4)
@@ -86,12 +88,16 @@ class PcapngFile(object):
         data = self.infile.read(capture_len)
 
         # skip other optional fields
-        self.infile.seek(block_len - 12 - 20 - capture_len, 1)
+        self.infile.read(block_len - 12 - 20 - capture_len)
         return data
 
     def parse_block(self):
         """read and parse a block"""
-        block_header = self.infile.read(8)
+        if self.head is not None:
+            block_header = self.head + self.infile.read(8 - len(self.head))
+            self.head = None
+        else:
+            block_header = self.infile.read(8)
         if len(block_header) < 8:
             return None
         block_type, block_len = struct.unpack(self.section_info.byteorder + b'II', block_header)
@@ -103,16 +109,17 @@ class PcapngFile(object):
             self.parse_interface_description_block(block_len)
         elif block_type == BlockType.ENHANCED_PACKET:
             data = self.parse_enhanced_packet(block_len)
-        #TODO:add other block type we have know
+        # TODO:add other block type we have know
         else:
-            self.infile.seek(block_len - 12, 1)
+            self.infile.read(block_len - 12)
             print("unknown block type:%s, size:%d" % (hex(block_type), block_len), file=sys.stderr)
 
         # read author block_len
         block_len_t = self.infile.read(4)
         block_len_t, = struct.unpack(self.section_info.byteorder + b'I', block_len_t)
         if block_len_t != block_len:
-            print("block_len not equal, header:%d, tail:%d." % (block_len, block_len_t), file=sys.stderr)
+            print("block_len not equal, header:%d, tail:%d." % (block_len, block_len_t),
+                  file=sys.stderr)
         return data
 
     def read_packet(self):

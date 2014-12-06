@@ -1,4 +1,5 @@
 from __future__ import unicode_literals, print_function, division
+
 __author__ = 'dongliu'
 
 # read and parse pcap file
@@ -8,10 +9,12 @@ import struct
 
 
 class PcapFile(object):
-    def __init__(self, infile):
+    def __init__(self, infile, head):
         self.infile = infile
         self.byteorder = b'@'
         self.link_type = None
+        # the first 4 byte head has been read by pcap file format checker
+        self.head = head
 
     # http://www.winpcap.org/ntar/draft/PCAP-DumpFileFormat.html
     def pcap_check(self):
@@ -20,7 +23,8 @@ class PcapFile(object):
         # default, auto
         # read 24 bytes header
         pcap_file_header_len = 24
-        global_head = self.infile.read(pcap_file_header_len)
+        global_head = self.head + self.infile.read(pcap_file_header_len - len(self.head))
+        self.head = None
         if not global_head:
             raise StopIteration()
 
@@ -51,7 +55,8 @@ class PcapFile(object):
         if not package_header:
             return None, None
 
-        seconds, suseconds, packet_len, raw_len = struct.unpack(self.byteorder + b'IIII', package_header)
+        seconds, suseconds, packet_len, raw_len = struct.unpack(self.byteorder + b'IIII',
+                                                                package_header)
         # note: packet_len contains padding.
         link_packet = self.infile.read(packet_len)
         if len(link_packet) < packet_len:

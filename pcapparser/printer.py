@@ -9,6 +9,7 @@ from pcapparser import utils
 from pcapparser.processor import HttpDataProcessor
 from pcapparser import config
 
+
 def _get_full_url(uri, host):
     if uri.startswith(b'http://') or uri.startswith(b'https://'):
         return uri
@@ -40,10 +41,7 @@ class HttpPrinter(HttpDataProcessor):
 
             mime, charset = utils.parse_content_type(req_header.content_type)
             # usually charset is not set in http post
-            output_body = self.parse_config.level >= OutputLevel.ALL_BODY \
-                          and not utils.is_binary(mime) \
-                          or self.parse_config.level >= OutputLevel.TEXT_BODY \
-                             and utils.is_text(mime)
+            output_body = self._if_output(mime)
             if self.parse_config.encoding and not charset:
                 charset = self.parse_config.encoding
             if not req_header.gzip:
@@ -70,10 +68,7 @@ class HttpPrinter(HttpDataProcessor):
 
             mime, charset = utils.parse_content_type(resp_header.content_type)
             # usually charset is not set in http post
-            output_body = self.parse_config.level >= OutputLevel.ALL_BODY \
-                          and not utils.is_binary(mime) \
-                          or self.parse_config.level >= OutputLevel.TEXT_BODY \
-                             and utils.is_text(mime)
+            output_body = self._if_output(mime)
             if self.parse_config.encoding and not charset:
                 charset = self.parse_config.encoding
             if not resp_header.gzip:
@@ -83,6 +78,10 @@ class HttpPrinter(HttpDataProcessor):
             if output_body:
                 self._print_body(resp_body, resp_header.gzip, charset)
                 self._println('')
+
+    def _if_output(self, mime):
+        return self.parse_config.level >= OutputLevel.ALL_BODY and not utils.is_binary(mime) \
+               or self.parse_config.level >= OutputLevel.TEXT_BODY and utils.is_text(mime)
 
     def _println(self, line):
         if type(line) == type(b''):
