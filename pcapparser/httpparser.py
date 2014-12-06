@@ -7,6 +7,7 @@ from Queue import Queue
 from pcapparser import utils
 from pcapparser.constant import HttpType
 from pcapparser.reader import DataReader
+from pcapparser import config
 
 
 __author__ = 'dongliu'
@@ -47,6 +48,7 @@ class RequestMessage(object):
 
     def __init__(self):
         self.expect_header = None
+        self.filtered = False
 
 
 class HttpParser(object):
@@ -281,8 +283,11 @@ class HttpParser(object):
         else:
             content = self.read_chunked_body(reader)
 
-        # if it is form url encode
-        self.processor.on_http_req(req_header, content)
+        _filter = config.get_filter()
+        show = _filter.by_domain(req_header.host) and _filter.by_uri(req_header.uri)
+        message.filtered = not show
+        if show:
+            self.processor.on_http_req(req_header, content)
 
     def read_response(self, reader, message):
         """
@@ -313,4 +318,5 @@ class HttpParser(object):
         else:
             content = self.read_chunked_body(reader)
 
-        self.processor.on_http_resp(resp_header, content)
+        if not message.filtered:
+            self.processor.on_http_resp(resp_header, content)

@@ -75,8 +75,9 @@ class HttpConn:
     def finish(self):
         self.http_parser.finish()
         result = self.processor.getvalue()
-        print(result.encode('utf8'), file=self.out)
-        self.out.flush()
+        if self.processor.printed:
+            print(result.encode('utf8'), file=self.out)
+            self.out.flush()
 
 
 def get_file_format(infile):
@@ -94,7 +95,7 @@ def get_file_format(infile):
         return FileFormat.UNKNOWN, buf
 
 
-def process_pcap_file(conn_dict, infile, ip, output_file, port):
+def process_pcap_file(conn_dict, infile, output_file):
     file_format, head = get_file_format(infile)
     if file_format == FileFormat.PCAP:
         pcap_file = pcap.PcapFile(infile, head).read_packet
@@ -103,11 +104,13 @@ def process_pcap_file(conn_dict, infile, ip, output_file, port):
     else:
         print("unknown file format.", file=sys.stderr)
         sys.exit(1)
+
+    _filter = config.get_filter()
     for tcp_pac in packet_parser.read_package_r(pcap_file):
         # filter
-        if port is not None and tcp_pac.source_port != port and tcp_pac.dest_port != port:
+        if not (_filter.by_ip(tcp_pac.source) or _filter.by_ip(tcp_pac.dest)):
             continue
-        if ip is not None and tcp_pac.source != ip and tcp_pac.dest != ip:
+        if not (_filter.by_port(tcp_pac.source_port) or _filter.by_port(tcp_pac.dest_port)):
             continue
 
         key = tcp_pac.gen_key()
@@ -140,21 +143,26 @@ def main():
     parser.add_argument("-o", "--output", help="output to file instead of stdout")
     parser.add_argument("-e", "--encoding", help="decode the data use specified encodings.")
     parser.add_argument("-b", "--beauty", help="output json in a pretty way.", action="store_true")
+    parser.add_argument("-d", "--domain", help="filter http data by request domain")
+    parser.add_argument("-u", "--uri", help="filter http data by request uri pattern")
 
     args = parser.parse_args()
 
     file_path = "-" if args.infile is None else args.infile
-    port = args.port
-    ip = args.ip
+
+    _filter = config.get_filter()
+    _filter.ip = args.ip
+    _filter.port = args.port
+    _filter.domain = args.domain
+    _filter.uri_pattern = args.uri
 
     # deal with configs
-    parse_config = config.ParseConfig()
+    parse_config = config.get_config()
     if args.verbosity:
         parse_config.level = args.verbosity
     if args.encoding:
         parse_config.encoding = args.encoding
     parse_config.pretty = args.beauty
-    config.set_config(parse_config)
 
     if args.output:
         output_file = open(args.output, "w+")
@@ -168,7 +176,7 @@ def main():
         else:
             infile = sys.stdin
         try:
-            process_pcap_file(conn_dict, infile, ip, output_file, port)
+            process_pcap_file(conn_dict, infile, output_file)
         finally:
             infile.close()
     finally:
@@ -179,4 +187,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except IOError as e:
+        pass

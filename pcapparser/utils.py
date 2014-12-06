@@ -25,19 +25,22 @@ class Mime(object):
 def try_print_json(text, output_file):
     if text is None:
         return
-    if text.startswith('{') and text.endswith('}') or text.startswith('[') and text.endswith(']'):
-        # may be json
-        try:
-            data = json.loads(text)
-            output_file.write(
-                json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')))
-            return True
-        except Exception:
-            output_file.write(text)
-            return False
-    else:
+    # may be json
+    try:
+        data = json.loads(text)
+        output_file.write(
+            json.dumps(data, indent=2, ensure_ascii=False, separators=(',', ': ')))
+        return True
+    except Exception:
         output_file.write(text)
         return False
+
+
+def try_decoded_print(content, buf):
+    import urllib
+
+    content = urllib.unquote(content)
+    buf.write(content)
 
 
 def gzipped(content):
@@ -98,16 +101,21 @@ def parse_http_header(header):
         return header[0:idx].strip(), header[idx + 1:].strip()
 
 
+_methods = {b'GET', b'POST', b'PUT', b'DELETE', b'HEAD', b'TRACE', b'OPTIONS', b'PATCH'}
+
+
 def is_request(body):
+    """judge if is http request by the first line"""
     idx = body.find(b' ')
     if idx < 0:
         return False
-    method = body[0:idx].lower()
-    return method in (b'get', b'post', b'put', b'delete')
+    method = body[0:idx]
+    return method in _methods
 
 
 def is_response(body):
-    return body.startswith(b'HTTP/') or body.startswith(b'http/')
+    """judge if is http response by http status line"""
+    return body.startswith(b'HTTP/')
 
 
 def parse_content_type(content_type):

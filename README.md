@@ -42,6 +42,14 @@ You can use the -p/-i to specify the ip/port of source and destination, will onl
 parse_pcap -p55419 -vv test.pcap
 parse_pcap -i192.168.109.91 -vv test.pcap
 ```
+Use -d to specify the http domain, only display http req/resp with the domain:
+```sh
+parse_pcap -dwww.baidu.com -vv test.pcap
+```
+Use -u to specify the http uri pattern, only dispay http req/resp which url contains the url pattern:
+```sh
+parse_pcap -u/api/update -vv test.pcap
+```
 
 ### Encoding
 Use -e can forced the encoding http body used:
