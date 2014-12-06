@@ -1,16 +1,14 @@
 Parse and show http traffics. Python 2.7.* required.
 
-This module contains two tools:
-
-* parse_pcap, parse pcap/pcapng file, retrieve http data and show as text. Pcap files can be obtained via tcpdump or wireshark or other network traffic capture tools.
-* proxy_cap, start a http proxy that can record and display all http packets sent through this agent.
+This module parse pcap/pcapng file, retrieve http data and show as text.
+Pcap files can be obtained via tcpdump or wireshark or other network traffic capture tools.
 
 Features:
 
 * Http requests/responses grouped by tcp connections, the requests in one keep-alive http connection will display together.
 * Managed chunked and compressed http requests/responses.
 * Managed character encoding
-* Formate json content to a beautiful way.
+* Format json content to a beautiful way.
 
 ### Install
 This module can be installed via pip:
@@ -26,7 +24,7 @@ tcpdump -wtest.pcap tcp port 80
 ```
 Then:
 ```sh
-# only ouput the requested URL and response status  
+# only output the requested URL and response status
 parse_pcap test.pcap
 # output http req/resp headers
 parse_pcap -v test.pcap
@@ -45,7 +43,7 @@ parse_pcap -p55419 -vv test.pcap
 parse_pcap -i192.168.109.91 -vv test.pcap
 ```
 
-### encoding
+### Encoding
 Use -e can forced the encoding http body used:
 ```sh
 parse_pcap -i192.168.109.91 -p80 -vv -eutf-8 test.pcap

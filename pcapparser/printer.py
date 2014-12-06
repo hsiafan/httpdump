@@ -9,6 +9,13 @@ from pcapparser import textutils
 from pcapparser.processor import HttpDataProcessor
 
 
+def _get_full_url(uri, host):
+    if uri.startswith(b'http://') or uri.startswith(b'https://'):
+        return uri
+    else:
+        return b'http://' + host + uri
+
+
 class HttpPrinter(HttpDataProcessor):
     def __init__(self, client_host, remote_host, parse_config):
         """
@@ -26,7 +33,7 @@ class HttpPrinter(HttpDataProcessor):
         """
         if self.parse_config.level == OutputLevel.ONLY_URL:
             self._println(
-                req_header.method + b" " + self._get_full_url(req_header.uri, req_header.host))
+                req_header.method + b" " + _get_full_url(req_header.uri, req_header.host))
         elif self.parse_config.level == OutputLevel.HEADER:
             self._println(req_header.raw_data)
             self._println('')
@@ -79,12 +86,6 @@ class HttpPrinter(HttpDataProcessor):
             if output_body:
                 self._print_body(resp_body, resp_header.gzip, charset)
                 self._println('')
-
-    def _get_full_url(self, uri, host):
-        if uri.startswith(b'http://') or uri.startswith(b'https://'):
-            return uri
-        else:
-            return b' http://' + host + uri
 
     def _println(self, line):
         if type(line) == type(b''):
