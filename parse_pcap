@@ -57,13 +57,6 @@ class HttpConn:
             if tcp_pac.body:
                 if utils.is_request(tcp_pac.body):
                     self.status = HttpConn.STATUS_RUNNING
-        if tcp_pac.pac_type == -1:
-            # end of connection
-            if self.status == HttpConn.STATUS_RUNNING:
-                self.status = HttpConn.STATUS_CLOSED
-            else:
-                self.status = HttpConn.STATUS_ERROR
-
         if tcp_pac.source == self.source_ip:
             http_type = HttpType.REQUEST
         else:
@@ -71,6 +64,13 @@ class HttpConn:
 
         if self.status == HttpConn.STATUS_RUNNING and tcp_pac.body:
             self.http_parser.send(http_type, tcp_pac.body)
+
+        if tcp_pac.pac_type == -1:
+            # end of connection
+            if self.status == HttpConn.STATUS_RUNNING:
+                self.status = HttpConn.STATUS_CLOSED
+            else:
+                self.status = HttpConn.STATUS_ERROR
 
     def finish(self):
         self.http_parser.finish()
