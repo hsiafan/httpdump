@@ -93,9 +93,9 @@ class HttpPrinter(object):
             value = self.buf.getvalue()
             self.buf = StringIO()
             if value:
-                print(('*' * 10 + " [%s:%d] -- -- --> [%s:%d] " + '*' * 10) %
-                      (self.client_host[0], self.client_host[1], self.remote_host[0],
-                       self.remote_host[1]), file=config.out)
+                print("[%s:%d] -- -- --> [%s:%d] " % (self.client_host[0], self.client_host[1],
+                                                       self.remote_host[0], self.remote_host[1]),
+                      file=config.out)
                 print(value.encode('utf8'), file=config.out)
                 config.out.flush()
         finally:

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import unicode_literals, print_function, division
+import signal
 
 __author__ = 'dongliu'
 
@@ -22,6 +23,15 @@ import struct
 
 from pcapparser.httpparser import HttpType, HttpParser
 from pcapparser import config
+
+
+# when press Ctrl+C, stop the proxy.
+def signal_handler(signal, frame):
+    print('\nStopping proxy...')
+    sys.exit(0)
+
+
+signal.signal(signal.SIGINT, signal_handler)
 
 
 class HttpConn:

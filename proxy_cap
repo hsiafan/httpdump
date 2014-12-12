@@ -159,7 +159,6 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
     def signal_handler(signal, frame):
         print('\nStopping proxy...')
         clean()
-        # TODO:stop all threads and close all files and sockets.
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)

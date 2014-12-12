@@ -35,6 +35,10 @@ parse_pcap -vvv test.pcap
 # display and attempt to do url decoding and formatting json output
 parse_pcap -vvb test.pcap
 ```
+Or use pipe:
+```sh
+sudo tcpdump -w- tcp port 80 | parse_pcap 
+```
 
 ### Group
 Use -g to group http request/response: 
