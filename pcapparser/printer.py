@@ -7,6 +7,9 @@ from pcapparser.config import OutputLevel
 # print http req/resp
 from pcapparser import utils
 from pcapparser import config
+import threading
+
+printer_lock = threading.Lock()
 
 
 def _get_full_url(uri, host):
@@ -22,22 +25,12 @@ class HttpPrinter(object):
         self.buf = StringIO()
         self.client_host = client_host
         self.remote_host = remote_host
-        self.printed = False
-
-    def _print_connection(self):
-        self._println(('*' * 10 + " [%s:%d] -- -- --> [%s:%d] " + '*' * 10) %
-                      (self.client_host[0], self.client_host[1], self.remote_host[0],
-                       self.remote_host[1]))
 
     def on_http_req(self, req_header, req_body):
         """
         :type req_header: HttpRequestHeader
         :type req_body: bytes
         """
-        if not self.printed:
-            self._print_connection()
-            self.printed = True
-
         if self.parse_config.level == OutputLevel.ONLY_URL:
             self._println(req_header.method + b" " + _get_full_url(req_header.uri, req_header.host))
         elif self.parse_config.level == OutputLevel.HEADER:
@@ -87,6 +80,27 @@ class HttpPrinter(object):
                 self._print_body(resp_body, resp_header.gzip, mime, charset)
                 self._println()
 
+        if not config.get_config().group:
+            self._do_output()
+
+    def finish(self):
+        """called when this connection finished"""
+        self._do_output()
+
+    def _do_output(self):
+        printer_lock.acquire()
+        try:
+            value = self.buf.getvalue()
+            self.buf = StringIO()
+            if value:
+                print(('*' * 10 + " [%s:%d] -- -- --> [%s:%d] " + '*' * 10) %
+                      (self.client_host[0], self.client_host[1], self.remote_host[0],
+                       self.remote_host[1]), file=config.out)
+                print(value.encode('utf8'), file=config.out)
+                config.out.flush()
+        finally:
+            printer_lock.release()
+
     def _if_output(self, mime):
         return self.parse_config.level >= OutputLevel.ALL_BODY and not utils.is_binary(mime) \
                or self.parse_config.level >= OutputLevel.TEXT_BODY and utils.is_text(mime)
@@ -124,6 +138,3 @@ class HttpPrinter(object):
             else:
                 self.buf.write(content)
             self.buf.write('\n')
-
-    def getvalue(self):
-        return self.buf.getvalue()

@@ -33,7 +33,37 @@ parse_pcap -vv test.pcap
 # output http req/resp headers and body
 parse_pcap -vvv test.pcap
 # display and attempt to do url decoding and formatting json output
-parse_pcap -vv -b test.pcap
+parse_pcap -vvb test.pcap
+```
+
+### Group
+Use -g to group http request/response: 
+```sh
+parse_pcap -g test.pcap
+```
+The result looks like:
+```
+********** [10.66.133.90:56240] -- -- --> [220.181.90.13:80] **********
+GET http://s1.rr.itc.cn/w/u/0/20120611181946_24.jpg
+HTTP/1.1 200 OK
+GET http://s1.rr.itc.cn/p/images/imgloading.jpg
+HTTP/1.1 200 OK
+GET http://s1.rr.itc.cn/w/u/0/20130201103132_66.png
+HTTP/1.1 200 OK
+GET http://s1.rr.itc.cn/w/u/0/20120719174136_77.png
+HTTP/1.1 200 OK
+GET http://s1.rr.itc.cn/p/images/pic_prev_open.png
+HTTP/1.1 200 OK
+
+********** [10.66.133.90:47526] -- -- --> [220.181.90.13:80] **********
+GET http://s1.rr.itc.cn/w/u/0/20130227132442_43.png
+HTTP/1.1 200 OK
+GET http://s1.rr.itc.cn/p/images/pic_next.png
+HTTP/1.1 200 OK
+GET http://s1.rr.itc.cn/p/images/pic_prev.png
+HTTP/1.1 200 OK
+GET http://s1.rr.itc.cn/p/images/pic_next_open.png
+HTTP/1.1 200 OK
 ```
 
 ### Filter

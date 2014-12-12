@@ -105,6 +105,8 @@ class HttpParser(object):
         while True:
             httptype, data_queue = task_queue.get()
             if httptype is None:
+                # finished
+                self.processor.finish()
                 break
 
             reader = DataReader(data_queue)

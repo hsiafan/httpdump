@@ -17,14 +17,10 @@ class ParseConfig(object):
         self.level = OutputLevel.ONLY_URL
         self.pretty = False
         self.encoding = None
+        self.group = False
 
 
 _parse_config = ParseConfig()
-
-
-def set_config(config):
-    global _parse_config
-    _parse_config = config
 
 
 def get_config():
@@ -56,11 +52,9 @@ class Filter(object):
 _filter = Filter()
 
 
-def set_filter(f):
-    global _filter
-    _filter = filter
-
-
 def get_filter():
     global _filter
     return _filter
+
+
+out = None

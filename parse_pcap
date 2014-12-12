@@ -31,14 +31,13 @@ class HttpConn:
     STATUS_CLOSED = 2
     STATUS_ERROR = -1
 
-    def __init__(self, tcp_pac, output_file):
+    def __init__(self, tcp_pac):
         self.source_ip = tcp_pac.source
         self.source_port = tcp_pac.source_port
         self.dest_ip = tcp_pac.dest
         self.dest_port = tcp_pac.dest_port
 
         self.status = HttpConn.STATUS_BEGIN
-        self.out = output_file
 
         # start parser thread
         self.processor = HttpPrinter((self.source_ip, self.source_port),
@@ -74,10 +73,6 @@ class HttpConn:
 
     def finish(self):
         self.http_parser.finish()
-        result = self.processor.getvalue()
-        if self.processor.printed:
-            print(result.encode('utf8'), file=self.out)
-            self.out.flush()
 
 
 def get_file_format(infile):
@@ -95,7 +90,7 @@ def get_file_format(infile):
         return FileFormat.UNKNOWN, buf
 
 
-def process_pcap_file(conn_dict, infile, output_file):
+def process_pcap_file(conn_dict, infile):
     file_format, head = get_file_format(infile)
     if file_format == FileFormat.PCAP:
         pcap_file = pcap.PcapFile(infile, head).read_packet
@@ -124,12 +119,12 @@ def process_pcap_file(conn_dict, infile, output_file):
 
         # begin tcp connection.
         elif tcp_pac.pac_type == 1:
-            conn_dict[key] = HttpConn(tcp_pac, output_file)
+            conn_dict[key] = HttpConn(tcp_pac)
         elif tcp_pac.pac_type == 0:
             # tcp init before capture, we found a http request header, begin parse
             # if is a http request?
             if utils.is_request(tcp_pac.body):
-                conn_dict[key] = HttpConn(tcp_pac, output_file)
+                conn_dict[key] = HttpConn(tcp_pac)
 
 
 def main():
@@ -140,6 +135,8 @@ def main():
                         help="only parse packages with specified source OR dest port")
     parser.add_argument("-v", "--verbosity", help="increase output verbosity(-vv is recommended)",
                         action="count")
+    parser.add_argument("-g", "--group", help="group http request/response by connection",
+                        action="store_true")
     parser.add_argument("-o", "--output", help="output to file instead of stdout")
     parser.add_argument("-e", "--encoding", help="decode the data use specified encodings.")
     parser.add_argument("-b", "--beauty", help="output json in a pretty way.", action="store_true")
@@ -163,11 +160,14 @@ def main():
     if args.encoding:
         parse_config.encoding = args.encoding
     parse_config.pretty = args.beauty
+    parse_config.group = args.group
 
     if args.output:
         output_file = open(args.output, "w+")
     else:
         output_file = sys.stdout
+
+    config.out = output_file
 
     conn_dict = OrderedDict()
     try:
@@ -176,7 +176,7 @@ def main():
         else:
             infile = sys.stdin
         try:
-            process_pcap_file(conn_dict, infile, output_file)
+            process_pcap_file(conn_dict, infile)
         finally:
             infile.close()
     finally:
