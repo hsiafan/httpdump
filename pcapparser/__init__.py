@@ -1,2 +1,2 @@
 __author__ = 'dongliu'
-__version__ = "0.3.11"
+__version__ = "0.3.12"

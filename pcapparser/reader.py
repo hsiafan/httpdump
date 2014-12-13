@@ -12,10 +12,10 @@ class DataReader(object):
         self.finish = False
 
     def _read(self):
-        data = self.data_queue.get()
-        if data is None:
+        item = self.data_queue.get()
+        if item is None:
             self.finish = True
-        return data
+        return item
 
     def readline(self):
         """read line from input data"""
@@ -50,7 +50,7 @@ class DataReader(object):
             return None
 
         if self.data:
-            self.data = line + self.data
+            self.data += line
         else:
             self.data = line
 

@@ -120,7 +120,7 @@ class HttpParser(object):
 
                 traceback.print_exc()
                 # consume all data.
-                reader.skipall()
+                # reader.skipall()
                 break
 
     def finish(self):

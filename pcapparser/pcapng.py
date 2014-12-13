@@ -18,6 +18,8 @@ class SectionInfo(object):
         self.minor = -1
         self.link_type = -1
         self.capture_len = -1
+        self.tsresol = 1  # Resolution of timestamps. we use microsecond here
+        self.tsoffset = 0  # value that specifies the offset of timestamp. we use microsecond
 
 
 class PcapngFile(object):
@@ -69,27 +71,62 @@ class PcapngFile(object):
         snap_len = struct.unpack(self.section_info.byteorder + b'I', buf)
         self.section_info.link_type = link_type
         self.section_info.snap_len = snap_len
-        self.infile.read(block_len - 12 - 8)
+
+        # read if_tsresol option to determined how to interpreter the timestamp of packet
+        options = self.infile.read(block_len - 12 - 8)
+        offset = 0
+        while offset < len(options):
+            option = options[offset:]
+            code, = struct.unpack(self.section_info.byteorder + b'H', option[:2])
+            raw_len, = struct.unpack(self.section_info.byteorder + b'H', option[2:4])
+            padding_len = raw_len
+            if code == 9:
+                # if_tsresol
+                if_tsresol = option[4]
+                sig = (if_tsresol & 0x80)
+                count = if_tsresol & 0x7f
+                # we use microsecond
+                if sig == 0:
+                    # the remaining bits indicates the resolution of the timestamp
+                    # as as a negative power of 10
+                    self.section_info.tsresol = (10 ** -count) * (10 ** 6)
+                else:  # sig == 1
+                    # the resolution as as negative power of 2
+                    self.section_info.tsresol = (2 ** -count) * (10 ** 6)
+            elif code == 14:
+                # if_tsoffset
+                self.section_info.tsoffset, = struct.unpack(self.section_info.byteorder + b'Q',
+                                                            option[4:12])
+                self.section_info.tsoffset *= 10 ** 6
+            elif code == 0:
+                # end of option
+                break
+            mod = raw_len % 4
+            if mod != 0:
+                padding_len += (4 - mod)
+            offset += 4 + padding_len
 
     def parse_enhanced_packet(self, block_len):
         buf = self.infile.read(4)
-        interface_id, = struct.unpack(self.section_info.byteorder + b'I', buf)
+        # interface_id, = struct.unpack(self.section_info.byteorder + b'I', buf)
 
         # skip timestamp
         buf = self.infile.read(8)
-        h_timestamp, l_timestamp = struct.unpack(self.section_info.byteorder + b'II', buf)
+        h, l, = struct.unpack(self.section_info.byteorder + b'II', buf)
+        timestamp = (h << 32) + l
+        micro_second = long(timestamp * self.section_info.tsresol + self.section_info.tsoffset)
 
         # capture len
         buf = self.infile.read(8)
         capture_len, packet_len = struct.unpack(self.section_info.byteorder + b'II', buf)
-        padded_capture_len = ((capture_len - 1) // 4 + 1) * 4
+        # padded_capture_len = ((capture_len - 1) // 4 + 1) * 4
 
         # the captured data
         data = self.infile.read(capture_len)
 
         # skip other optional fields
         self.infile.read(block_len - 12 - 20 - capture_len)
-        return data
+        return micro_second, data
 
     def parse_block(self):
         """read and parse a block"""
@@ -101,15 +138,21 @@ class PcapngFile(object):
         if len(block_header) < 8:
             return None
         block_type, block_len = struct.unpack(self.section_info.byteorder + b'II', block_header)
+
         data = ''
+        micro_second = 0
         if block_type == BlockType.SECTION_HEADER:
             self.parse_section_header_block(block_header)
         elif block_type == BlockType.INTERFACE_DESCRIPTION:
             # read link type and capture size
             self.parse_interface_description_block(block_len)
         elif block_type == BlockType.ENHANCED_PACKET:
-            data = self.parse_enhanced_packet(block_len)
-        # TODO:add other block type we have know
+            micro_second, data = self.parse_enhanced_packet(block_len)
+        elif block_type > 0x80000000:
+            # private protocol type, ignore
+            data = self.infile.read(block_len - 12)
+            print(len(data))
+            print(data)
         else:
             self.infile.read(block_len - 12)
             print("unknown block type:%s, size:%d" % (hex(block_type), block_len), file=sys.stderr)
@@ -120,13 +163,14 @@ class PcapngFile(object):
         if block_len_t != block_len:
             print("block_len not equal, header:%d, tail:%d." % (block_len, block_len_t),
                   file=sys.stderr)
-        return data
+        return micro_second, data
 
     def read_packet(self):
         while True:
-            link_packet = self.parse_block()
-            if link_packet is None:
+            data = self.parse_block()
+            if data is None:
                 return
+            micro_second, link_packet = data
             if len(link_packet) == 0:
                 continue
-            yield self.section_info.byteorder, self.section_info.link_type, link_packet
+            yield self.section_info.link_type, micro_second, link_packet
