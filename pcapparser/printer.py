@@ -2,6 +2,7 @@
 from __future__ import unicode_literals, print_function, division
 
 from io import StringIO
+import sys
 
 from pcapparser.config import OutputLevel
 # print http req/resp
@@ -98,6 +99,8 @@ class HttpPrinter(object):
                       file=config.out)
                 print(value.encode('utf8'), file=config.out)
                 config.out.flush()
+        except IOError as e:
+            sys.exit(0)
         finally:
             printer_lock.release()
 

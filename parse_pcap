@@ -27,7 +27,6 @@ from pcapparser import config
 
 # when press Ctrl+C, stop the proxy.
 def signal_handler(signal, frame):
-    print('\nStopping proxy...')
     sys.exit(0)
 
 
