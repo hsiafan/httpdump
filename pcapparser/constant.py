@@ -1,4 +1,5 @@
 from __future__ import unicode_literals, print_function, division
+
 __author__ = 'dongliu'
 
 
@@ -42,3 +43,17 @@ class BlockType(object):
     ENHANCED_PACKET = 0x00000006
     IRIG_TIMESTAMP = 0x00000007
     ARINC_429 = 0x00000008
+
+
+class Compress(object):
+    IDENTITY = 0  # No transformation is used. This is the default value for content coding.
+    GZIP = 1
+    DEFLATE = 2
+    COMPRESS = 3  # UNIX "compress" program method (historic; deprecated in most applications)
+    EXI = 4  # W3C Efficient XML Interchange
+    PACK200_GZIP = 5  # Network Transfer Format for Java Archives
+
+    # unofficial or non-standardized tokens
+    BZIP2 = 6
+    LZMA = 7
+    SDCH = 8 # chrome vcdiff encoder

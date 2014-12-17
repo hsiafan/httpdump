@@ -1,4 +1,6 @@
 from __future__ import unicode_literals, print_function, division
+import zlib
+from pcapparser.constant import Compress
 
 __author__ = 'dongliu'
 
@@ -43,9 +45,22 @@ def try_decoded_print(content, buf):
     buf.write(content)
 
 
+def get_compress_type(content_encoding):
+    content_encoding = content_encoding.strip()
+    if content_encoding == b'gzip':
+        return Compress.GZIP
+    elif content_encoding == b'deflate':
+        return Compress.DEFLATE
+    else:
+        # there are others compress token, just process the most common two now.
+        return Compress.IDENTITY
+
+
 def gzipped(content):
     """
     test if content is gzipped by magic num.
+    first two bytes of gzip stream should be 0x1F and 0x8B,
+    the third byte represent for compress algorithm, always 8(deflate) now
     """
     if content is not None and len(content) > 10 \
             and ord(content[0:1]) == 31 and ord(content[1:2]) == 139 \
@@ -61,9 +76,6 @@ def ungzip(content):
         gzip_file = gzip.GzipFile(fileobj=buf)
         content = gzip_file.read()
         return content
-    except IOError:
-        content = ungzip_carefully(content)
-        return content
     except:
         import traceback
 
@@ -71,25 +83,9 @@ def ungzip(content):
         return content
 
 
-def ungzip_carefully(content):
-    """
-    deal with corrupted gzip file, read one word once
-    """
-    compress_steam = BytesIO(content)
-    gzip_file = gzip.GzipFile(fileobj=compress_steam)
-    buf = BytesIO()
-    try:
-        while True:
-            data = gzip_file.read(4)
-            buf.write(data)
-        return buf.getvalue()
-    except IOError:
-        return buf.getvalue()
-    except:
-        import traceback
-
-        traceback.print_exc()
-        return content
+def decode_deflate(content):
+    """decode deflate stream"""
+    return zlib.decompressobj(-zlib.MAX_WBITS).decompress(content)
 
 
 def parse_http_header(header):

@@ -5,7 +5,7 @@ from collections import defaultdict
 from Queue import Queue
 
 from pcapparser import utils
-from pcapparser.constant import HttpType
+from pcapparser.constant import HttpType, Compress
 from pcapparser.reader import DataReader
 from pcapparser import config
 
@@ -22,7 +22,7 @@ class HttpRequestHeader(object):
         self.transfer_encoding = b''
         self.content_encoding = b''
         self.content_type = b''
-        self.gzip = False
+        self.compress = Compress.IDENTITY
         self.chunked = False
         self.expect = b''
         self.protocol = b''
@@ -37,7 +37,7 @@ class HttpResponseHeader(object):
         self.transfer_encoding = b''
         self.content_encoding = b''
         self.content_type = b''
-        self.gzip = False
+        self.compress = Compress.IDENTITY
         self.chunked = False
         self.connection_close = False
         self.raw_data = None
@@ -177,7 +177,7 @@ class HttpParser(object):
         if b'chunked' in header_dict[b"transfer-encoding"]:
             req_header.chunked = True
         req_header.content_type = header_dict[b'content-type']
-        req_header.gzip = (b'gzip' in header_dict[b"content-encoding"])
+        req_header.compress = utils.get_compress_type(header_dict[b"content-encoding"])
         req_header.host = header_dict[b"host"]
         if b'expect' in header_dict:
             req_header.expect = header_dict[b'expect']
@@ -208,7 +208,7 @@ class HttpParser(object):
         if b'chunked' in header_dict[b"transfer-encoding"]:
             resp_header.chunked = True
         resp_header.content_type = header_dict[b'content-type']
-        resp_header.gzip = (b'gzip' in header_dict[b"content-encoding"])
+        resp_header.compress == utils.get_compress_type(header_dict[b"content-encoding"])
         resp_header.connection_close = (header_dict[b'connection'] == b'close')
         resp_header.raw_data = b'\n'.join(lines)
         return resp_header

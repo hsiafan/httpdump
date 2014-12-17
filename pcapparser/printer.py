@@ -9,6 +9,7 @@ from pcapparser.config import OutputLevel
 from pcapparser import utils
 from pcapparser import config
 import threading
+from pcapparser.constant import Compress
 
 printer_lock = threading.Lock()
 
@@ -46,12 +47,13 @@ class HttpPrinter(object):
             output_body = self._if_output(mime)
             if self.parse_config.encoding and not charset:
                 charset = self.parse_config.encoding
-            if not req_header.gzip:
+            if req_header.compress == Compress.IDENTITY:
                 # if is gzip by content magic header
                 # someone missed the content-encoding header
-                req_header.gzip = utils.gzipped(req_body)
+                if utils.gzipped(req_body):
+                    req_header.compress = Compress.GZIP
             if output_body:
-                self._print_body(req_body, req_header.gzip, mime, charset)
+                self._print_body(req_body, req_header.compress, mime, charset)
                 self._println('')
 
     def on_http_resp(self, resp_header, resp_body):
@@ -73,12 +75,13 @@ class HttpPrinter(object):
             output_body = self._if_output(mime)
             if self.parse_config.encoding and not charset:
                 charset = self.parse_config.encoding
-            if not resp_header.gzip:
+            if resp_header.compress == Compress.IDENTITY:
                 # if is gzip by content magic header
                 # someone missed the content-encoding header
-                resp_header.gzip = utils.gzipped(resp_body)
+                if utils.gzipped(resp_body):
+                    resp_header.compress = Compress.GZIP
             if output_body:
-                self._print_body(resp_body, resp_header.gzip, mime, charset)
+                self._print_body(resp_body, resp_header.compress, mime, charset)
                 self._println()
 
         if not config.get_config().group:
@@ -118,9 +121,11 @@ class HttpPrinter(object):
         if self.parse_config.level >= level:
             self._println(line)
 
-    def _print_body(self, body, gzipped, mime, charset):
-        if gzipped:
+    def _print_body(self, body, compress, mime, charset):
+        if compress == Compress.GZIP:
             body = utils.ungzip(body)
+        elif compress == Compress.DEFLATE:
+            body = utils.decode_deflate(body)
 
         content = utils.decode_body(body, charset)
         if content:
