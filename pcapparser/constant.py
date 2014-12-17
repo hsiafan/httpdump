@@ -21,6 +21,10 @@ class NetworkProtocol(object):
     IPV6 = 34525
     # Virtual Bridged Local Area Networks
     P802_1Q = 33024
+    # IP Upper PPP 0x0021
+    PPP_IP = 33
+    # PPPOE Session 0x8864
+    PPPOE_SESSION = 34916
 
 
 class TransferProtocol(object):
