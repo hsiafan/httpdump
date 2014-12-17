@@ -144,7 +144,8 @@ def is_text(mime_str):
 
 
 _binary_mime_top_levels = {b'audio', b'image', b'video'}
-_binary_mime_subtypes = {b'octet-stream', b'pdf', b'postscript', b'zip', b'gzip'}
+_binary_mime_subtypes = {b'octet-stream', b'pdf', b'postscript', b'zip', b'gzip',
+                         b'x-shockwave-flash', b'oct-stream'}
 
 
 def is_binary(mime_str):
