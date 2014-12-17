@@ -65,6 +65,11 @@ def dl_parse_ethernet(link_packet):
         type_or_len = link_packet[eth_header_len:eth_header_len + 4]
         eth_header_len += 4
         n_protocol, = struct.unpack(b'!2xH', type_or_len)
+    if n_protocol == NetworkProtocol.PPPOE_SESSION:
+        # skip PPPOE SESSION Header
+        eth_header_len += 8
+        type_or_len = link_packet[eth_header_len-2:eth_header_len]
+        n_protocol, = struct.unpack(b'!H', type_or_len)
     if n_protocol < 1536:
         # TODO n_protocol means package len
         pass
@@ -90,7 +95,7 @@ def read_ip_pac(link_packet, link_layer_parser):
     # ip header
     n_protocol, ip_packet = link_layer_parser(link_packet)
 
-    if n_protocol == NetworkProtocol.IP:
+    if n_protocol == NetworkProtocol.IP or n_protocol == NetworkProtocol.PPP_IP:
         ip_base_header_len = 20
         ip_header = ip_packet[0:ip_base_header_len]
         (ip_info, ip_length, protocol) = struct.unpack(b'!BxH5xB10x', ip_header)
