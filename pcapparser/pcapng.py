@@ -151,8 +151,6 @@ class PcapngFile(object):
         elif block_type > 0x80000000:
             # private protocol type, ignore
             data = self.infile.read(block_len - 12)
-            print(len(data))
-            print(data)
         else:
             self.infile.read(block_len - 12)
             print("unknown block type:%s, size:%d" % (hex(block_type), block_len), file=sys.stderr)
