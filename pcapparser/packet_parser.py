@@ -202,27 +202,69 @@ def read_package_r(pcap_file):
     direction_dict = {}
     for pack in read_tcp_packet(pcap_file):
         key = pack.gen_key()
+        # if a SYN is received, erase cached connection with same key.
+        if key in conn_dict and pack.pac_type == TcpPack.TYPE_INIT:
+            del conn_dict[key]
+        # if we haven't keep this connection, construct one.
         if key not in conn_dict:
-            conn_dict[key] = []
-            reverse_conn_dict[key] = []
+            # remember the next SEQ should appear as list[0] to skip all retransmit
+            # packets. list[1] to indicate whether the socket is closed.
+            conn_dict[key] = [pack.seq, 0, []]
+            # if it's SYN, the data length is considered as 1.
+            if pack.pac_type == TcpPack.TYPE_INIT:
+                conn_dict[key][0] += 1
+            reverse_conn_dict[key] = [pack.ack, 0, []]
             direction_dict[key] = pack.source + str(pack.source_port)
 
         if pack.source + str(pack.source_port) == direction_dict[key]:
             hold_packs = conn_dict[key]
-            fetch_packs = reverse_conn_dict[key]
-            connections = reverse_conn_dict
         else:
             hold_packs = reverse_conn_dict[key]
-            fetch_packs = conn_dict[key]
-            connections = conn_dict
 
-        if pack.body or pack.pac_type != TcpPack.TYPE_ESTABLISH:
-            hold_packs.append(pack)
-        ack_packs = [ipack for ipack in fetch_packs if ipack.expect_ack() <= pack.ack]
-        ack_packs.sort(key=lambda x: x.seq)
-        remain_packs = [ipack for ipack in fetch_packs if ipack.expect_ack() > pack.ack]
-        connections[key] = remain_packs
-        for ipack in ack_packs:
+        # if the connection is insert into dictionary by SYN, we should update
+        # reverse SEQ, consider the SYN+ACK packet data length as 1.
+        if pack.pac_type == TcpPack.TYPE_INIT_ACK:
+            if reverse_conn_dict[key][0] == 0:
+                reverse_conn_dict[key][0] = pack.seq + 1
+
+        # do not receive anything after FIN/RST
+        if hold_packs[1] == 1:
+            continue
+        if pack.pac_type == TcpPack.TYPE_CLOSE:
+            hold_packs[1] = 1
+
+        # only store FIN/RST or packets which have payload data.
+        if pack.body or pack.pac_type == TcpPack.TYPE_CLOSE:
+            hold_packs[2].append(pack)
+            hold_packs[2] = sorted(hold_packs[2], key=lambda x:x.seq)
+
+        yield_list = []
+        while len(hold_packs[2]) > 0:
+            first_pack = hold_packs[2][0]
+            if not first_pack.body:
+                # this must be a RST/FIN packet without data.
+                yield_list.append(first_pack)
+                del hold_packs[2][0]
+                continue
+            elif first_pack.seq > hold_packs[0]:
+                # there has some packets lost, wait.
+                break
+            elif first_pack.seq == hold_packs[0]:
+                # the first packet matches the expected SEQ exactly.
+                hold_packs[0] = first_pack.seq + len(first_pack.body)
+                yield_list.append(first_pack)
+                del hold_packs[2][0]
+            elif first_pack.seq + len(first_pack.body) <= hold_packs[0]:
+                # the packet is a retransmit packet.
+                del hold_packs[2][0]
+            else:
+                # part of the packet data is retransmit, part of it is useful.
+                trim_len = first_pack.seq + len(first_pack.boy) - hold_packs[0]
+                first_pack.body = first_pack.body[-1*trim_len: ]
+                first_pack.seq = hold_packs[0]
+                hold_packs[0] += trim_len
+                yield_list.append(first_pack)
+                del hold_packs[2][0]
+
+        for ipack in yield_list:
             yield ipack
-
-        # TODO: add close socket logic, and delete elements from dicts.
