@@ -68,7 +68,7 @@ def dl_parse_ethernet(link_packet):
     if n_protocol == NetworkProtocol.PPPOE_SESSION:
         # skip PPPOE SESSION Header
         eth_header_len += 8
-        type_or_len = link_packet[eth_header_len-2:eth_header_len]
+        type_or_len = link_packet[eth_header_len - 2:eth_header_len]
         n_protocol, = struct.unpack(b'!H', type_or_len)
     if n_protocol < 1536:
         # TODO n_protocol means package len
@@ -236,7 +236,7 @@ def read_package_r(pcap_file):
         # only store FIN/RST or packets which have payload data.
         if pack.body or pack.pac_type == TcpPack.TYPE_CLOSE:
             hold_packs[2].append(pack)
-            hold_packs[2] = sorted(hold_packs[2], key=lambda x:x.seq)
+            hold_packs[2] = sorted(hold_packs[2], key=lambda x: x.seq)
 
         yield_list = []
         while len(hold_packs[2]) > 0:
@@ -259,8 +259,8 @@ def read_package_r(pcap_file):
                 del hold_packs[2][0]
             else:
                 # part of the packet data is retransmit, part of it is useful.
-                trim_len = first_pack.seq + len(first_pack.boy) - hold_packs[0]
-                first_pack.body = first_pack.body[-1*trim_len: ]
+                trim_len = first_pack.seq + len(first_pack.body) - hold_packs[0]
+                first_pack.body = first_pack.body[-1 * trim_len:]
                 first_pack.seq = hold_packs[0]
                 hold_packs[0] += trim_len
                 yield_list.append(first_pack)
