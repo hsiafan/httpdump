@@ -1,5 +1,6 @@
 from __future__ import unicode_literals, print_function, division
 import zlib
+from pcapparser import six
 from pcapparser.constant import Compress
 
 __author__ = 'dongliu'
@@ -39,9 +40,7 @@ def try_print_json(text, output_file):
 
 
 def try_decoded_print(content, buf):
-    import urllib
-
-    content = urllib.unquote(content)
+    content = six.unquote(content)
     buf.write(content)
 
 
@@ -159,8 +158,7 @@ def decode_body(content, charset):
     if content == b'':
         return ''
     if charset:
-        if type(charset) == type(b''):
-            charset = charset.decode('utf-8')
+        charset = six.ensure_unicode(charset)
         try:
             return content.decode(charset)
         except:

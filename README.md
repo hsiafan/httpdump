@@ -1,4 +1,4 @@
-Parse and show http traffics. Python 2.7.* required.
+Parse and show http traffics. Python 2.7.* or Python 3.3+ required.
 
 This module parse pcap/pcapng file, retrieve http data and show as text.
 Pcap files can be obtained via tcpdump or wireshark or other network traffic capture tools.

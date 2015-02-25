@@ -148,13 +148,6 @@ def read_tcp_pac(link_packet, link_layer_parser):
 
     # body
     body = tcp_packet[tcp_header_len:]
-    # workaround to ignore no-data tcp packs
-    if 0 < len(body) < 20:
-        total = 0
-        for ch in body:
-            total += ord(ch)
-        if total == 0:
-            body = b''
 
     if syn == 1 and ack == 0:
         # init tcp connection

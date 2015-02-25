@@ -2,7 +2,13 @@ from __future__ import unicode_literals, print_function, division
 
 import threading
 from collections import defaultdict
-from Queue import Queue
+
+from pcapparser import six
+
+if six.is_python2:
+    from Queue import Queue
+else:
+    from queue import Queue
 
 from pcapparser import utils
 from pcapparser.constant import HttpType, Compress
@@ -174,7 +180,7 @@ class HttpParser(object):
         header_dict = self.read_headers(reader, lines)
         if b"content-length" in header_dict:
             req_header.content_len = int(header_dict[b"content-length"])
-        if b'chunked' in header_dict[b"transfer-encoding"]:
+        if b"transfer-encoding" in header_dict and b'chunked' in header_dict[b"transfer-encoding"]:
             req_header.chunked = True
         req_header.content_type = header_dict[b'content-type']
         req_header.compress = utils.get_compress_type(header_dict[b"content-encoding"])
@@ -205,7 +211,7 @@ class HttpParser(object):
         header_dict = self.read_headers(reader, lines)
         if b"content-length" in header_dict:
             resp_header.content_len = int(header_dict[b"content-length"])
-        if b'chunked' in header_dict[b"transfer-encoding"]:
+        if b"transfer-encoding" in header_dict and b'chunked' in header_dict[b"transfer-encoding"]:
             resp_header.chunked = True
         resp_header.content_type = header_dict[b'content-type']
         resp_header.compress == utils.get_compress_type(header_dict[b"content-encoding"])

@@ -5,12 +5,6 @@ import signal
 __author__ = 'dongliu'
 
 import sys
-# check python version
-major, minor, = sys.version_info[:2]
-if major != 2 or minor < 7:
-    print("Python version 2.7.* needed.", file=sys.stderr)
-    sys.exit(1)
-
 import argparse
 import io
 

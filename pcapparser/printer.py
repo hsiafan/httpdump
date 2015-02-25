@@ -6,7 +6,7 @@ import sys
 
 from pcapparser.config import OutputLevel
 # print http req/resp
-from pcapparser import utils
+from pcapparser import utils, six
 from pcapparser import config
 import threading
 from pcapparser.constant import Compress
@@ -100,7 +100,10 @@ class HttpPrinter(object):
                 print("[%s:%d] -- -- --> [%s:%d] " % (self.client_host[0], self.client_host[1],
                                                       self.remote_host[0], self.remote_host[1]),
                       file=config.out)
-                print(value.encode('utf8'), file=config.out)
+                if six.is_python2:
+                    print(value.encode('utf8'), file=config.out)
+                else:
+                    print(value, file=config.out)
                 config.out.flush()
         except IOError as e:
             if e.errno == 32:
@@ -118,8 +121,7 @@ class HttpPrinter(object):
                or self.parse_config.level >= OutputLevel.TEXT_BODY and utils.is_text(mime)
 
     def _println(self, line=''):
-        if type(line) == type(b''):
-            line = line.decode('utf-8')
+        line = six.ensure_unicode(line)
         self.buf.write(line)
         self.buf.write('\n')
 
@@ -141,7 +143,7 @@ class HttpPrinter(object):
                         and content.endswith(']'):
                     mime = b'application/json'
             if mime is None:
-                mime = ''
+                mime = b''
             if self.parse_config.pretty:
                 if b'json' in mime:
                     utils.try_print_json(content, self.buf)
