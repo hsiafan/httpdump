@@ -1,4 +1,3 @@
-from __future__ import unicode_literals
 import codecs
 
 from setuptools import setup
@@ -9,7 +8,7 @@ with codecs.open('README.rst', encoding='utf-8') as f:
 
 setup(
     name='pcap-parser',
-    version='0.5.1',
+    version='0.5.4',
     description='Parse pcap file with python',
     long_description=long_description,
     author='xiaxiaocao',
@@ -36,7 +35,7 @@ setup(
     # scripts=['parse_pcap'],
     entry_points={
         'console_scripts': [
-            'parse_pcap = pcapparser.parse_pcap:main',
+            'parse_pcap = pcapparser:main',
         ],
     }
 )
