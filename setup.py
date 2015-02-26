@@ -1,31 +1,23 @@
-#coding=utf-8
+from __future__ import unicode_literals
+import codecs
 
-from setuptools import setup, find_packages
+from setuptools import setup
 
-PACKAGE = 'pcapparser'
-name = 'pcap-parser'
-description = 'Parse pcap file with python'
-author = 'xiaxiaocao'
-author_email = 'dongliu@live.cn'
-url = 'https://github.com/xiaxiaocao/pcap-parser'
-version = __import__(PACKAGE).__version__
 
-try:
-    with open('README.rst', 'rb') as f:
-        long_description = f.read()
-except:
-    long_description = description
+with codecs.open('README.rst', encoding='utf-8') as f:
+    long_description = f.read()
 
 setup(
-    name=name,
-    version=version,
-    description=description,
+    name='pcap-parser',
+    version='0.5.1',
+    description='Parse pcap file with python',
     long_description=long_description,
-    author=author,
-    author_email=author_email,
+    author='xiaxiaocao',
+    author_email='im@dongliu.net',
     license='Apache Software License',
-    url=url,
-    packages=find_packages(exclude=['tests.*', 'tests']),
+    url='https://github.com/xiaxiaocao/pcap-parser',
+    packages=['pcapparser'],
+    install_requires=[],
     include_package_data=True,
     classifiers=[
         'Programming Language :: Python',
@@ -35,8 +27,16 @@ setup(
         'License :: OSI Approved :: Apache Software License',
         'Operating System :: OS Independent',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.3',
         'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 3',
     ],
     zip_safe=False,
-    scripts=['parse_pcap'],
+    # scripts=['parse_pcap'],
+    entry_points={
+        'console_scripts': [
+            'parse_pcap = pcapparser.parse_pcap:main',
+        ],
+    }
 )

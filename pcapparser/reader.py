@@ -17,7 +17,7 @@ class DataReader(object):
             self.finish = True
         return item
 
-    def readline(self):
+    def read_line(self):
         """read line from input data"""
         if self.finish:
             return None
@@ -45,7 +45,7 @@ class DataReader(object):
 
     def fetchline(self):
         """fetch a line, but not modify pos"""
-        line = self.readline()
+        line = self.read_line()
         if line is None:
             return None
 
@@ -124,7 +124,7 @@ class DataReader(object):
             return None
         return b''.join(buf)
 
-    def skipall(self):
+    def skip_all(self):
         if self.finish:
             return
 

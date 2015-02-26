@@ -144,7 +144,7 @@ class HttpParser(object):
         """
         header_dict = defaultdict(str)
         while True:
-            line = reader.readline()
+            line = reader.read_line()
             if line is None:
                 break
             line = line.strip()
@@ -162,7 +162,7 @@ class HttpParser(object):
 
     def read_http_req_header(self, reader):
         """read & parse http headers"""
-        line = reader.readline()
+        line = reader.read_line()
         if line is None:
             return None
         line = line.strip()
@@ -193,7 +193,7 @@ class HttpParser(object):
 
     def read_http_resp_header(self, reader):
         """read & parse http headers"""
-        line = reader.readline()
+        line = reader.read_line()
         if line is None:
             return line
         line = line.strip()
@@ -225,7 +225,7 @@ class HttpParser(object):
         # read a chunk per loop
         while True:
             # read chunk size line
-            cline = reader.readline()
+            cline = reader.read_line()
             if cline is None:
                 # error occurred.
                 if not skip:
@@ -242,7 +242,7 @@ class HttpParser(object):
                 # chunk footer header
                 # TODO: handle additional http headers.
                 while True:
-                    cline = reader.readline()
+                    cline = reader.read_line()
                     if cline is None or len(cline.strip()) == 0:
                         break
                 if not skip:
@@ -268,7 +268,7 @@ class HttpParser(object):
                 result.append(data)
 
             # a CR-LF to end this chunked response
-            reader.readline()
+            reader.read_line()
 
     def read_request(self, reader, message):
         """ read and output one http request. """
@@ -279,7 +279,7 @@ class HttpParser(object):
             req_header = self.read_http_req_header(reader)
             if req_header is None:
                 # read header error, we skip all data.
-                reader.skipall()
+                reader.skip_all()
                 return
             if req_header.expect:
                 # it is expect:continue-100 post request
@@ -303,13 +303,13 @@ class HttpParser(object):
         """
         resp_header = self.read_http_resp_header(reader)
         if resp_header is None:
-            reader.skipall()
+            reader.skip_all()
             return
 
         if message.expect_header:
             if resp_header.status_code == 100:
                 # expected 100, we do not read body
-                reader.skipall()
+                reader.skip_all()
                 return
 
         # read body
