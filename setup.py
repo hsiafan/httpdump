@@ -20,10 +20,8 @@ setup(
     include_package_data=True,
     classifiers=[
         'Programming Language :: Python',
-        'Development Status :: 4 - Beta',
-        'Natural Language :: English',
         'Intended Audience :: Developers',
-        'License :: OSI Approved :: Apache Software License',
+        'License :: OSI Approved :: BSD License',
         'Operating System :: OS Independent',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.3',
