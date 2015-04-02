@@ -1,14 +1,6 @@
 from __future__ import unicode_literals, print_function, division
 
-import threading
 from collections import defaultdict
-
-from pcapparser import six
-
-if six.is_python2:
-    from Queue import Queue
-else:
-    from queue import Queue
 
 from pcapparser import utils
 from pcapparser.constant import HttpType, Compress
@@ -65,13 +57,13 @@ class HttpParser(object):
         :type processor: HttpDataProcessor
         """
         self.cur_type = None
-        self.cur_data_queue = None
         self.inited = False
         self.is_http = False
-
-        self.task_queue = None
         self.worker = None
         self.processor = processor
+
+        self.cur_data = None
+        self.message = RequestMessage()
 
     def send(self, http_type, data):
         if not self.inited:
@@ -81,18 +73,23 @@ class HttpParser(object):
         if not self.is_http:
             return
 
+        # still current http request/response
         if self.cur_type == http_type:
-            self.cur_data_queue.put(data)
+            self.cur_data.append(data)
             return
 
+        if self.cur_data is not None:
+            reader = DataReader(self.cur_data)
+            if self.cur_type == HttpType.REQUEST:
+                self.read_request(reader, self.message)
+            elif self.cur_type == HttpType.RESPONSE:
+                self.read_response(reader, self.message)
+
         self.cur_type = http_type
-        if self.cur_data_queue is not None:
-            # finish last task
-            self.cur_data_queue.put(None)
-        # start new task
-        self.cur_data_queue = Queue()
-        self.cur_data_queue.put(data)
-        self.task_queue.put((self.cur_type, self.cur_data_queue))
+
+        # new http request/response
+        self.cur_data = []
+        self.cur_data.append(data)
 
     def _init(self, http_type, data):
         if not utils.is_request(data) or http_type != HttpType.REQUEST:
@@ -100,41 +97,15 @@ class HttpParser(object):
             self.is_http = False
         else:
             self.is_http = True
-            self.task_queue = Queue()  # one task is an http request or http response stream
-            self.worker = threading.Thread(target=self.process_tasks, args=(self.task_queue,))
-            self.worker.setDaemon(True)
-            self.worker.start()
-
-    def process_tasks(self, task_queue):
-        message = RequestMessage()
-
-        while True:
-            httptype, data_queue = task_queue.get()
-            if httptype is None:
-                # finished
-                self.processor.finish()
-                break
-
-            reader = DataReader(data_queue)
-            try:
-                if httptype == HttpType.REQUEST:
-                    self.read_request(reader, message)
-                elif httptype == HttpType.RESPONSE:
-                    self.read_response(reader, message)
-            except Exception:
-                import traceback
-
-                traceback.print_exc()
-                # consume all data.
-                # reader.skipall()
-                break
 
     def finish(self):
-        if self.task_queue is not None:
-            self.task_queue.put((None, None))
-            if self.cur_data_queue is not None:
-                self.cur_data_queue.put(None)
-            self.worker.join()
+        # if still have unprocessed data
+        if self.cur_data:
+            reader = DataReader(self.cur_data)
+            if self.cur_type == HttpType.REQUEST:
+                self.read_request(reader, self.message)
+            elif self.cur_type == HttpType.RESPONSE:
+                self.read_response(reader, self.message)
 
     def read_headers(self, reader, lines):
         """
@@ -272,7 +243,7 @@ class HttpParser(object):
 
     def read_request(self, reader, message):
         """ read and output one http request. """
-        if message.expect_header and not utils.is_request(reader.fetchline()):
+        if message.expect_header and not utils.is_request(reader.fetch_line()):
             req_header = message.expect_header
             message.expect_header = None
         else:

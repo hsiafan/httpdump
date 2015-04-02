@@ -1,4 +1,5 @@
 from __future__ import unicode_literals, print_function, division
+from collections import OrderedDict
 import struct
 import sys
 
@@ -84,11 +85,13 @@ def get_file_format(infile):
         return FileFormat.UNKNOWN, buf
 
 
-def parse_pcap_file(conn_dict, infile):
+def parse_pcap_file(infile):
     """
-    :type conn_dict: dict
     :type infile:file
     """
+
+    conn_dict = OrderedDict()
+
     file_format, head = get_file_format(infile)
     if file_format == FileFormat.PCAP:
         pcap_file = pcap.PcapFile(infile, head).read_packet
@@ -99,7 +102,7 @@ def parse_pcap_file(conn_dict, infile):
         sys.exit(1)
 
     _filter = config.get_filter()
-    for tcp_pac in packet_parser.read_package_r(pcap_file):
+    for tcp_pac in packet_parser.read_tcp_packet_r(pcap_file):
         # filter
         if not (_filter.by_ip(tcp_pac.source) or _filter.by_ip(tcp_pac.dest)):
             continue
@@ -119,7 +122,10 @@ def parse_pcap_file(conn_dict, infile):
         elif tcp_pac.pac_type == 1:
             conn_dict[key] = HttpConn(tcp_pac)
         elif tcp_pac.pac_type == 0:
-            # tcp init before capture, we found a http request header, begin parse
-            # if is a http request?
+            # tcp init before capture, we start from a possible http request header.
             if utils.is_request(tcp_pac.body):
                 conn_dict[key] = HttpConn(tcp_pac)
+
+    # finish connection which not close yet
+    for conn in conn_dict.values():
+        conn.finish()

@@ -4,7 +4,6 @@ import signal
 import sys
 import argparse
 import io
-from collections import OrderedDict
 
 from pcapparser import packet_parser
 from pcapparser import pcap, pcapng, utils
@@ -65,19 +64,16 @@ def main():
 
     config.out = output_file
 
-    conn_dict = OrderedDict()
     try:
         if file_path != '-':
             infile = io.open(file_path, "rb")
         else:
             infile = sys.stdin
         try:
-            parse_pcap_file(conn_dict, infile)
+            parse_pcap_file(infile)
         finally:
             infile.close()
     finally:
-        for conn in conn_dict.values():
-            conn.finish()
         if args.output:
             output_file.close()
 

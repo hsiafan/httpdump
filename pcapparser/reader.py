@@ -6,15 +6,21 @@ __author__ = 'dongliu'
 class DataReader(object):
     """ wrap http data for read. """
 
-    def __init__(self, data_queue):
-        self.data_queue = data_queue
+    def __init__(self, data_list):
+        """
+        :type data_list: list
+        """
+        self.data_list = data_list
+        self.idx = 0
         self.data = None
         self.finish = False
 
     def _read(self):
-        item = self.data_queue.get()
-        if item is None:
+        if self.idx >= len(self.data_list):
             self.finish = True
+            return None
+        item = self.data_list[self.idx]
+        self.idx += 1
         return item
 
     def read_line(self):
@@ -43,7 +49,7 @@ class DataReader(object):
             return None
         return b''.join(buffers)
 
-    def fetchline(self):
+    def fetch_line(self):
         """fetch a line, but not modify pos"""
         line = self.read_line()
         if line is None:
@@ -106,7 +112,7 @@ class DataReader(object):
 
         return read_size
 
-    def readall(self):
+    def read_all(self):
         if self.finish:
             return None
 

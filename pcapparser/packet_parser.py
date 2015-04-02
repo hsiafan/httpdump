@@ -59,21 +59,21 @@ def dl_parse_ethernet(link_packet):
     # ethernet header
     ethernet_header = link_packet[0:eth_header_len]
 
-    (n_protocol, ) = struct.unpack(b'!12xH', ethernet_header)
-    if n_protocol == NetworkProtocol.P802_1Q:
+    (network_protocol, ) = struct.unpack(b'!12xH', ethernet_header)
+    if network_protocol == NetworkProtocol.P802_1Q:
         # 802.1q, we need to skip two bytes and read another two bytes to get protocol/len
         type_or_len = link_packet[eth_header_len:eth_header_len + 4]
         eth_header_len += 4
-        n_protocol, = struct.unpack(b'!2xH', type_or_len)
-    if n_protocol == NetworkProtocol.PPPOE_SESSION:
+        network_protocol, = struct.unpack(b'!2xH', type_or_len)
+    if network_protocol == NetworkProtocol.PPPOE_SESSION:
         # skip PPPOE SESSION Header
         eth_header_len += 8
         type_or_len = link_packet[eth_header_len - 2:eth_header_len]
-        n_protocol, = struct.unpack(b'!H', type_or_len)
-    if n_protocol < 1536:
+        network_protocol, = struct.unpack(b'!H', type_or_len)
+    if network_protocol < 1536:
         # TODO n_protocol means package len
         pass
-    return n_protocol, link_packet[eth_header_len:]
+    return network_protocol, link_packet[eth_header_len:]
 
 
 # http://www.tcpdump.org/linktypes/LINKTYPE_LINUX_SLL.html
@@ -91,14 +91,12 @@ def dl_parse_linux_sll(link_packet):
 
 
 # see http://en.wikipedia.org/wiki/Ethertype
-def read_ip_pac(link_packet, link_layer_parser):
+def parse_ip_packet(network_protocol, ip_packet):
     # ip header
-    n_protocol, ip_packet = link_layer_parser(link_packet)
-
-    if n_protocol == NetworkProtocol.IP or n_protocol == NetworkProtocol.PPP_IP:
+    if network_protocol == NetworkProtocol.IP or network_protocol == NetworkProtocol.PPP_IP:
         ip_base_header_len = 20
         ip_header = ip_packet[0:ip_base_header_len]
-        (ip_info, ip_length, protocol) = struct.unpack(b'!BxH5xB10x', ip_header)
+        (ip_info, ip_length, transport_protocol) = struct.unpack(b'!BxH5xB10x', ip_header)
         # real ip header len.
         ip_header_len = (ip_info & 0xF) * 4
         ip_version = (ip_info >> 4) & 0xF
@@ -107,28 +105,20 @@ def read_ip_pac(link_packet, link_layer_parser):
         if ip_header_len > ip_base_header_len:
             pass
 
-        # not tcp, skip.
-        if protocol != TransferProtocol.TCP:
-            return 0, None, None, None
-
         source = socket.inet_ntoa(ip_header[12:16])
         dest = socket.inet_ntoa(ip_header[16:])
 
-        return 1, source, dest, ip_packet[ip_header_len:ip_length]
-    elif n_protocol == NetworkProtocol.IPV6:
+        return transport_protocol, source, dest, ip_packet[ip_header_len:ip_length]
+    elif network_protocol == NetworkProtocol.IPV6:
         # TODO: deal with ipv6 package
-        return 0, None, None, None
+        return None, None, None, None
     else:
         # skip
-        return 0, None, None, None
+        return None, None, None, None
 
 
-def read_tcp_pac(link_packet, link_layer_parser):
+def parse_tcp_packet(tcp_packet):
     """read tcp data.http only build on tcp, so we do not need to support other protocols."""
-    state, source, dest, tcp_packet = read_ip_pac(link_packet, link_layer_parser)
-    if state == 0:
-        return 0, None
-
     tcp_base_header_len = 20
     # tcp header
     tcp_header = tcp_packet[0:tcp_base_header_len]
@@ -159,7 +149,7 @@ def read_tcp_pac(link_packet, link_layer_parser):
     else:
         pac_type = TcpPack.TYPE_ESTABLISH
 
-    return 1, TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
+    return source_port, dest_port, pac_type, seq, ack_seq, body
 
 
 def get_link_layer_parser(link_type):
@@ -176,16 +166,15 @@ def read_tcp_packet(read_packet):
 
     for link_type, micro_second, link_packet in read_packet():
         link_layer_parser = get_link_layer_parser(link_type)
-        state, pack = read_tcp_pac(link_packet, link_layer_parser)
-        if state == 1 and pack:
-            pack.micro_second = micro_second
-            yield pack
-            continue
-        else:
-            continue
+        network_protocol, link_layer_body = link_layer_parser(link_packet)
+        transport_protocol, source, dest, ip_body = parse_ip_packet(network_protocol, link_layer_body)
+        # not tcp, skip.
+        if transport_protocol == TransferProtocol.TCP:
+            source_port, dest_port, pac_type, seq, ack_seq, body = parse_tcp_packet(ip_body)
+            yield TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
 
 
-def read_package_r(pcap_file):
+def read_tcp_packet_r(pcap_file):
     """
     clean up tcp packages.
     note:we abandon the last ack package after fin.
