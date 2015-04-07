@@ -9,7 +9,7 @@ from pcapparser.parse_pcap import parse_pcap_file
 from pcapparser import config
 
 
-# when press Ctrl+C, stop the proxy.
+# when press Ctrl+C
 def signal_handler(signal, frame):
     sys.exit(0)
 

@@ -10,28 +10,29 @@ from pcapparser.constant import *
 class TcpPack:
     """ a tcp packet, header fields and data. """
 
-    TYPE_INIT = 1  # init tcp connection
-    TYPE_INIT_ACK = 2
-    TYPE_ESTABLISH = 0  # establish conn
-    TYPE_CLOSE = -1  # close tcp connection
-
-    def __init__(self, source, source_port, dest, dest_port, pac_type, seq, ack, body):
+    def __init__(self, source, source_port, dest, dest_port, flags, seq, ack_seq, body):
         self.source = source
         self.source_port = source_port
         self.dest = dest
         self.dest_port = dest_port
-        self.pac_type = pac_type
+        self.flags = flags
         self.seq = seq
-        self.ack = ack
+        self.ack_seq = ack_seq
         self.body = body
-        self.direction = 0
         self.key = None
         self.micro_second = None
 
+        self.fin = flags & 1
+        self.syn = (flags >> 1) & 1
+        # rst = (flags >> 2) & 1
+        # psh = (flags >> 3) & 1
+        self.ack = (flags >> 4) & 1
+        # urg = (flags >> 5) & 1
+
     def __str__(self):
-        return "%s:%d  -->  %s:%d, type:%d, seq:%d, ack:%s size:%d" % \
-               (self.source, self.source_port, self.dest, self.dest_port, self.pac_type, self.seq,
-                self.ack, len(self.body))
+        return "%s:%d  -->  %s:%d, seq:%d, ack_seq:%s size:%d fin:%d syn:%d ack:%d" % \
+               (self.source, self.source_port, self.dest, self.dest_port, self.seq,
+                self.ack_seq, len(self.body), self.fin, self.syn, self.ack)
 
     def gen_key(self):
         if self.key:
@@ -44,11 +45,8 @@ class TcpPack:
             self.key = dkey + '-' + skey
         return self.key
 
-    def expect_ack(self):
-        if self.pac_type == TcpPack.TYPE_ESTABLISH:
-            return self.seq + len(self.body)
-        else:
-            return self.seq + 1
+    def source_key(self):
+        return '%s:%d' % (self.source, self.source_port)
 
 
 # http://standards.ieee.org/about/get/802/802.3.html
@@ -129,27 +127,10 @@ def parse_tcp_packet(tcp_packet):
     if tcp_header_len > tcp_base_header_len:
         pass
 
-    fin = flags & 1
-    syn = (flags >> 1) & 1
-    rst = (flags >> 2) & 1
-    psh = (flags >> 3) & 1
-    ack = (flags >> 4) & 1
-    urg = (flags >> 5) & 1
-
     # body
     body = tcp_packet[tcp_header_len:]
 
-    if syn == 1 and ack == 0:
-        # init tcp connection
-        pac_type = TcpPack.TYPE_INIT
-    elif syn == 1 and ack == 1:
-        pac_type = TcpPack.TYPE_INIT_ACK
-    elif fin == 1:
-        pac_type = TcpPack.TYPE_CLOSE
-    else:
-        pac_type = TcpPack.TYPE_ESTABLISH
-
-    return source_port, dest_port, pac_type, seq, ack_seq, body
+    return source_port, dest_port, flags, seq, ack_seq, body
 
 
 def get_link_layer_parser(link_type):
@@ -170,83 +151,5 @@ def read_tcp_packet(read_packet):
         transport_protocol, source, dest, ip_body = parse_ip_packet(network_protocol, link_layer_body)
         # not tcp, skip.
         if transport_protocol == TransferProtocol.TCP:
-            source_port, dest_port, pac_type, seq, ack_seq, body = parse_tcp_packet(ip_body)
-            yield TcpPack(source, source_port, dest, dest_port, pac_type, seq, ack_seq, body)
-
-
-def read_tcp_packet_r(pcap_file):
-    """
-    clean up tcp packages.
-    bug: the fin packet may carry data.
-    """
-    conn_dict = {}
-    reverse_conn_dict = {}
-    direction_dict = {}
-    for pack in read_tcp_packet(pcap_file):
-        key = pack.gen_key()
-        # if a SYN is received, erase cached connection with same key.
-        if key in conn_dict and pack.pac_type == TcpPack.TYPE_INIT:
-            del conn_dict[key]
-        # if we haven't keep this connection, construct one.
-        if key not in conn_dict:
-            # remember the next SEQ should appear as list[0] to skip all retransmit
-            # packets. list[1] to indicate whether the socket is closed.
-            conn_dict[key] = [pack.seq, 0, []]
-            # if it's SYN, the data length is considered as 1.
-            if pack.pac_type == TcpPack.TYPE_INIT:
-                conn_dict[key][0] += 1
-            reverse_conn_dict[key] = [pack.ack, 0, []]
-            direction_dict[key] = pack.source + str(pack.source_port)
-
-        if pack.source + str(pack.source_port) == direction_dict[key]:
-            hold_packs = conn_dict[key]
-        else:
-            hold_packs = reverse_conn_dict[key]
-
-        # if the connection is insert into dictionary by SYN, we should update
-        # reverse SEQ, consider the SYN+ACK packet data length as 1.
-        if pack.pac_type == TcpPack.TYPE_INIT_ACK:
-            if reverse_conn_dict[key][0] == 0:
-                reverse_conn_dict[key][0] = pack.seq + 1
-
-        # do not receive anything after FIN/RST
-        if hold_packs[1] == 1:
-            continue
-        if pack.pac_type == TcpPack.TYPE_CLOSE:
-            hold_packs[1] = 1
-
-        # only store FIN/RST or packets which have payload data.
-        if pack.body or pack.pac_type == TcpPack.TYPE_CLOSE:
-            hold_packs[2].append(pack)
-            hold_packs[2] = sorted(hold_packs[2], key=lambda x: x.seq)
-
-        yield_list = []
-        while len(hold_packs[2]) > 0:
-            first_pack = hold_packs[2][0]
-            if not first_pack.body:
-                # this must be a RST/FIN packet without data.
-                yield_list.append(first_pack)
-                del hold_packs[2][0]
-                continue
-            elif first_pack.seq > hold_packs[0]:
-                # there has some packets lost, wait.
-                break
-            elif first_pack.seq == hold_packs[0]:
-                # the first packet matches the expected SEQ exactly.
-                hold_packs[0] = first_pack.seq + len(first_pack.body)
-                yield_list.append(first_pack)
-                del hold_packs[2][0]
-            elif first_pack.seq + len(first_pack.body) <= hold_packs[0]:
-                # the packet is a retransmit packet.
-                del hold_packs[2][0]
-            else:
-                # part of the packet data is retransmit, part of it is useful.
-                trim_len = first_pack.seq + len(first_pack.body) - hold_packs[0]
-                first_pack.body = first_pack.body[-1 * trim_len:]
-                first_pack.seq = hold_packs[0]
-                hold_packs[0] += trim_len
-                yield_list.append(first_pack)
-                del hold_packs[2][0]
-
-        for ipack in yield_list:
-            yield ipack
+            source_port, dest_port, flags, seq, ack_seq, body = parse_tcp_packet(ip_body)
+            yield TcpPack(source, source_port, dest, dest_port, flags, seq, ack_seq, body)

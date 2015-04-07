@@ -9,57 +9,8 @@ from pcapparser.constant import FileFormat
 from pcapparser.printer import HttpPrinter
 from pcapparser.httpparser import HttpType, HttpParser
 from pcapparser import config
-
-
-class HttpConn(object):
-    """all data having same source/dest ip/port in one http connection."""
-    STATUS_BEGIN = 0
-    STATUS_RUNNING = 1
-    STATUS_CLOSED = 2
-    STATUS_ERROR = -1
-
-    def __init__(self, tcp_pac):
-        self.source_ip = tcp_pac.source
-        self.source_port = tcp_pac.source_port
-        self.dest_ip = tcp_pac.dest
-        self.dest_port = tcp_pac.dest_port
-
-        self.status = HttpConn.STATUS_BEGIN
-
-        # start parser thread
-        self.processor = HttpPrinter((self.source_ip, self.source_port),
-                                     (self.dest_ip, self.dest_port))
-        self.http_parser = HttpParser(self.processor)
-        self.append(tcp_pac)
-
-    def append(self, tcp_pac):
-        if len(tcp_pac.body) == 0:
-            return
-        if self.status == HttpConn.STATUS_ERROR or self.status == HttpConn.STATUS_CLOSED:
-            # not http conn or conn already closed.
-            return
-
-        if self.status == HttpConn.STATUS_BEGIN:
-            if tcp_pac.body:
-                if utils.is_request(tcp_pac.body):
-                    self.status = HttpConn.STATUS_RUNNING
-        if tcp_pac.source == self.source_ip:
-            http_type = HttpType.REQUEST
-        else:
-            http_type = HttpType.RESPONSE
-
-        if self.status == HttpConn.STATUS_RUNNING and tcp_pac.body:
-            self.http_parser.send(http_type, tcp_pac.body)
-
-        if tcp_pac.pac_type == -1:
-            # end of connection
-            if self.status == HttpConn.STATUS_RUNNING:
-                self.status = HttpConn.STATUS_CLOSED
-            else:
-                self.status = HttpConn.STATUS_ERROR
-
-    def finish(self):
-        self.http_parser.finish()
+from pcapparser.packet_parser import TcpPack
+from pcapparser.utils import is_request
 
 
 def get_file_format(infile):
@@ -85,6 +36,97 @@ def get_file_format(infile):
         return FileFormat.UNKNOWN, buf
 
 
+class Stream(object):
+    def __init__(self):
+        self.receive_buf = []
+        self.status = 0
+        self.last_ack_seq = 0
+
+    def append_packet(self, packet):
+        """
+        :type packet:TcpPack
+        """
+        if packet.seq >= self.last_ack_seq and packet.body:
+            self.receive_buf.append(packet)
+
+    def retrieve_packet(self, ack_seq):
+        if ack_seq <= self.last_ack_seq:
+            return None
+
+        self.last_ack_seq = ack_seq
+        data = []
+        new_buf = []
+        for packet in self.receive_buf:
+            if packet.seq < ack_seq:
+                data.append(packet)
+            else:
+                new_buf.append(packet)
+        self.receive_buf = new_buf
+        if len(data) <= 1:
+            return data
+        data.sort(key=lambda pct: pct.seq)
+        new_data = []
+        last_packet_seq = None
+        for packet in data:
+            if packet.seq != last_packet_seq:
+                last_packet_seq = packet.seq
+                new_data.append(packet)
+        return new_data
+
+
+class TcpConnection(object):
+    def __init__(self, packet):
+        """
+        :type packet: TcpPack
+        """
+        self.up_stream = Stream()
+        self.down_stream = Stream()
+        self.client_key = packet.source_key()
+
+        self.is_http = None
+        self.processor = HttpPrinter((packet.source, packet.source_port),
+                                     (packet.dest, packet.dest_port))
+        self.http_parser = HttpParser(self.processor)
+        self.on_packet(packet)
+
+    def on_packet(self, packet):
+        """
+        :type packet: TcpPack
+        """
+        if self.is_http is None and packet.body:
+            self.is_http = is_request(packet.body)
+
+        if self.is_http == False:
+            return
+
+        if packet.source_key() == self.client_key:
+            send_stream = self.up_stream
+            confirm_stream = self.down_stream
+            pac_type = HttpType.RESPONSE
+        else:
+            send_stream = self.down_stream
+            confirm_stream = self.up_stream
+            pac_type = HttpType.REQUEST
+
+        if len(packet.body) > 0:
+            send_stream.append_packet(packet)
+        if packet.syn:
+            pass
+        if packet.ack:
+            packets = confirm_stream.retrieve_packet(packet.ack_seq)
+            if packets:
+                for packet in packets:
+                    self.http_parser.send(pac_type, packet.body)
+        if packet.fin:
+            send_stream.status = 1
+
+    def closed(self):
+        return self.up_stream.status == 1 and self.down_stream.status == 1
+
+    def finish(self):
+        self.http_parser.finish()
+
+
 def parse_pcap_file(infile):
     """
     :type infile:file
@@ -102,7 +144,7 @@ def parse_pcap_file(infile):
         sys.exit(1)
 
     _filter = config.get_filter()
-    for tcp_pac in packet_parser.read_tcp_packet_r(pcap_file):
+    for tcp_pac in packet_parser.read_tcp_packet(pcap_file):
         # filter
         if not (_filter.by_ip(tcp_pac.source) or _filter.by_ip(tcp_pac.dest)):
             continue
@@ -112,19 +154,18 @@ def parse_pcap_file(infile):
         key = tcp_pac.gen_key()
         # we already have this conn
         if key in conn_dict:
-            conn_dict[key].append(tcp_pac)
+            conn_dict[key].on_packet(tcp_pac)
             # conn closed.
-            if tcp_pac.pac_type == packet_parser.TcpPack.TYPE_CLOSE:
+            if conn_dict[key].closed():
                 conn_dict[key].finish()
                 del conn_dict[key]
 
         # begin tcp connection.
-        elif tcp_pac.pac_type == 1:
-            conn_dict[key] = HttpConn(tcp_pac)
-        elif tcp_pac.pac_type == 0:
+        elif tcp_pac.syn and not tcp_pac.ack:
+            conn_dict[key] = TcpConnection(tcp_pac)
+        elif utils.is_request(tcp_pac.body):
             # tcp init before capture, we start from a possible http request header.
-            if utils.is_request(tcp_pac.body):
-                conn_dict[key] = HttpConn(tcp_pac)
+            conn_dict[key] = TcpConnection(tcp_pac)
 
     # finish connection which not close yet
     for conn in conn_dict.values():
