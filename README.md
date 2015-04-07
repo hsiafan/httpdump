@@ -1,14 +1,14 @@
-Parse and show http traffics. Python 2.7.* or Python 3.3+ required.
+Parse and show HTTP traffic. Python 2.7.* or Python 3.3+ required.
 
-This module parse pcap/pcapng file, retrieve http data and show as text.
+This module parses pcap/pcapng files, retrieves HTTP data, and shows as text.
 Pcap files can be obtained via tcpdump or wireshark or other network traffic capture tools.
 
 Features:
 
-* Http requests/responses grouped by tcp connections, the requests in one keep-alive http connection will display together.
-* Managed chunked and compressed http requests/responses.
+* HTTP requests/responses grouped by TCP connections; the requests in one keep-alive http connection will display together.
+* Managed chunked and compressed HTTP requests/responses.
 * Managed character encoding
-* Format json content to a beautiful way.
+* Format JSON content in a beautiful way.
 
 ### Install
 This module can be installed via pip:
@@ -41,7 +41,7 @@ sudo tcpdump -w- tcp port 80 | parse_pcap
 ```
 
 ### Group
-Use -g to group http request/response: 
+Use -g to group http request/responses: 
 ```sh
 parse_pcap -g test.pcap
 ```
@@ -71,22 +71,22 @@ HTTP/1.1 200 OK
 ```
 
 ### Filter
-You can use the -p/-i to specify the ip/port of source and destination, will only display http data meets the specified conditions:
+You can use the -i/-p options to specify the ip/port of source and destination and `parse_pcap` will only display HTTP data that meets the specified conditions:
 ```sh
 parse_pcap -p55419 -vv test.pcap
 parse_pcap -i192.168.109.91 -vv test.pcap
 ```
-Use -d to specify the http domain, only display http req/resp with the domain:
+Use -d to specify the HTTP domain; only displays HTTP req/resp with the specified domain:
 ```sh
 parse_pcap -dwww.baidu.com -vv test.pcap
 ```
-Use -u to specify the http uri pattern, only dispay http req/resp which url contains the url pattern:
+Use -u to specify the HTTP uri pattern; only displays HTTP req/resp in which the url contains the specified url pattern:
 ```sh
 parse_pcap -u/api/update -vv test.pcap
 ```
 
 ### Encoding
-Use -e can forced the encoding http body used:
+Use -e to force the encoding used for the HTTP bodies:
 ```sh
 parse_pcap -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
 ```
