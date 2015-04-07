@@ -177,7 +177,7 @@ def read_tcp_packet(read_packet):
 def read_tcp_packet_r(pcap_file):
     """
     clean up tcp packages.
-    note:we abandon the last ack package after fin.
+    bug: the fin packet may carry data.
     """
     conn_dict = {}
     reverse_conn_dict = {}
