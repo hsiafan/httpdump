@@ -29,6 +29,11 @@ class NetworkProtocol(object):
 
 class TransferProtocol(object):
     TCP = 6
+    UDP = 17
+    ICMP = 1
+    IGMP = 2
+    IPv6_ICMP = 58
+    SCTP = 132
 
 
 class FileFormat(object):

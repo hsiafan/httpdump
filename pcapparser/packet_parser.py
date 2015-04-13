@@ -142,6 +142,12 @@ def get_link_layer_parser(link_type):
         return None
 
 
+def parse_udp_packet(ip_body):
+    udp_header = ip_body[0:8]
+    source_port, dest_port, length, check_sum = struct.unpack(b'!HHHH', udp_header)
+    return source_port, dest_port, ip_body[8:length]
+
+
 def read_tcp_packet(read_packet):
     """ generator, read a *TCP* package once."""
 
@@ -149,7 +155,14 @@ def read_tcp_packet(read_packet):
         link_layer_parser = get_link_layer_parser(link_type)
         network_protocol, link_layer_body = link_layer_parser(link_packet)
         transport_protocol, source, dest, ip_body = parse_ip_packet(network_protocol, link_layer_body)
-        # not tcp, skip.
+
+        if transport_protocol is None:
+            continue
+
+        # tcp
         if transport_protocol == TransferProtocol.TCP:
             source_port, dest_port, flags, seq, ack_seq, body = parse_tcp_packet(ip_body)
             yield TcpPack(source, source_port, dest, dest_port, flags, seq, ack_seq, body)
+        elif transport_protocol == TransferProtocol.UDP:
+            # source_port, dest_port, udp_body = parse_udp_packet(ip_body)
+            continue
