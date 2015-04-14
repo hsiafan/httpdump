@@ -141,7 +141,8 @@ def start_server(host='0.0.0.0', port=8000, IPv6=False, output=None):
     print("Proxy start on %s:%d" % (host, port))
     server_socket.listen(0)
 
-    output_file = output and open(output, "w+") or sys.stdout
+    output_file = open(output, "w+") if output else sys.stdout
+    config.out = output_file
 
     def clean():
         """do clean job after process terminated"""
@@ -201,7 +202,7 @@ def main():
         setting["output"] = args.output
 
     # output config
-    parse_config = config.ParseConfig()
+    parse_config = config.get_config()
     if args.verbosity:
         parse_config.level = args.verbosity
     if args.encoding:

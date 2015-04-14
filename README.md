@@ -1,3 +1,7 @@
+Pcap-parser
+
+[![Software License](https://img.shields.io/badge/license-BSD%202%20Clause-blue.svg)](LICENSE.txt) 
+
 Parse and show HTTP traffic. Python 2.7.* or Python 3.3+ required.
 
 This module parses pcap/pcapng files, retrieves HTTP data, and shows as text.
