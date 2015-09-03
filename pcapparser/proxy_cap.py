@@ -100,7 +100,10 @@ class ConnectionHandler(object):
                 continue
 
             for in_ in data:
-                data = in_.recv(_BUF_SIZE)
+                try:
+                    data = in_.recv(_BUF_SIZE)
+                except ConnectionResetError as e:
+                    break
                 out = self.target_socket if in_ is self.client_socket else self.client_socket
                 http_type = HttpType.REQUEST if in_ is self.client_socket else HttpType.RESPONSE
                 if data:
