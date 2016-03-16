@@ -1,4 +1,5 @@
-Pcap-parser
+#Pcap-parser
+<b>Pcap-parser is no longer no longer maintained, use the go version [httpcap](https://github.com/caoqianli/httpcap) instead.</b>
 
 Parse and show HTTP traffic. Python 2.7.* or Python 3.3+ required.
 
