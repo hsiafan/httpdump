@@ -1,9 +1,8 @@
 from __future__ import unicode_literals, print_function, division
+
 import zlib
 from pcapparser import six
 from pcapparser.constant import Compress
-
-__author__ = 'dongliu'
 
 import json
 from io import BytesIO
@@ -162,7 +161,7 @@ def decode_body(content, charset):
         try:
             return content.decode(charset)
         except:
-            return '{decode content failed with charset: %s}' % charset
+            return '{{decode content failed with charset: {}}}'.format(charset)
 
     # todo: encoding detect
     try:
