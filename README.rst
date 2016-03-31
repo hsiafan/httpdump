@@ -1,16 +1,18 @@
-Parse and show http traffics. Python 2.7.\* or Python 3.3+ required.
+|image0| |License|
 
-This module parse pcap/pcapng file, retrieve http data and show as text.
-Pcap files can be obtained via tcpdump or wireshark or other network
-traffic capture tools.
+Parse and show HTTP traffic. Python 2.7.\* or Python 3.3+ required.
+
+This module parses pcap/pcapng files, retrieves HTTP data, and shows as
+text. Pcap files can be obtained via tcpdump or wireshark or other
+network traffic capture tools.
 
 Features:
 
--  Http requests/responses grouped by tcp connections, the requests in
+-  HTTP requests/responses grouped by TCP connections; the requests in
    one keep-alive http connection will display together.
--  Managed chunked and compressed http requests/responses.
+-  Managed chunked and compressed HTTP requests/responses.
 -  Managed character encoding
--  Format json content to a beautiful way.
+-  Format JSON content in a beautiful way.
 
 Install
 ~~~~~~~
@@ -54,7 +56,7 @@ Or use pipe:
 Group
 ~~~~~
 
-Use -g to group http request/response:
+Use -g to group http request/responses:
 
 .. code:: sh
 
@@ -89,23 +91,24 @@ The result looks like:
 Filter
 ~~~~~~
 
-You can use the -p/-i to specify the ip/port of source and destination,
-will only display http data meets the specified conditions:
+You can use the -i/-p options to specify the ip/port of source and
+destination and ``parse_pcap`` will only display HTTP data that meets
+the specified conditions:
 
 .. code:: sh
 
     parse_pcap -p55419 -vv test.pcap
     parse_pcap -i192.168.109.91 -vv test.pcap
 
-Use -d to specify the http domain, only display http req/resp with the
-domain:
+Use -d to specify the HTTP domain; only displays HTTP req/resp with the
+specified domain:
 
 .. code:: sh
 
     parse_pcap -dwww.baidu.com -vv test.pcap
 
-Use -u to specify the http uri pattern, only dispay http req/resp which
-url contains the url pattern:
+Use -u to specify the HTTP uri pattern; only displays HTTP req/resp in
+which the url contains the specified url pattern:
 
 .. code:: sh
 
@@ -114,8 +117,13 @@ url contains the url pattern:
 Encoding
 ~~~~~~~~
 
-Use -e can forced the encoding http body used:
+Use -e to force the encoding used for the HTTP bodies:
 
 .. code:: sh
 
     parse_pcap -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
+
+.. |image0| image:: https://travis-ci.org/caoqianli/pcap-parser.svg
+   :target: https://travis-ci.org/caoqianli/pcap-parser
+.. |License| image:: https://img.shields.io/badge/licence-BSD%203--Clause-blue.svg?style=flat
+

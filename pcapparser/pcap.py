@@ -32,7 +32,7 @@ class PcapFile(object):
         # judge the endian of file.
         if magic_num == 0xA1B2C3D4:
             self.byteorder = b'<'
-        elif magic_num == 0x4D3C2B1A:
+        elif magic_num == 0xD4C3B2A1:
             self.byteorder = b'>'
         else:
             return False

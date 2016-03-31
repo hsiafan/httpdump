@@ -28,7 +28,7 @@ def get_file_format(infile):
         print("file too small", file=sys.stderr)
         sys.exit(-1)
     magic_num, = struct.unpack(b'<I', buf)
-    if magic_num == 0xA1B2C3D4 or magic_num == 0x4D3C2B1A:
+    if magic_num == 0xA1B2C3D4 or magic_num == 0xD4C3B2A1:
         return FileFormat.PCAP, buf
     elif magic_num == 0x0A0D0D0A:
         return FileFormat.PCAP_NG, buf
