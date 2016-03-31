@@ -8,7 +8,7 @@ with codecs.open('README.rst', encoding='utf-8') as f:
 
 setup(
     name='pcap-parser',
-    version='0.5.9',
+    version='0.5.10',
     description='Parse pcap file with python',
     long_description=long_description,
     author='xiaxiaocao',

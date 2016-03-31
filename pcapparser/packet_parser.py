@@ -1,10 +1,9 @@
 from __future__ import unicode_literals, print_function, division
 
-__author__ = 'dongliu'
-
 import struct
 import socket
 from pcapparser.constant import *
+from pcapparser.link_layer import LinkLayer
 
 
 class TcpPack:
@@ -47,45 +46,6 @@ class TcpPack:
 
     def source_key(self):
         return '%s:%d' % (self.source, self.source_port)
-
-
-# http://standards.ieee.org/about/get/802/802.3.html
-def dl_parse_ethernet(link_packet):
-    """ parse Ethernet packet """
-
-    eth_header_len = 14
-    # ethernet header
-    ethernet_header = link_packet[0:eth_header_len]
-
-    (network_protocol, ) = struct.unpack(b'!12xH', ethernet_header)
-    if network_protocol == NetworkProtocol.P802_1Q:
-        # 802.1q, we need to skip two bytes and read another two bytes to get protocol/len
-        type_or_len = link_packet[eth_header_len:eth_header_len + 4]
-        eth_header_len += 4
-        network_protocol, = struct.unpack(b'!2xH', type_or_len)
-    if network_protocol == NetworkProtocol.PPPOE_SESSION:
-        # skip PPPOE SESSION Header
-        eth_header_len += 8
-        type_or_len = link_packet[eth_header_len - 2:eth_header_len]
-        network_protocol, = struct.unpack(b'!H', type_or_len)
-    if network_protocol < 1536:
-        # TODO n_protocol means package len
-        pass
-    return network_protocol, link_packet[eth_header_len:]
-
-
-# http://www.tcpdump.org/linktypes/LINKTYPE_LINUX_SLL.html
-def dl_parse_linux_sll(link_packet):
-    """ parse linux sll packet """
-
-    sll_header_len = 16
-
-    # Linux cooked header
-    linux_cooked = link_packet[0:sll_header_len]
-
-    packet_type, link_type_address_type, link_type_address_len, link_type_address, n_protocol \
-        = struct.unpack(b'!HHHQH', linux_cooked)
-    return n_protocol, link_packet[sll_header_len:]
 
 
 # see http://en.wikipedia.org/wiki/Ethertype
@@ -133,15 +93,6 @@ def parse_tcp_packet(tcp_packet):
     return source_port, dest_port, flags, seq, ack_seq, body
 
 
-def get_link_layer_parser(link_type):
-    if link_type == LinkLayerType.ETHERNET:
-        return dl_parse_ethernet
-    elif link_type == LinkLayerType.LINUX_SLL:
-        return dl_parse_linux_sll
-    else:
-        return None
-
-
 def parse_udp_packet(ip_body):
     udp_header = ip_body[0:8]
     source_port, dest_port, length, check_sum = struct.unpack(b'!HHHH', udp_header)
@@ -152,11 +103,13 @@ def read_tcp_packet(read_packet):
     """ generator, read a *TCP* package once."""
 
     for link_type, micro_second, link_packet in read_packet():
-        parse_link_layer = get_link_layer_parser(link_type)
+        parse_link_layer = LinkLayer.get_link_layer_parser(link_type)
         if parse_link_layer is None:
             # skip unknown link layer packet
             continue
         network_protocol, link_layer_body = parse_link_layer(link_packet)
+        if network_protocol is None or link_layer_body is None:
+            continue
         transport_protocol, source, dest, ip_body = parse_ip_packet(network_protocol, link_layer_body)
 
         if transport_protocol is None:

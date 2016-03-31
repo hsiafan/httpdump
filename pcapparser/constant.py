@@ -8,14 +8,6 @@ class HttpType(object):
     RESPONSE = 1
 
 
-# see http://www.tcpdump.org/linktypes.html
-# http://www.winpcap.org/ntar/draft/PCAP-DumpFileFormat.html#appendixLinkTypes
-class LinkLayerType(object):
-    """LinkType"""
-    ETHERNET = 1
-    LINUX_SLL = 113
-
-
 class NetworkProtocol(object):
     IP = 2048
     IPV6 = 34525
@@ -65,4 +57,4 @@ class Compress(object):
     # unofficial or non-standardized tokens
     BZIP2 = 6
     LZMA = 7
-    SDCH = 8 # chrome vcdiff encoder
+    SDCH = 8  # chrome vcdiff encoder
