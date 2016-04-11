@@ -1,5 +1,2 @@
 *.iml
 .idea
-*.pyc
-test_file/
-pcap_parser.egg-info/
