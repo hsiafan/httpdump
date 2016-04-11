@@ -58,6 +58,7 @@ func (th *trafficHandler) handleHttpTraffic(r io.Reader) {
 			droped = true
 		}
 	}
+
 	if droped {
 		tcpreader.DiscardBytesToEOF(r)
 		return
@@ -124,6 +125,7 @@ func (th *trafficHandler) handleHttpTraffic(r io.Reader) {
 		//hsf.printRequestMark()
 		//log.Print("Not http traffic")
 		tcpreader.DiscardBytesToEOF(br)
+		return
 	}
 	th.printer.send(th.buffer.String())
 }
