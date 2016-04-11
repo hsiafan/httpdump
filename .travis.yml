@@ -3,6 +3,15 @@ language: go
 go:
   - 1.6
 
+os:
+  - linux
+
+addons:
+  apt:
+    packages:
+      - libpcap-dev
+
 sudo: false
+
 before_script:
   - go vet ./...
