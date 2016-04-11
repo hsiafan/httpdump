@@ -1,7 +1,7 @@
 [![](https://travis-ci.org/caoqianli/httpcap.svg)](https://travis-ci.org/caoqianli/httpcap)
 ![License](https://img.shields.io/badge/licence-Simplified%20BSD-blue.svg?style=flat)
 
-Parse and display http traffic from network device or pcap file. This is a go version of [pcap-parser](https://github.com/caoqianli/pcap-parser), thanks to gopacket project, this tool has simpler code base and is more efficient.
+Parse and display http traffic from network device or pcap file. This is a go version of origin python [pcap-parser](https://github.com/caoqianli/httpcap/tree/pcap-parser), thanks to gopacket project, this tool has simpler code base and is more efficient.
 
 # install & requirement
 Build httpcap requires libpcap-dev and cgo enabled.
