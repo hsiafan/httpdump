@@ -1,10 +1,8 @@
-language: python
-python:
-  - "2.7"
-  - "3.3"
-  - "3.4"
-# command to install dependencies
-install:
-  - pip install .
-# command to run tests
-script: python setup.py test
+language: go
+
+go:
+  - 1.6
+
+sudo: false
+before_script:
+  - go vet ./...
