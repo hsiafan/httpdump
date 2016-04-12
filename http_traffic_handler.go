@@ -4,8 +4,6 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/tcpassembly"
 	"github.com/google/gopacket/tcpassembly/tcpreader"
-	"golang.org/x/text/encoding/htmlindex"
-	"golang.org/x/text/transform"
 	"compress/gzip"
 	"compress/zlib"
 	"bufio"
@@ -247,70 +245,52 @@ func (th *trafficHandler) printBody(hasBody bool, header httpport.Header, reader
 
 	// check mime type and charset
 	contentType := header.Get("Content-Type")
-	if contentType == "" {
-		th.writeLine("{Unknow content type", ", len:", tcpreader.DiscardBytesToEOF(reader), "}")
-		return
-	}
-	var mimeTypeStr, charset string
-	idx := strings.Index(contentType, ";")
-	if idx < 0 {
-		mimeTypeStr = strings.TrimSpace(contentType)
-		charset = ""
-	} else {
-		mimeTypeStr = strings.TrimSpace(contentType[:idx])
-		charsetSeg := strings.TrimSpace(contentType[idx + 1:])
-		eidx := strings.Index(charsetSeg, "=")
-		if eidx < 0 {
-			charset = ""
-		} else {
-			charset = strings.TrimSpace(charsetSeg[eidx + 1:])
-		}
-	}
-
+	mimeTypeStr, charset := parseContentType(contentType)
 	var mimeType = parseMimeType(mimeTypeStr)
 	isText := mimeType.isTextContent()
+	isBinary := mimeType.isBinaryContent()
 
 	if !isText {
-		if (th.config.forcePrint) {
-			data, err := ioutil.ReadAll(nr);
-			if err != nil {
-				th.writeLine("{Read content error", err, "}")
-			} else {
-				th.writeLine(string(data))
-				th.writeLine()
-			}
-		} else {
-			th.writeLine("{Non-text body, content-type:", contentType, ", len:", tcpreader.DiscardBytesToEOF(reader), "}")
+		err = th.printNonTextTypeBody(nr, contentType, isBinary)
+		if err != nil {
+			th.writeLine("{Read content error", err, "}")
 		}
 		return
 	}
 
+	var str string
 	if charset == "" {
-		th.writeLine("{Unknown charset, content-type:", contentType, ", asumming utf-8")
-		charset = "UTF-8"
-	}
-
-	var data []byte
-	if charset == "utf-8" || charset == "UTF-8" {
+		var data []byte
 		data, err = ioutil.ReadAll(nr)
+		if err == nil {
+			str, err = byteToStringDetected(data)
+		}
 	} else {
-		charset = strings.ToUpper(charset)
-		if charset == "GBK" || charset == "GB2312" {
-			charset = "GB18030"
-		}
-		encoder, err := htmlindex.Get(charset)
-		if err != nil {
-			th.writeLine("{Get encoder failed, encoding:", charset, "error:", err, ", len:",
-				tcpreader.DiscardBytesToEOF(reader), "}")
-			return
-		}
-		data, err = ioutil.ReadAll(transform.NewReader(nr, encoder.NewDecoder()))
+		str, err = readToStringWithCharset(nr, charset)
 	}
 	if err != nil {
 		th.writeLine("{Read body failed", err, "}")
 		tcpreader.DiscardBytesToEOF(reader)
 		return
 	}
-	th.writeLine(string(data))
+	th.writeLine(str)
 	th.writeLine()
+}
+
+func (th *trafficHandler) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
+	if th.config.forcePrint && !isBinary {
+		data, err := ioutil.ReadAll(reader);
+		if err != nil {
+			return err
+		}
+		str, err := byteToStringDetected(data)
+		if err != nil {
+			return err
+		}
+		th.writeLine(str)
+		th.writeLine()
+	} else {
+		th.writeLine("{Non-text body, content-type:", contentType, ", len:", tcpreader.DiscardBytesToEOF(reader), "}")
+	}
+	return nil
 }

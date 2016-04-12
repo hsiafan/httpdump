@@ -102,11 +102,11 @@ func openSingleDevice(device string, filterIp string, filterPort string) (localP
 }
 
 func main() {
-	var level = flag.String("level", "header", "Print level, url | header | all")
+	var level = flag.String("level", "header", "Print level, url(print only url) | header(print req/resp headers) | all(print headers,  and http body if body type is text)")
 	var filePath = flag.String("file", "", "Read from pcap file.  With file parameter specified, not not capture from network devices")
 	var device = flag.String("device", "any", "Which network interface to capture. If any, capture all interface traffics")
 	var filter = flag.String("filter", "", "filter by ip/port, format: [ip][:port], eg: 192.168.122.46:50792, 192.168.122.46, :50792")
-	var forcePrint = flag.Bool("forcePrint", false, "print http body even if it seems not to be text content")
+	var forcePrint = flag.Bool("printUnknown", false, "print unknown content-type http body even if it seems not to be text content")
 	flag.Parse()
 
 	filterIp, filterPort := parseFilter(*filter)

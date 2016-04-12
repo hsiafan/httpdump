@@ -2,14 +2,23 @@ package main
 
 import (
 	"strings"
+	"github.com/saintfish/chardet"
+	"io"
+	"io/ioutil"
+	"golang.org/x/text/encoding/htmlindex"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/encoding"
+	"bytes"
 )
 
+// mime type struct
 type mimeType struct {
 	Type    string
 	subType string
 	scope   string
 }
 
+// parse mime type
 func parseMimeType(contentTypeStr string) mimeType {
 	var idx = strings.Index(contentTypeStr, "/")
 	if idx == -1 {
@@ -42,6 +51,7 @@ var textSubTypes = map[string]bool{"html":true, "xml":true, "json":true, "www-fo
 	"rtf":true, "rss+xml":true, "svg+xml":true, "uri-list":true, "wsdl+xml":true, "xhtml+xml":true, "xslt+xml":true,
 }
 
+// if is text type mime
 func (ct mimeType) isTextContent() bool {
 	return textTypes[ct.Type] || textSubTypes[ct.subType]
 }
@@ -58,6 +68,72 @@ var binarySubtypes = map[string]bool{"7z-compressed":true, "abiword":true, "ace-
 	"png":true, "ppt":true, "xls":true,
 }
 
+// if is binary type mime
 func (ct mimeType)  isBinaryContent() bool {
 	return binaryTypes[ct.Type] || binarySubtypes[ct.subType]
+}
+
+// detect byte data charset, and convert to string
+func byteToStringDetected(data []byte) (string, error) {
+	var detector = chardet.NewTextDetector()
+	result, err := detector.DetectBest(data)
+	if err != nil {
+		return "", err
+	}
+	var charset = result.Charset
+	return byteToStringWithCharset(data, charset)
+}
+
+// read reader content to string, using charset specified
+func readToStringWithCharset(reader io.Reader, charset string) (string, error) {
+	charset = strings.ToUpper(charset)
+	var data []byte
+	var err error
+	if charset == "UTF-8" || charset == "UTF8" {
+		data, err = ioutil.ReadAll(reader)
+	} else {
+		if charset == "GBK" || charset == "GB2312" {
+			charset = "GB18030"
+		}
+		var encoder encoding.Encoding
+		encoder, err = htmlindex.Get(charset)
+		if err != nil {
+			return "", err
+		}
+		data, err = ioutil.ReadAll(transform.NewReader(reader, encoder.NewDecoder()))
+	}
+	if err != nil {
+		return "", err
+	}
+	return string(data), err
+}
+
+// convert byte array to string, using charset specified
+func byteToStringWithCharset(data []byte, charset string) (string, error) {
+	charset = strings.ToUpper(charset)
+	if charset == "UTF-8" || charset == "UTF8" {
+		return string(data), nil
+	}
+	var reader = bytes.NewBuffer(data)
+	return readToStringWithCharset(reader, charset)
+}
+
+// parse content type to mimeType and charset
+func parseContentType(contentType string) (string, string) {
+	var mimeTypeStr, charset string
+	idx := strings.Index(contentType, ";")
+	if idx < 0 {
+		mimeTypeStr = strings.TrimSpace(contentType)
+		charset = ""
+	} else {
+		mimeTypeStr = strings.TrimSpace(contentType[:idx])
+		charsetSeg := strings.TrimSpace(contentType[idx + 1:])
+		eidx := strings.Index(charsetSeg, "=")
+		if eidx < 0 {
+			charset = ""
+		} else {
+			charset = strings.TrimSpace(charsetSeg[eidx + 1:])
+		}
+	}
+	return mimeTypeStr, charset
 }
