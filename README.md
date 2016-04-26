@@ -1,5 +1,5 @@
 [![](https://travis-ci.org/caoqianli/pcap-parser.svg)](https://travis-ci.org/caoqianli/pcap-parser) 
-![License](https://img.shields.io/badge/licence-BSD%203--Clause-blue.svg?style=flat)
+![License](https://img.shields.io/badge/licence-Simplified%20BSD-blue.svg?style=flat)
 
 Parse and show HTTP traffic. Python 2.7.* or Python 3.3+ required.
 
