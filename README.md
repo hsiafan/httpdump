@@ -1,6 +1,8 @@
 [![](https://travis-ci.org/caoqianli/pcap-parser.svg)](https://travis-ci.org/caoqianli/pcap-parser) 
 ![License](https://img.shields.io/badge/licence-Simplified%20BSD-blue.svg?style=flat)
 
+This project is no longer maintained, you may want to go to the more effient go version impl [httpcap](https://github.com/caoqianli/httpcap).
+
 Parse and show HTTP traffic. Python 2.7.* or Python 3.3+ required.
 
 This module parses pcap/pcapng files, retrieves HTTP data, and shows as text.
