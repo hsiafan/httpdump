@@ -1,13 +1,12 @@
 from __future__ import unicode_literals, print_function, division
-
-__author__ = 'dongliu'
-
-# read and parse pcap file
-# see http://wiki.wireshark.org/Development/LibpcapFileFormat
 import sys
 import struct
 
+__author__ = 'dongliu'
 
+
+# read and parse pcap file
+# see http://wiki.wireshark.org/Development/LibpcapFileFormat
 class PcapFile(object):
     def __init__(self, infile, head):
         self.infile = infile

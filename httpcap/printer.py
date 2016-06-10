@@ -3,12 +3,13 @@ from __future__ import unicode_literals, print_function, division
 from io import StringIO
 import sys
 
-from pcapparser.config import OutputLevel
+from httpcap.config import OutputLevel
 # print http req/resp
-from pcapparser import utils, six
-from pcapparser import config
+from httpcap import utils
+from httpcap import config
 import threading
-from pcapparser.constant import Compress
+import six
+from httpcap.constant import Compress
 
 printer_lock = threading.Lock()
 
@@ -99,7 +100,7 @@ class HttpPrinter(object):
                 print("[%s:%d] -- -- --> [%s:%d] " % (self.client_host[0], self.client_host[1],
                                                       self.remote_host[0], self.remote_host[1]),
                       file=config.out)
-                if six.is_python2:
+                if six.PY2:
                     print(value.encode('utf8'), file=config.out)
                 else:
                     print(value, file=config.out)
@@ -120,7 +121,8 @@ class HttpPrinter(object):
                or self.parse_config.level >= OutputLevel.TEXT_BODY and utils.is_text(mime)
 
     def _println(self, line=''):
-        line = six.ensure_unicode(line)
+        if isinstance(line, six.binary_type):
+            line = line.decode('utf8')
         self.buf.write(line)
         self.buf.write('\n')
 

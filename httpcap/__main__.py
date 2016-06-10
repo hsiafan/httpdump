@@ -1,3 +1,4 @@
+# coding=utf8
 from __future__ import unicode_literals, print_function, division
 
 import signal
@@ -5,8 +6,8 @@ import sys
 import argparse
 import io
 
-from pcapparser.parse_pcap import parse_pcap_file
-from pcapparser import config
+from httpcap.parse_pcap import parse_pcap_file
+from httpcap import config
 
 
 # when press Ctrl+C
@@ -17,7 +18,7 @@ def signal_handler(signal, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 
-def main():
+def parse_pcap():
     parser = argparse.ArgumentParser()
     parser.add_argument("infile", nargs='?', help="the pcap file to parse")
     parser.add_argument("-i", "--ip", help="only parse packages with specified source OR dest ip")
@@ -74,4 +75,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parse_pcap()

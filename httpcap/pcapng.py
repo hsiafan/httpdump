@@ -3,10 +3,11 @@
 # http://www.winpcap.org/ntar/draft/PCAP-DumpFileFormat.html
 # http://wiki.wireshark.org/Development/PcapNg
 from __future__ import unicode_literals, print_function, division
+
 import struct
 import sys
-from pcapparser import six
-from pcapparser.constant import *
+
+from httpcap.constant import *
 
 __author__ = 'dongliu'
 
@@ -115,10 +116,7 @@ class PcapngFile(object):
         buf = self.infile.read(8)
         h, l, = struct.unpack(self.section_info.byteorder + b'II', buf)
         timestamp = (h << 32) + l
-        if six.is_python2:
-            micro_second = long(timestamp * self.section_info.tsresol + self.section_info.tsoffset)
-        else:
-            micro_second = timestamp * self.section_info.tsresol + self.section_info.tsoffset
+        micro_second = timestamp * self.section_info.tsresol + self.section_info.tsoffset
         # capture len
         buf = self.infile.read(8)
         capture_len, packet_len = struct.unpack(self.section_info.byteorder + b'II', buf)

@@ -2,10 +2,10 @@ from __future__ import unicode_literals, print_function, division
 
 from collections import defaultdict
 
-from pcapparser import utils
-from pcapparser.constant import HttpType, Compress
-from pcapparser.reader import DataReader
-from pcapparser import config
+from httpcap import utils
+from httpcap.constant import HttpType, Compress
+from httpcap.reader import DataReader
+from httpcap import config
 
 
 __author__ = 'dongliu'

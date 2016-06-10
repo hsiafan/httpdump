@@ -2,8 +2,8 @@ from __future__ import unicode_literals, print_function, division
 
 import struct
 import socket
-from pcapparser.constant import *
-from pcapparser.link_layer import LinkLayer
+from httpcap.constant import *
+from httpcap.link_layer import LinkLayer
 
 
 class TcpPack:

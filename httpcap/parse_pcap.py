@@ -3,14 +3,13 @@ from collections import OrderedDict
 import struct
 import sys
 
-from pcapparser import packet_parser
-from pcapparser import pcap, pcapng, utils
-from pcapparser.constant import FileFormat
-from pcapparser.printer import HttpPrinter
-from pcapparser.httpparser import HttpType, HttpParser
-from pcapparser import config
-from pcapparser.packet_parser import TcpPack
-from pcapparser.utils import is_request
+from httpcap import packet_parser
+from httpcap import pcap, pcapng, utils
+from httpcap.constant import FileFormat
+from httpcap.printer import HttpPrinter
+from httpcap.httpparser import HttpType, HttpParser
+from httpcap import config
+from httpcap.utils import is_request
 
 
 def get_file_format(infile):

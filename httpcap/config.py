@@ -1,5 +1,4 @@
 from __future__ import unicode_literals, print_function, division
-import sys
 
 __author__ = 'dongliu'
 

@@ -7,32 +7,31 @@ with codecs.open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
-    name='pcap-parser',
-    version='0.5.10',
-    description='Parse pcap file with python',
+    name='httpcap',
+    version='0.6.0',
+    description='Capture and parse http traffics with python',
     long_description=long_description,
     author='xiaxiaocao',
     author_email='dongliu@live.cn',
     license='Simplified BSD License',
-    url='https://github.com/caoqianli/pcap-parser',
-    packages=['pcapparser'],
-    install_requires=[],
+    url='https://github.com/caoqianli/httpcap',
+    packages=['httpcap'],
+    install_requires=[
+        "six"
+    ],
     include_package_data=True,
     test_suite="tests",
     classifiers=[
         'Programming Language :: Python',
         'Intended Audience :: Developers',
         'Operating System :: OS Independent',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 3',
     ],
-    zip_safe=False,
-    # scripts=['parse_pcap'],
+    zip_safe=True,
     entry_points={
         'console_scripts': [
-            'parse_pcap = pcapparser.__main__:main',
+            'parse-pcap = httpcap.__main__:main',
         ],
     }
 )

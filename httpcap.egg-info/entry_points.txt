@@ -1,0 +1,3 @@
+[console_scripts]
+parse-pcap = httpcap.__main__:main
+

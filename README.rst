@@ -1,10 +1,13 @@
 |image0| |License|
 
-Parse and show HTTP traffic. Python 2.7.\* or Python 3.3+ required.
+Httpcap (Former name pcap-parser)
+---------------------------------
+
+Parse and display HTTP traffics. Python 2.7.\* or Python 3.3+ required.
 
 This module parses pcap/pcapng files, retrieves HTTP data, and shows as
-text. Pcap files can be obtained via tcpdump or wireshark or other
-network traffic capture tools.
+text. Pcap files can be obtained via tcpdump, wireshark or other similar
+tools.
 
 Features:
 
@@ -21,7 +24,7 @@ This module can be installed via pip:
 
 .. code:: sh
 
-    pip install pcap-parser
+    pip install httpcap
 
 Parse Pcap File
 ~~~~~~~~~~~~~~~
@@ -37,21 +40,21 @@ Then:
 .. code:: sh
 
     # only output the requested URL and response status
-    parse_pcap test.pcap
+    parse-pcap test.pcap
     # output http req/resp headers
-    parse_pcap -v test.pcap
+    parse-pcap -v test.pcap
     # output http req/resp headers and body which belong to text type
-    parse_pcap -vv test.pcap
+    parse-pcap -vv test.pcap
     # output http req/resp headers and body
-    parse_pcap -vvv test.pcap
+    parse-pcap -vvv test.pcap
     # display and attempt to do url decoding and formatting json output
-    parse_pcap -vvb test.pcap
+    parse-pcap -vvb test.pcap
 
 Or use pipe:
 
 .. code:: sh
 
-    sudo tcpdump -w- tcp port 80 | parse_pcap 
+    sudo tcpdump -w- tcp port 80 | parse-pcap 
 
 Group
 ~~~~~
@@ -60,7 +63,7 @@ Use -g to group http request/responses:
 
 .. code:: sh
 
-    parse_pcap -g test.pcap
+    parse-pcap -g test.pcap
 
 The result looks like:
 
@@ -92,27 +95,27 @@ Filter
 ~~~~~~
 
 You can use the -i/-p options to specify the ip/port of source and
-destination and ``parse_pcap`` will only display HTTP data that meets
+destination and ``parse-pcap`` will only display HTTP data that meets
 the specified conditions:
 
 .. code:: sh
 
-    parse_pcap -p55419 -vv test.pcap
-    parse_pcap -i192.168.109.91 -vv test.pcap
+    parse-pcap -p55419 -vv test.pcap
+    parse-pcap -i192.168.109.91 -vv test.pcap
 
 Use -d to specify the HTTP domain; only displays HTTP req/resp with the
 specified domain:
 
 .. code:: sh
 
-    parse_pcap -dwww.baidu.com -vv test.pcap
+    parse-pcap -dwww.baidu.com -vv test.pcap
 
 Use -u to specify the HTTP uri pattern; only displays HTTP req/resp in
 which the url contains the specified url pattern:
 
 .. code:: sh
 
-    parse_pcap -u/api/update -vv test.pcap
+    parse-pcap -u/api/update -vv test.pcap
 
 Encoding
 ~~~~~~~~
@@ -121,9 +124,9 @@ Use -e to force the encoding used for the HTTP bodies:
 
 .. code:: sh
 
-    parse_pcap -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
+    parse-pcap -i192.168.109.91 -p80 -vv -eutf-8 test.pcap
 
 .. |image0| image:: https://travis-ci.org/caoqianli/pcap-parser.svg
    :target: https://travis-ci.org/caoqianli/pcap-parser
-.. |License| image:: https://img.shields.io/badge/licence-BSD%203--Clause-blue.svg?style=flat
+.. |License| image:: https://img.shields.io/badge/licence-Simplified%20BSD-blue.svg?style=flat
 

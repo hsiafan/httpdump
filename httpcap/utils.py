@@ -1,8 +1,9 @@
 from __future__ import unicode_literals, print_function, division
 
 import zlib
-from pcapparser import six
-from pcapparser.constant import Compress
+import six
+from six.moves.urllib.parse import quote, unquote
+from httpcap.constant import Compress
 
 import json
 from io import BytesIO
@@ -39,7 +40,7 @@ def try_print_json(text, output_file):
 
 
 def try_decoded_print(content, buf):
-    content = six.unquote(content)
+    content = unquote(content)
     buf.write(content)
 
 
@@ -157,19 +158,20 @@ def decode_body(content, charset):
     if content == b'':
         return ''
     if charset:
-        charset = six.ensure_unicode(charset)
+        if isinstance(charset, six.binary_type):
+            charset = charset.decode('utf8')
         try:
             return content.decode(charset)
-        except:
+        except UnicodeDecodeError:
             return '{{decode content failed with charset: {}}}'.format(charset)
 
     # todo: encoding detect
     try:
         return content.decode('utf-8')
-    except:
+    except UnicodeDecodeError:
         pass
     try:
         return content.decode('gb18030')
-    except:
+    except  UnicodeDecodeError:
         pass
     return '{decode content failed, unknown charset}'

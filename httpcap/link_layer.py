@@ -1,12 +1,10 @@
 from __future__ import unicode_literals, print_function, division
 
 import struct
-import socket
-
 # see http://www.tcpdump.org/linktypes.html
 # http://www.winpcap.org/ntar/draft/PCAP-DumpFileFormat.html#appendixLinkTypes
-from pcapparser.constant import NetworkProtocol
-from pcapparser.six import bytes_index
+from httpcap.constant import NetworkProtocol
+import six
 
 
 class LinkLayer(object):
@@ -71,7 +69,7 @@ def dl_parse_bsd_lo(link_packet):
     if len(link_packet) < 4:
         return None, None
     # first 4 bytes are packet size which always less then 256, may be LE or BE
-    if bytes_index(link_packet, 0) == 0 and bytes_index(link_packet, 1) == 0:
+    if six.byte2int(link_packet, 0) == 0 and six.indexbytes(link_packet, 1) == 0:
         prot, = struct.unpack(b'>I', link_packet[:4])
     else:
         prot, = struct.unpack(b'<I', link_packet[:4])
