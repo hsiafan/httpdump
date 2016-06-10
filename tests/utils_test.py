@@ -7,7 +7,6 @@ from httpcap import utils
 
 class TestUtils(unittest.TestCase):
     def test_is_request(self):
-        self.assertEqual('foo'.upper(), 'FOO')
         self.assertTrue(utils.is_request(b'GET /test'))
         self.assertTrue(utils.is_request(b'POST /test'))
 
