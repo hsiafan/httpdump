@@ -8,7 +8,7 @@ with codecs.open('README.rst', encoding='utf-8') as f:
 
 setup(
     name='httpcap',
-    version='0.6.0',
+    version='0.6.1',
     description='Capture and parse http traffics with python',
     long_description=long_description,
     author='xiaxiaocao',
@@ -31,7 +31,7 @@ setup(
     zip_safe=True,
     entry_points={
         'console_scripts': [
-            'parse-pcap = httpcap.__main__:main',
+            'parse-pcap = httpcap.__main__:parse_pcap',
         ],
     }
 )
