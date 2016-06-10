@@ -32,7 +32,7 @@ class Stream(object):
 
     def append_packet(self, packet):
         """
-        :type packet:TcpPack
+        :type packet:httpcap.packet_parser.TcpPack
         """
         if (seq_compare(packet.seq, self.last_ack_seq) >= 0 or self.last_ack_seq == -1) \
                 and packet.body:
@@ -43,6 +43,17 @@ class Stream(object):
             return None
 
         self.last_ack_seq = ack_seq
+
+        # if only one packet in window
+        if len(self.receive_buf) == 1:
+            if seq_compare(self.receive_buf[0].seq, ack_seq) < 0:
+                data = self.receive_buf
+                self.receive_buf = []
+                return data
+            else:
+                return []
+
+        # filter, sort, and remove duplicate packet
         data = []
         new_buf = []
         for packet in self.receive_buf:
@@ -66,7 +77,7 @@ class Stream(object):
 class TcpConnection(object):
     def __init__(self, packet):
         """
-        :type packet: TcpPack
+        :type packet: httpcap.packet_parser.TcpPack
         """
         self.up_stream = Stream()
         self.down_stream = Stream()
@@ -77,11 +88,13 @@ class TcpConnection(object):
                                      (packet.dest, packet.dest_port))
         self.http_parser = HttpParser(self.processor)
         self.on_packet(packet)
+        self.last_timestamp = packet.timestamp
 
     def on_packet(self, packet):
         """
-        :type packet: TcpPack
+        :type packet: httpcap.packet_parser.TcpPack
         """
+        self.last_timestamp = packet.timestamp
         if self.is_http is None and packet.body:
             self.is_http = is_request(packet.body)
 
@@ -106,7 +119,7 @@ class TcpConnection(object):
             if packets:
                 for packet in packets:
                     self.http_parser.send(pac_type, packet.body)
-        if packet.fin:
+        if packet.fin or packet.rst:
             send_stream.status = 1
 
     def closed(self):

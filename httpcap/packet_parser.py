@@ -9,7 +9,7 @@ from httpcap.link_layer import LinkLayer
 class TcpPack:
     """ a tcp packet, header fields and data. """
 
-    def __init__(self, source, source_port, dest, dest_port, flags, seq, ack_seq, body):
+    def __init__(self, source, source_port, dest, dest_port, flags, seq, ack_seq, body, timestamp):
         self.source = source
         self.source_port = source_port
         self.dest = dest
@@ -23,10 +23,13 @@ class TcpPack:
 
         self.fin = flags & 1
         self.syn = (flags >> 1) & 1
-        # rst = (flags >> 2) & 1
+        self.rst = (flags >> 2) & 1
         # psh = (flags >> 3) & 1
         self.ack = (flags >> 4) & 1
         # urg = (flags >> 5) & 1
+
+        # timestamp in micro second when capture this packet
+        self.timestamp = timestamp
 
     def __str__(self):
         return "%s:%d  -->  %s:%d, seq:%d, ack_seq:%s size:%d fin:%d syn:%d ack:%d" % \
@@ -99,10 +102,13 @@ def parse_udp_packet(ip_body):
     return source_port, dest_port, ip_body[8:length]
 
 
-def read_tcp_packet(read_packet):
-    """ generator, read a *TCP* package once."""
+def read_tcp_packet(produce_packet):
+    """
+    generator, read a *TCP* package once.
+    :rtype TcpPack
+    """
 
-    for link_type, micro_second, link_packet in read_packet():
+    for link_type, micro_second, link_packet in produce_packet():
         parse_link_layer = LinkLayer.get_link_layer_parser(link_type)
         if parse_link_layer is None:
             # skip unknown link layer packet
@@ -110,7 +116,8 @@ def read_tcp_packet(read_packet):
         network_protocol, link_layer_body = parse_link_layer(link_packet)
         if network_protocol is None or link_layer_body is None:
             continue
-        transport_protocol, source, dest, ip_body = parse_ip_packet(network_protocol, link_layer_body)
+        transport_protocol, source, dest, ip_body = parse_ip_packet(network_protocol,
+                                                                    link_layer_body)
 
         if transport_protocol is None:
             continue
@@ -118,7 +125,8 @@ def read_tcp_packet(read_packet):
         # tcp
         if transport_protocol == TransferProtocol.TCP:
             source_port, dest_port, flags, seq, ack_seq, body = parse_tcp_packet(ip_body)
-            yield TcpPack(source, source_port, dest, dest_port, flags, seq, ack_seq, body)
+            yield TcpPack(source, source_port, dest, dest_port, flags, seq, ack_seq, body,
+                          micro_second)
         elif transport_protocol == TransferProtocol.UDP:
             # source_port, dest_port, udp_body = parse_udp_packet(ip_body)
             continue

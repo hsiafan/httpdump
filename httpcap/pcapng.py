@@ -26,6 +26,9 @@ class SectionInfo(object):
 
 class PcapngFile(object):
     def __init__(self, infile, head):
+        """
+        :type infile:io.BufferedReader
+        """
         self.infile = infile
         self.section_info = SectionInfo()
         # the first 4 byte head has been read by pcap file format checker

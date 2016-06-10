@@ -9,6 +9,9 @@ __author__ = 'dongliu'
 # see http://wiki.wireshark.org/Development/LibpcapFileFormat
 class PcapFile(object):
     def __init__(self, infile, head):
+        """
+        :type infile:io.BufferedReader
+        """
         self.infile = infile
         self.byteorder = b'@'
         self.link_type = None

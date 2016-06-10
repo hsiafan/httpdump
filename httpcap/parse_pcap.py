@@ -15,7 +15,7 @@ def get_file_format(infile):
     """
     get cap file format by magic num.
     return file format and the first byte of string
-    :type infile:file
+    :type infile:io.BufferedReader
     """
     buf = infile.read(4)
     if len(buf) == 0:
@@ -36,22 +36,23 @@ def get_file_format(infile):
 
 def parse_pcap_file(infile):
     """
-    :type infile:file
+    :type infile:io.BufferedReader
     """
 
     conn_dict = OrderedDict()
 
     file_format, head = get_file_format(infile)
     if file_format == FileFormat.PCAP:
-        pcap_file = pcap.PcapFile(infile, head).read_packet
+        produce_packet = pcap.PcapFile(infile, head).read_packet
     elif file_format == FileFormat.PCAP_NG:
-        pcap_file = pcapng.PcapngFile(infile, head).read_packet
+        produce_packet = pcapng.PcapngFile(infile, head).read_packet
     else:
         print("unknown file format.", file=sys.stderr)
         sys.exit(1)
 
     _filter = config.get_filter()
-    for tcp_pac in packet_parser.read_tcp_packet(pcap_file):
+    count = 0
+    for tcp_pac in packet_parser.read_tcp_packet(produce_packet):
         # filter
         if not (_filter.by_ip(tcp_pac.source) or _filter.by_ip(tcp_pac.dest)):
             continue
@@ -73,6 +74,17 @@ def parse_pcap_file(infile):
         elif utils.is_request(tcp_pac.body):
             # tcp init before capture, we start from a possible http request header.
             conn_dict[key] = TcpConnection(tcp_pac)
+
+        count += 1
+        if count % 100 == 0:
+            # check timeout connection
+            keys = []
+            for k, conn in conn_dict.items():
+                if tcp_pac.timestamp - conn.last_timestamp > 100 * 1000 * 100:
+                    conn.finish()
+                    keys.append(k)
+            for k in keys:
+                del conn_dict[k]
 
     # finish connection which not close yet
     for conn in conn_dict.values():
