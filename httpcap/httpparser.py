@@ -167,7 +167,6 @@ class HttpParserWorker(threading.Thread):
                 # it is expect:continue-100 request. save header for next body read
                 context.expect_header = req_header
                 return True
-
         # deal with body
         if not req_header.chunked:
             content = reader.read(req_header.content_len)

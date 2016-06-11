@@ -8,15 +8,15 @@ import sys
 
 import six
 
-from httpcap import config
+from httpcap import config, cleanups
 from httpcap import live_cap
-from httpcap.parse_pcap import parse_pcap_file, run_parser, clear_connection
+from httpcap.parse_pcap import parse_pcap_file, run_parser
 
 
 # when press Ctrl+C
 def signal_handler(signal, frame):
     print("Canceled, stopping....", file=sys.stderr)
-    clear_connection()
+    cleanups.cleanup()
     sys.exit(0)
 
 
@@ -24,19 +24,27 @@ signal.signal(signal.SIGINT, signal_handler)
 
 
 def parse_pcap():
-    parse_("file")
+    try:
+        parse_("file")
+    finally:
+        cleanups.cleanup()
 
 
 def parse_live():
-    parse_("device")
+    try:
+        parse_("device")
+    finally:
+        cleanups.cleanup()
 
 
 def parse_(source):
     parser = argparse.ArgumentParser()
     if source == 'file':
-        parser.add_argument("infile", nargs='?', help="the pcap file to parse")
+        parser.add_argument("infile", nargs='?', default='-',
+                            help="the pcap file to parse, -(default value) means stdin")
     elif source == 'device':
-        parser.add_argument("device", nargs='?', help="the network device to capture")
+        parser.add_argument("device", nargs='?', default="any",
+                            help="the network device to capture, any(default value) mean all device")
     parser.add_argument("-i", "--ip", help="only parse packages with specified source OR dest ip")
     parser.add_argument("-p", "--port", type=int,
                         help="only parse packages with specified source OR dest port")
@@ -86,7 +94,10 @@ def parse_(source):
 
     try:
         if source == 'file':
-            file_path = "-" if args.infile is None else args.infile
+            file_path = args.infile
+            if not file_path:
+                print("file name empty", file=sys.stderr)
+                sys.exit(-1)
             infile = None
             try:
                 if live_cap.has_pcap() and file_path != '-' and False:
@@ -105,10 +116,14 @@ def parse_(source):
                 if infile is not None:
                     infile.close()
         elif source == 'device':
+            device = args.device
+            if not device:
+                print("device name empty", file=sys.stderr)
+                sys.exit(-1)
             if not live_cap.has_pcap():
                 print("Libpcap not found, install it first", file=sys.stderr)
-            print("Capture device: {}, filter: {}".format(args.device, filter_exp), file=sys.stderr)
-            producer = live_cap.libpcap_produce(device=args.device, filter_exp=filter_exp)
+            print("Capture device: {}, filter: {}".format(device, filter_exp), file=sys.stderr)
+            producer = live_cap.libpcap_produce(device=device, filter_exp=filter_exp)
             run_parser(producer)
     finally:
         if args.output:

@@ -11,7 +11,7 @@ import threading
 import six
 from httpcap.constant import Compress
 
-printer_lock = threading.Lock()
+_printer_lock = threading.Lock()
 
 
 def _get_full_url(uri, host):
@@ -92,7 +92,7 @@ class HttpPrinter(object):
         self._do_output()
 
     def _do_output(self):
-        printer_lock.acquire()
+        _printer_lock.acquire()
         try:
             value = self.buf.getvalue()
             self.buf = StringIO()
@@ -113,7 +113,7 @@ class HttpPrinter(object):
                 print(e, file=sys.stderr)
                 sys.exit(-1)
         finally:
-            printer_lock.release()
+            _printer_lock.release()
 
     def _if_output(self, mime):
         return self.parse_config.level >= OutputLevel.ALL_BODY and not utils.is_binary(mime) \

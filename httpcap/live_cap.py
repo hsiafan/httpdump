@@ -1,15 +1,15 @@
 from __future__ import unicode_literals, print_function, division
 
 import sys
+import threading
 from ctypes import cdll
 from ctypes.util import find_library
+
 from six.moves import queue
-import threading
 
 # live cap use libpcap.
 import six
-
-from pcappy_port import open_offline, open_live
+from pcappy_port import open_offline, open_live, findalldevs
 
 
 def has_pcap():
@@ -37,6 +37,8 @@ def open_device(device, filter_exp='', call_back=lambda d, hdr, data: None):
         filter_exp = filter_exp.encode('utf8')
 
     p = open_live(device, snaplen=65536, to_ms=0)
+    # breakloop too slow, just set thread as daemon
+    # cleanups.register(lambda: p.breakloop())
     _run_capture(p, filter_exp, call_back)
 
 
@@ -52,38 +54,53 @@ def _run_capture(p, filter_exp, call_back):
     p.loop(-1, call_back, datalink)
 
 
+_job_done = object()  # signals the processing is done
+
+
 def libpcap_produce(device=None, filename=None, filter_exp=''):
     """
     call_back to generator use queue
     """
     q = queue.Queue()  # fmin produces, the generator consumes
-    job_done = object()  # signals the processing is done
 
+    # linux libpcap does support any device, while osx libpcap does not.
+    # for linux, caupture any device packets headers with link layer type DLT_LINUX_SLL,
+    # and does not support promiscuous mode
+    if device == 'any' and not sys.platform.startswith('linux'):
+        devices = [d.name for d in findalldevs()]
+        for _device in devices:
+            t = threading.Thread(target=task, name="pcap-thread",
+                                 args=(q, _device, filename, filter_exp))
+            t.setDaemon(True)
+            t.start()
+
+    else:
+        t = threading.Thread(target=task, name="pcap-thread",
+                             args=(q, device, filename, filter_exp))
+        t.setDaemon(True)
+        t.start()
+
+    # Consumer
+    while True:
+        try:
+            # set timeout to 1, make python2 interrupt signal handler run faster
+            next_item = q.get(True, timeout=1)
+        except queue.Empty:
+            continue
+        if next_item is _job_done:
+            break
+        yield next_item
+
+
+def task(q, device, filename, filter_exp):
     # Producer
     def convert(link_type, header, data):
         sec = header['ts']['tv_sec']
         # Todo usec = header['ts']['tv_usec'] produce negetive value
         q.put((link_type, sec * 1000, data))
 
-    def task():
-        try:
-            if device is not None:
-                open_device(device, filter_exp=filter_exp, call_back=convert)
-            elif filename is not None:
-                open_file(filename, filter_exp=filter_exp, call_back=convert)
-            q.put(job_done)
-        except:
-            import traceback
-            traceback.print_exc()
-            sys.exit(-1)
-
-    t = threading.Thread(target=task, name="pcap-thread")
-    t.setDaemon(True)
-    t.start()
-
-    # Consumer
-    while True:
-        next_item = q.get()
-        if next_item is job_done:
-            break
-        yield next_item
+    if device is not None:
+        open_device(device, filter_exp=filter_exp, call_back=convert)
+    elif filename is not None:
+        open_file(filename, filter_exp=filter_exp, call_back=convert)
+    q.put(_job_done)

@@ -84,6 +84,8 @@ class DataReader(object):
         if self.finish:
             return None
 
+        if size == 0:
+            return b''
         buffers = []
         read_size = 0
         if not self.data:

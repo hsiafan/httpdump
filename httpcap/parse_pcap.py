@@ -4,6 +4,7 @@ import struct
 import sys
 from collections import OrderedDict
 
+from httpcap import cleanups
 from httpcap import config
 from httpcap import packet_parser
 from httpcap import pcap, pcapng, utils
@@ -49,16 +50,15 @@ def parse_pcap_file(infile):
         sys.exit(1)
 
 
-conn_dict = OrderedDict()
-
-
-def clear_connection():
-    # finish connection which not close yet
-    for conn in conn_dict.values():
-        conn.finish()
-
-
 def run_parser(produce_packet):
+    conn_dict = OrderedDict()
+
+    def clear_connection():
+        # finish connection which not close yet
+        for conn in conn_dict.values():
+            conn.finish()
+
+    cleanups.register(clear_connection)
     _filter = config.get_filter()
     count = 0
     for tcp_pac in packet_parser.read_tcp_packet(produce_packet):

@@ -251,7 +251,8 @@ class PcapPyBpfProgram(object):
         self._netmask = nm
         self._bpf = bpf_program()
         if 'pcap' in kwargs:
-            if pcap_compile(kwargs['pcap']._handle, pointer(self._bpf), expr, opt, _inet_atoi(nm)) == -1:
+            if pcap_compile(kwargs['pcap']._handle, pointer(self._bpf), expr, opt,
+                            _inet_atoi(nm)) == -1:
                 raise PcapPyException(kwargs['pcap'].err)
         elif pcap_compile_nopcap(kwargs['snaplen'], kwargs['linktype'], pointer(self._bpf), expr,
                                  opt, _inet_atoi(nm)) == -1:
@@ -273,7 +274,11 @@ class PcapPyBpfProgram(object):
 
     def __del__(self):
         if self._bpf:
-            pcap_freecode(pointer(self._bpf))
+            try:
+                # todo: exception
+                pcap_freecode(pointer(self._bpf))
+            except Exception:
+                pass
 
 
 def open_live(device, snaplen=64, promisc=1, to_ms=1000):
@@ -503,7 +508,11 @@ class PcapPyBase(object):
 
     def __del__(self):
         if self._handle:
-            pcap_close(self._handle)
+            # todo: del exception
+            try:
+                pcap_close(self._handle)
+            except Exception:
+                pass
 
 
 class PcapPyDead(PcapPyBase):
@@ -675,10 +684,10 @@ class PcapPyOffline(PcapPyAlive):
         if not self._handle:
             raise PcapPyException(errbuf.raw)
 
-    # @property
-    # def file(self):
-    #     f = pcap_file(self._p)
-    #     return PyFile_FromFile(f, self.filename, "rb", None)
+            # @property
+            # def file(self):
+            #     f = pcap_file(self._p)
+            #     return PyFile_FromFile(f, self.filename, "rb", None)
 
 
 class PcapPyLive(PcapPyAlive):
@@ -694,7 +703,8 @@ class PcapPyLive(PcapPyAlive):
         self._buffer_size = kwargs.get('buffer_size', None)
         errbuf = create_string_buffer(PCAP_ERRBUF_SIZE)
         if self._activate and not self._rfmon and self._buffer_size is None:
-            self._handle = pcap_open_live(device, snaplen, promisc, to_ms, c_char_p((addressof(errbuf))))
+            self._handle = pcap_open_live(device, snaplen, promisc, to_ms,
+                                          c_char_p((addressof(errbuf))))
             if not to_ms:
                 try:
                     ioctl(self.fileno, BIOCIMMEDIATE, pack(b"I", 1))
