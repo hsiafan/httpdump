@@ -1,12 +1,15 @@
 from __future__ import unicode_literals, print_function, division
 
+import threading
 from collections import defaultdict
+
+import six
+from six.moves import queue
 
 from httpcap import utils
 from httpcap.constant import HttpType, Compress
 from httpcap.reader import DataReader
 from httpcap import config
-
 
 __author__ = 'dongliu'
 
@@ -22,7 +25,7 @@ class HttpRequestHeader(object):
         self.content_type = b''
         self.compress = Compress.IDENTITY
         self.chunked = False
-        self.expect = b''
+        self.expect = False
         self.protocol = b''
         self.raw_data = None
 
@@ -41,12 +44,14 @@ class HttpResponseHeader(object):
         self.raw_data = None
 
 
-class RequestMessage(object):
+class RequestContext(object):
     """used to pass data between requests"""
 
     def __init__(self):
-        self.expect_header = None
+        self.expect_header = None  # for save expect-100 continue
         self.filtered = False
+        self.support_expect = False
+        self.next_resp_header = False
 
 
 class HttpParser(object):
@@ -56,64 +61,180 @@ class HttpParser(object):
         """
         :type processor: HttpDataProcessor
         """
-        self.cur_type = None
         self.inited = False
         self.is_http = False
         self.worker = None
         self.processor = processor
+        self.request_reader = None
+        self.response_reader = None
 
-        self.cur_data = None
-        self.message = RequestMessage()
-
-    def send(self, http_type, data):
+    def data_received(self, http_type, data):
         if not self.inited:
             self._init(http_type, data)
             self.inited = True
 
         if not self.is_http:
+            # current connection is not http connection, just skip all data
+            return
+        if not data:
+            return
+        if self.worker.done:
             return
 
-        # still current http request/response
-        if self.cur_type == http_type:
-            self.cur_data.append(data)
-            return
-
-        if self.cur_data is not None:
-            reader = DataReader(self.cur_data)
-            if self.cur_type == HttpType.REQUEST:
-                self.read_request(reader, self.message)
-            elif self.cur_type == HttpType.RESPONSE:
-                self.read_response(reader, self.message)
-
-        self.cur_type = http_type
-
-        # new http request/response
-        self.cur_data = []
-        self.cur_data.append(data)
+        if http_type == HttpType.REQUEST:
+            self.request_reader.send_data(data)
+        elif http_type == HttpType.RESPONSE:
+            self.response_reader.send_data(data)
 
     def _init(self, http_type, data):
+        """
+        Called when receive first packet. do init jobs
+        """
         if not utils.is_request(data) or http_type != HttpType.REQUEST:
             # not a http request
             self.is_http = False
         else:
             self.is_http = True
 
+        # start parser worker
+        self.request_reader = DataReader()  # request data
+        self.response_reader = DataReader()  # response data
+        worker = HttpParserWorker(self.request_reader, self.response_reader, self.processor)
+        worker.setName("Http parser worker")
+        # worker.setDaemon(True)
+        worker.start()
+        self.worker = worker
+
     def finish(self):
         # if still have unprocessed data
-        if self.cur_data:
-            reader = DataReader(self.cur_data)
-            if self.cur_type == HttpType.REQUEST:
-                self.read_request(reader, self.message)
-            elif self.cur_type == HttpType.RESPONSE:
-                self.read_response(reader, self.message)
+        if self.request_reader:
+            self.request_reader.send_finish()
+        if self.response_reader:
+            self.response_reader.send_finish()
+
+
+class HttpParserWorker(threading.Thread):
+    # may be we need two threads?
+    def __init__(self, request_reader, response_reader, processor):
+        super(HttpParserWorker, self).__init__()
+        self.request_reader = request_reader
+        self.response_reader = response_reader
+        self.processor = processor
+        self.request_context = RequestContext()
+        self.done = False
+
+    def run(self):
+        context = self.request_context
+        while True:
+            if not self.read_request(self.request_reader, context):
+                self.done = True
+                break
+
+            if context.expect_header:
+                # deal with expect-100. server may return 100, or 417 if not support,
+                # or just timeout...
+                if not self.read_response(self.response_reader, context):
+                    self.done = True
+                    break
+                if not context.support_expect:
+                    self.processor.on_http_req(self.request_context.expect_header, b'')
+                    context.expect_header = None
+                    continue
+                context.support_expect = False
+                if not self.read_request(self.request_reader, context):
+                    self.done = True
+                    break
+
+            if not self.read_response(self.response_reader, self.request_context):
+                self.done = True
+                break
+        self.request_reader.skip_all()
+        self.response_reader.skip_all()
+
+    def read_request(self, reader, context):
+        """ read and output one http request. """
+        if context.expect_header:
+            # we are reading expect-100 body
+            req_header = context.expect_header
+            context.expect_header = None
+        else:
+            req_header = self.read_http_req_header(reader)
+            if req_header is None:
+                # reader finished, or error occurred, we skip all data.
+                reader.skip_all()
+                return False
+            if req_header.expect:
+                # it is expect:continue-100 request. save header for next body read
+                context.expect_header = req_header
+                return True
+
+        # deal with body
+        if not req_header.chunked:
+            content = reader.read(req_header.content_len)
+        else:
+            content = self.read_chunked_body(reader)
+
+        _filter = config.get_filter()
+        show = _filter.by_domain(req_header.host) and _filter.by_uri(req_header.uri)
+        context.filtered = not show
+        if show:
+            self.processor.on_http_req(req_header, content)
+        return True
+
+    def read_response(self, reader, context):
+        """
+        read and output one http response
+        """
+        if context.next_resp_header:
+            resp_header = context.next_resp_header
+            context.next_resp_header = None
+        else:
+            resp_header = self.read_http_resp_header(reader)
+            if resp_header is None:
+                # reader finished, or error occurred, we skip all data.
+                reader.skip_all()
+                return False
+
+            if context.expect_header:
+                if resp_header.status_code == 100:
+                    # expected 100, we do not read body
+                    context.support_expect = True
+                elif resp_header.status_code == 417:
+                    # not support
+                    context.support_expect = False
+                else:
+                    # we think it is timeout, client continue send request body, and the server
+                    #  return the real response. Cache this header, read request body first
+                    context.support_expect = True
+                    context.next_resp_header = resp_header
+                    return True
+
+        # read body
+        if not resp_header.chunked:
+            if resp_header.content_len == 0:
+                if resp_header.connection_close:
+                    # we can't get content length, so assume it till the end of data.
+                    resp_header.content_len = 1000000000
+                else:
+                    # we can't get content length, and is not a chunked body, we cannot do nothing,
+                    # just think content_len is 0
+                    pass
+            content = reader.read(resp_header.content_len)
+        else:
+            content = self.read_chunked_body(reader)
+
+        if not context.filtered:
+            self.processor.on_http_resp(resp_header, content)
+        return True
 
     def read_headers(self, reader, lines):
         """
-        :type reader: DataReader
+        :type reader: httpcap.reader.DataReader
         :type lines: list
-        :return: dict
+        :rtype : dict
+        :return: headers in dict
         """
-        header_dict = defaultdict(str)
+        header_dict = defaultdict(six.binary_type)
         while True:
             line = reader.read_line()
             if line is None:
@@ -157,7 +278,9 @@ class HttpParser(object):
         req_header.compress = utils.get_compress_type(header_dict[b"content-encoding"])
         req_header.host = header_dict[b"host"]
         if b'expect' in header_dict:
-            req_header.expect = header_dict[b'expect']
+            # we only deal with 100-continue now...
+            if b'100-continue' in header_dict[b'expect']:
+                req_header.expect = True
 
         req_header.raw_data = b'\n'.join(lines)
         return req_header
@@ -240,62 +363,3 @@ class HttpParser(object):
 
             # a CR-LF to end this chunked response
             reader.read_line()
-
-    def read_request(self, reader, message):
-        """ read and output one http request. """
-        if message.expect_header and not utils.is_request(reader.fetch_line()):
-            req_header = message.expect_header
-            message.expect_header = None
-        else:
-            req_header = self.read_http_req_header(reader)
-            if req_header is None:
-                # read header error, we skip all data.
-                reader.skip_all()
-                return
-            if req_header.expect:
-                # it is expect:continue-100 post request
-                message.expect_header = req_header
-
-        # deal with body
-        if not req_header.chunked:
-            content = reader.read(req_header.content_len)
-        else:
-            content = self.read_chunked_body(reader)
-
-        _filter = config.get_filter()
-        show = _filter.by_domain(req_header.host) and _filter.by_uri(req_header.uri)
-        message.filtered = not show
-        if show:
-            self.processor.on_http_req(req_header, content)
-
-    def read_response(self, reader, message):
-        """
-        read and output one http response
-        """
-        resp_header = self.read_http_resp_header(reader)
-        if resp_header is None:
-            reader.skip_all()
-            return
-
-        if message.expect_header:
-            if resp_header.status_code == 100:
-                # expected 100, we do not read body
-                reader.skip_all()
-                return
-
-        # read body
-        if not resp_header.chunked:
-            if resp_header.content_len == 0:
-                if resp_header.connection_close:
-                    # we can't get content length, so assume it till the end of data.
-                    resp_header.content_len = 10000000
-                else:
-                    # we can't get content length, and is not a chunked body, we cannot do nothing,
-                    # just read all data.
-                    resp_header.content_len = 10000000
-            content = reader.read(resp_header.content_len)
-        else:
-            content = self.read_chunked_body(reader)
-
-        if not message.filtered:
-            self.processor.on_http_resp(resp_header, content)

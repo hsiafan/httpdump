@@ -6,14 +6,17 @@ import io
 import signal
 import sys
 
+import six
+
 from httpcap import config
 from httpcap import live_cap
-from httpcap.parse_pcap import parse_pcap_file, run_parser
+from httpcap.parse_pcap import parse_pcap_file, run_parser, clear_connection
 
 
 # when press Ctrl+C
 def signal_handler(signal, frame):
     print("Canceled, stopping....", file=sys.stderr)
+    clear_connection()
     sys.exit(0)
 
 
@@ -53,7 +56,11 @@ def parse_(source):
     _filter.ip = args.ip
     _filter.port = args.port
     _filter.domain = args.domain
+    if isinstance(_filter.domain, six.text_type):
+        _filter.domain = _filter.domain.encode()
     _filter.uri_pattern = args.uri
+    if isinstance(_filter.uri_pattern, six.text_type):
+        _filter.uri_pattern = _filter.uri_pattern.encode()
 
     filter_exp = 'tcp'
     if args.port:

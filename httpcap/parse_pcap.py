@@ -49,8 +49,16 @@ def parse_pcap_file(infile):
         sys.exit(1)
 
 
+conn_dict = OrderedDict()
+
+
+def clear_connection():
+    # finish connection which not close yet
+    for conn in conn_dict.values():
+        conn.finish()
+
+
 def run_parser(produce_packet):
-    conn_dict = OrderedDict()
     _filter = config.get_filter()
     count = 0
     for tcp_pac in packet_parser.read_tcp_packet(produce_packet):
@@ -87,6 +95,4 @@ def run_parser(produce_packet):
             for k in keys:
                 del conn_dict[k]
 
-    # finish connection which not close yet
-    for conn in conn_dict.values():
-        conn.finish()
+    clear_connection()

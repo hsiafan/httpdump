@@ -1,27 +1,42 @@
 from __future__ import unicode_literals, print_function, division
 
 __author__ = 'dongliu'
+from six.moves import queue
 
 
 class DataReader(object):
-    """ wrap http data for read. """
+    """
+    Wrap data sequence to reader.
+    Producer thread use send_data and finish,
+    Consumer thread use all read methods
+    """
+    FINISH = object()
 
-    def __init__(self, data_list):
-        """
-        :type data_list: list
-        """
-        self.data_list = data_list
-        self.idx = 0
+    def __init__(self):
+        self.data_queue = queue.Queue()
         self.data = None
         self.finish = False
 
-    def _read(self):
-        if self.idx >= len(self.data_list):
+    def send_data(self, data):
+        """
+        Send data to this reader
+        """
+        self.data_queue.put(data)
+
+    def send_finish(self):
+        """
+        Finish this reader
+        """
+        self.data_queue.put(DataReader.FINISH)
+
+    def next_data(self):
+        if self.finish:
+            return None
+        data = self.data_queue.get()
+        if data == DataReader.FINISH:
             self.finish = True
             return None
-        item = self.data_list[self.idx]
-        self.idx += 1
-        return item
+        return data
 
     def read_line(self):
         """read line from input data"""
@@ -30,10 +45,10 @@ class DataReader(object):
 
         buffers = []
         if not self.data:
-            self.data = self._read()
+            self.data = self.next_data()
         while self.data is not None:
             if len(self.data) == 0:
-                self.data = self._read()
+                self.data = self.next_data()
                 continue
 
             idx = self.data.find(b'\n')
@@ -43,7 +58,7 @@ class DataReader(object):
                 break
             if self.data:
                 buffers.append(self.data)
-            self.data = self._read()
+            self.data = self.next_data()
 
         if not buffers and self.finish:
             return None
@@ -72,10 +87,10 @@ class DataReader(object):
         buffers = []
         read_size = 0
         if not self.data:
-            self.data = self._read()
+            self.data = self.next_data()
         while self.data is not None:
             if len(self.data) == 0:
-                self.data = self._read()
+                self.data = self.next_data()
                 continue
 
             if len(self.data) >= size - read_size:
@@ -86,7 +101,7 @@ class DataReader(object):
             if self.data:
                 buffers.append(self.data)
                 read_size += len(self.data)
-            self.data = self._read()
+            self.data = self.next_data()
 
         if not buffers and self.finish:
             return None
@@ -99,7 +114,7 @@ class DataReader(object):
         read_size = 0
         while self.data is not None:
             if len(self.data) == 0:
-                self.data = self._read()
+                self.data = self.next_data()
                 continue
 
             if len(self.data) >= size - read_size:
@@ -108,7 +123,7 @@ class DataReader(object):
                 break
 
             read_size += len(self.data)
-            self.data = self._read()
+            self.data = self.next_data()
 
         return read_size
 
@@ -120,7 +135,7 @@ class DataReader(object):
         if self.data:
             buf.append(self.data)
         while True:
-            data = self._read()
+            data = self.next_data()
             if data is None:
                 break
             if self.data:
@@ -135,9 +150,6 @@ class DataReader(object):
             return
 
         while True:
-            data = self._read()
+            data = self.next_data()
             if data is None:
                 break
-
-    def finish(self):
-        return self.finish

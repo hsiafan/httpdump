@@ -83,7 +83,7 @@ def libpcap_produce(device=None, filename=None, filter_exp=''):
 
     # Consumer
     while True:
-        next_item = q.get(True, None)
+        next_item = q.get()
         if next_item is job_done:
             break
         yield next_item

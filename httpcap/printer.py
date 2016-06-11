@@ -112,7 +112,6 @@ class HttpPrinter(object):
             else:
                 print(e, file=sys.stderr)
                 sys.exit(-1)
-
         finally:
             printer_lock.release()
 
