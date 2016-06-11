@@ -30,7 +30,10 @@ def parse_live():
 
 def parse_(source):
     parser = argparse.ArgumentParser()
-    parser.add_argument("infile", nargs='?', help="the pcap file to parse")
+    if source == 'file':
+        parser.add_argument("infile", nargs='?', help="the pcap file to parse")
+    elif source == 'device':
+        parser.add_argument("device", nargs='?', help="the network device to capture")
     parser.add_argument("-i", "--ip", help="only parse packages with specified source OR dest ip")
     parser.add_argument("-p", "--port", type=int,
                         help="only parse packages with specified source OR dest port")
@@ -45,8 +48,6 @@ def parse_(source):
     parser.add_argument("-u", "--uri", help="filter http data by request uri pattern")
 
     args = parser.parse_args()
-
-    file_path = "-" if args.infile is None else args.infile
 
     _filter = config.get_filter()
     _filter.ip = args.ip
@@ -78,6 +79,7 @@ def parse_(source):
 
     try:
         if source == 'file':
+            file_path = "-" if args.infile is None else args.infile
             infile = None
             try:
                 if live_cap.has_pcap() and file_path != '-' and False:
@@ -98,8 +100,8 @@ def parse_(source):
         elif source == 'device':
             if not live_cap.has_pcap():
                 print("Libpcap not found, install it first", file=sys.stderr)
-            print("Capture device: {}, filter: {}".format(args.infile, filter_exp), file=sys.stderr)
-            producer = live_cap.libpcap_produce(device=args.infile, filter_exp=filter_exp)
+            print("Capture device: {}, filter: {}".format(args.device, filter_exp), file=sys.stderr)
+            producer = live_cap.libpcap_produce(device=args.device, filter_exp=filter_exp)
             run_parser(producer)
     finally:
         if args.output:
@@ -107,4 +109,4 @@ def parse_(source):
 
 
 if __name__ == "__main__":
-    parse_live()
+    parse_pcap()
