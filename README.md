@@ -1,4 +1,3 @@
-[![](https://travis-ci.org/caoqianli/pcap-parser.svg)](https://travis-ci.org/caoqianli/pcap-parser) 
 ![License](https://img.shields.io/badge/licence-Simplified%20BSD-blue.svg?style=flat)
 
 ## Httpcap (Former name pcap-parser)
