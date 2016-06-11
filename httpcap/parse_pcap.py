@@ -39,17 +39,18 @@ def parse_pcap_file(infile):
     :type infile:io.BufferedReader
     """
 
-    conn_dict = OrderedDict()
-
     file_format, head = get_file_format(infile)
     if file_format == FileFormat.PCAP:
-        produce_packet = pcap.PcapFile(infile, head).read_packet
+        return pcap.PcapFile(infile, head).read_packet()
     elif file_format == FileFormat.PCAP_NG:
-        produce_packet = pcapng.PcapngFile(infile, head).read_packet
+        return pcapng.PcapngFile(infile, head).read_packet()
     else:
         print("unknown file format.", file=sys.stderr)
         sys.exit(1)
 
+
+def run_parser(produce_packet):
+    conn_dict = OrderedDict()
     _filter = config.get_filter()
     count = 0
     for tcp_pac in packet_parser.read_tcp_packet(produce_packet):

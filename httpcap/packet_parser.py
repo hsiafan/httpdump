@@ -108,7 +108,7 @@ def read_tcp_packet(produce_packet):
     :rtype TcpPack
     """
 
-    for link_type, micro_second, link_packet in produce_packet():
+    for link_type, micro_second, link_packet in produce_packet:
         parse_link_layer = LinkLayer.get_link_layer_parser(link_type)
         if parse_link_layer is None:
             # skip unknown link layer packet

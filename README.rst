@@ -3,10 +3,12 @@
 Httpcap (Former name pcap-parser)
 ---------------------------------
 
-Parse and display HTTP traffics. Python 2.7.\* or Python 3.3+ required.
+Capture, parse and display HTTP traffics. Python 2.7.\* or Python 3.3+
+required.
 
-This module parses pcap/pcapng files, retrieves HTTP data, and shows as
-text. Pcap files can be obtained via tcpdump, wireshark or other similar
+This module parses pcap/pcapng files, or capture traffics from
+device(with libpcap), then retrieves HTTP data, and display as text.
+Pcap files can be obtained via tcpdump, wireshark or other similar
 tools.
 
 Features:
@@ -26,8 +28,15 @@ This module can be installed via pip:
 
     pip install httpcap
 
-Parse Pcap File
-~~~~~~~~~~~~~~~
+THen you should have tools parse-pcap and parse-live installed \* For
+parsing pcap file, use parse-pcap \* For capturing and parsing traffic
+from net work device, use parse-live
+
+Usage
+~~~~~
+
+Following take parse-pcap as example. parse-live works exactly same as
+parse-pcap, just change file name to device name.
 
 Use tcpdump to capture packets:
 
