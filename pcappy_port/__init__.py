@@ -92,7 +92,10 @@ class PcapPyInterface(object):
         return self._flags
 
     def _parsemac(self, mac):
-        return b':'.join([hexlify(i).zfill(2) for i in mac])
+        if six.PY2:
+            return b':'.join([hexlify(i).zfill(2) for i in mac])
+        else:
+            return b':'.join([hexlify(bytes([i])).zfill(2) for i in mac])
 
     def _parseaddrs(self, sa):
 
