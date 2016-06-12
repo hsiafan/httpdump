@@ -6,7 +6,7 @@ from collections import defaultdict
 import six
 from six.moves import queue
 
-from httpcap import utils
+from httpcap import content_utils
 from httpcap.constant import HttpType, Compress
 from httpcap.reader import DataReader
 from httpcap import config
@@ -90,7 +90,7 @@ class HttpParser(object):
         """
         Called when receive first packet. do init jobs
         """
-        if not utils.is_request(data) or http_type != HttpType.REQUEST:
+        if not content_utils.is_request(data) or http_type != HttpType.REQUEST:
             # not a http request
             self.is_http = False
         else:
@@ -243,7 +243,7 @@ class HttpParserWorker(threading.Thread):
                 break
             lines.append(line)
 
-            key, value = utils.parse_http_header(line)
+            key, value = content_utils.parse_http_header(line)
             if key is None:
                 # incorrect headers.
                 continue
@@ -257,7 +257,7 @@ class HttpParserWorker(threading.Thread):
         if line is None:
             return None
         line = line.strip()
-        if not utils.is_request(line):
+        if not content_utils.is_request(line):
             return None
 
         req_header = HttpRequestHeader()
@@ -274,7 +274,7 @@ class HttpParserWorker(threading.Thread):
         if b"transfer-encoding" in header_dict and b'chunked' in header_dict[b"transfer-encoding"]:
             req_header.chunked = True
         req_header.content_type = header_dict[b'content-type']
-        req_header.compress = utils.get_compress_type(header_dict[b"content-encoding"])
+        req_header.compress = content_utils.get_compress_type(header_dict[b"content-encoding"])
         req_header.host = header_dict[b"host"]
         if b'expect' in header_dict:
             # we only deal with 100-continue now...
@@ -291,7 +291,7 @@ class HttpParserWorker(threading.Thread):
             return line
         line = line.strip()
 
-        if not utils.is_response(line):
+        if not content_utils.is_response(line):
             return None
         resp_header = HttpResponseHeader()
         resp_header.status_line = line
@@ -307,7 +307,7 @@ class HttpParserWorker(threading.Thread):
         if b"transfer-encoding" in header_dict and b'chunked' in header_dict[b"transfer-encoding"]:
             resp_header.chunked = True
         resp_header.content_type = header_dict[b'content-type']
-        resp_header.compress == utils.get_compress_type(header_dict[b"content-encoding"])
+        resp_header.compress == content_utils.get_compress_type(header_dict[b"content-encoding"])
         resp_header.connection_close = (header_dict[b'connection'] == b'close')
         resp_header.raw_data = b'\n'.join(lines)
         return resp_header

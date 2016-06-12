@@ -3,7 +3,7 @@ from __future__ import unicode_literals, print_function, division
 from httpcap.constant import HttpType
 from httpcap.httpparser import HttpParser
 from httpcap.printer import HttpPrinter
-from httpcap.utils import is_request
+from httpcap.content_utils import is_request
 
 # assemble http packets
 

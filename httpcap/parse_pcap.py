@@ -7,7 +7,7 @@ from collections import OrderedDict
 from httpcap import cleanups
 from httpcap import config
 from httpcap import packet_parser
-from httpcap import pcap, pcapng, utils
+from httpcap import pcap, pcapng, content_utils
 from httpcap.constant import FileFormat
 from httpcap.tcp_assembly import TcpConnection
 
@@ -80,7 +80,7 @@ def run_parser(produce_packet):
         # begin tcp connection.
         elif tcp_pac.syn and not tcp_pac.ack:
             conn_dict[key] = TcpConnection(tcp_pac)
-        elif utils.is_request(tcp_pac.body):
+        elif content_utils.is_request(tcp_pac.body):
             # tcp init before capture, we start from a possible http request header.
             conn_dict[key] = TcpConnection(tcp_pac)
 

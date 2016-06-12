@@ -5,11 +5,12 @@ import sys
 
 from httpcap.config import OutputLevel
 # print http req/resp
-from httpcap import utils
+from httpcap import content_utils
 from httpcap import config
 import threading
 import six
 from httpcap.constant import Compress
+from httpcap.content_utils import Mime
 
 _printer_lock = threading.Lock()
 
@@ -42,7 +43,7 @@ class HttpPrinter(object):
             self._println(req_header.raw_data)
             self._println()
 
-            mime, charset = utils.parse_content_type(req_header.content_type)
+            mime, charset = content_utils.parse_content_type(req_header.content_type)
             # usually charset is not set in http post
             output_body = self._if_output(mime)
             if self.parse_config.encoding and not charset:
@@ -50,7 +51,7 @@ class HttpPrinter(object):
             if req_header.compress == Compress.IDENTITY:
                 # if is gzip by content magic header
                 # someone missed the content-encoding header
-                if utils.gzipped(req_body):
+                if content_utils.gzipped(req_body):
                     req_header.compress = Compress.GZIP
             if output_body:
                 self._print_body(req_body, req_header.compress, mime, charset)
@@ -70,7 +71,7 @@ class HttpPrinter(object):
             self._println(resp_header.raw_data)
             self._println()
 
-            mime, charset = utils.parse_content_type(resp_header.content_type)
+            mime, charset = content_utils.parse_content_type(resp_header.content_type)
             # usually charset is not set in http post
             output_body = self._if_output(mime)
             if self.parse_config.encoding and not charset:
@@ -78,7 +79,7 @@ class HttpPrinter(object):
             if resp_header.compress == Compress.IDENTITY:
                 # if is gzip by content magic header
                 # someone missed the content-encoding header
-                if utils.gzipped(resp_body):
+                if content_utils.gzipped(resp_body):
                     resp_header.compress = Compress.GZIP
             if output_body:
                 self._print_body(resp_body, resp_header.compress, mime, charset)
@@ -116,8 +117,18 @@ class HttpPrinter(object):
             _printer_lock.release()
 
     def _if_output(self, mime):
-        return self.parse_config.level >= OutputLevel.ALL_BODY and not utils.is_binary(mime) \
-               or self.parse_config.level >= OutputLevel.TEXT_BODY and utils.is_text(mime)
+        """
+        :type mime: httpcap.content_utils.Mime
+        """
+        if mime is None:
+            # unknown
+            return self.parse_config.level >= OutputLevel.ALL_BODY
+        elif mime.is_text():
+            return self.parse_config.level >= OutputLevel.TEXT_BODY
+        elif not mime.is_binary():
+            return self.parse_config.level >= OutputLevel.ALL_BODY
+        else:
+            return False
 
     def _println(self, line=''):
         if isinstance(line, six.binary_type):
@@ -130,25 +141,29 @@ class HttpPrinter(object):
             self._println(line)
 
     def _print_body(self, body, compress, mime, charset):
+        """
+        :type mime: httpcap.content_utils.Mime
+        """
         if compress == Compress.GZIP:
-            body = utils.ungzip(body)
+            body = content_utils.ungzip(body)
         elif compress == Compress.DEFLATE:
-            body = utils.decode_deflate(body)
+            body = content_utils.decode_deflate(body)
 
-        content = utils.decode_body(body, charset)
+        content = content_utils.decode_body(body, charset)
         if content:
-            if not mime:
+            if mime is None:
                 # guess mime...
                 if content.startswith('{') and content.endswith('}') or content.startswith('[') \
                         and content.endswith(']'):
-                    mime = b'application/json'
+                    # just try...
+                    mime = Mime(b'application/json')
             if mime is None:
-                mime = b''
+                mime = Mime(b'')
             if self.parse_config.pretty:
-                if b'json' in mime:
-                    utils.try_print_json(content, self.buf)
-                elif b'www-form-urlencoded' in mime:
-                    utils.try_decoded_print(content, self.buf)
+                if mime.sub_type == b'json':
+                    content_utils.try_print_json(content, self.buf)
+                elif mime.sub_type == b"www-form-urlencoded":
+                    content_utils.try_decoded_print(content, self.buf)
                 else:
                     self.buf.write(content)
             else:

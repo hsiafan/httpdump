@@ -11,18 +11,51 @@ import gzip
 
 
 class Mime(object):
+    _text_types = {b"text"}
+    _text_sub_types = {
+        b"html", b"xml", b"json", b"www-form-urlencoded",
+        b"javascript", b"postscript", b"atomcat+xml", b"atomsvc+xml", b"atom+xml",
+        b"xml-dtd", b"ecmascript", b"java-jnlp-file", b"latex", b"mpegurl", b"rdf+xml",
+        b"rtf", b"rss+xml", b"svg+xml", b"uri-list", b"wsdl+xml", b"xhtml+xml", b"xslt+xml",
+        b"ns-proxy-autoconfig", b"javascript-config",
+    }
+    _binary_types = {b"image", b"audio", b"video"}
+    _binary_sub_types = {
+        b"7z-compressed", b"abiword", b"ace-compressed",
+        b"shockwave-flash", b"pdf", b"director", b"bzip", b"bzip2", b"debian-package",
+        b"epub+zip", b"font-ghostscript", b"font-bdf", b"java-archive", b"java-vm",
+        b"java-serialized-object", b"msaccess", b"msdownload", b"ms-application", b"ms-fontobject",
+        b"ms-excel", b"openxmlformats-officedocument", b"msbinder", b"ms-officetheme", b"onenote",
+        b"ms-powerpoint", b"ms-project", b"mspublisher", b"msschedule", b"silverlight-app", b"visio",
+        b"ms-wmd", b"ms-htmlhelp", b"msword", b"ms-works", b"oda", b"ogg", b"oasis", b"sun",
+        b"font-otf", b"x-font-ttf", b"unity", b"zip", b"x509-ca-cert", b"octet-stream",
+        b"png", b"ppt", b"xls",
+    }
+
     def __init__(self, mime_str):
-        if not mime_str:
-            self.top_level = None
-            self.subtype = None
-            return
         idx = mime_str.find(b'/')
         if idx < 0:
-            self.top_level = mime_str
-            self.subtype = None
-            return
-        self.top_level = mime_str[:idx]
-        self.subtype = mime_str[idx + 1:]
+            self.main_type = mime_str
+            self.sub_type = b''
+        else:
+            self.main_type = mime_str[:idx]
+            sub_type = mime_str[idx + 1:]
+            if sub_type.startswith(b'x-'):
+                sub_type = sub_type[2:]
+            if sub_type.startswith(b'vnd.'):
+                sub_type = sub_type[4:]
+            idx2 = sub_type.find(b'.')
+            if idx2 > 0:
+                sub_type = sub_type[:idx2]
+            self.sub_type = sub_type
+
+    # if is text type mime
+    def is_text(self):
+        return self.main_type in Mime._text_types or self.sub_type in Mime._text_sub_types
+
+    # if is binary type mime
+    def is_binary(self):
+        return self.main_type in Mime._binary_sub_types or self.sub_type in Mime._binary_sub_types
 
 
 def try_print_json(text, output_file):
@@ -114,12 +147,13 @@ def is_response(body):
 
 
 def parse_content_type(content_type):
+    """parse content-type header, return mime and charset"""
     if not content_type:
         return None, None
     idx = content_type.find(b';')
     if idx < 0:
         idx = len(content_type)
-    mime = content_type[0:idx]
+    mime = content_type[0:idx].strip().lower()
     encoding = content_type[idx + 1:]
     if len(encoding) > 0:
         eidx = encoding.find(b'=')
@@ -127,29 +161,7 @@ def parse_content_type(content_type):
             encoding = encoding[eidx + 1:]
         else:
             encoding = b''
-    return mime.strip().lower(), encoding.strip().lower()
-
-
-_text_mime_top_levels = {b'text'}
-_text_mime_subtypes = {
-    b'html', b'xml', b'json', b'javascript', b'ecmascript', b'atom+xml',
-    b'rss+xml', b'xhtml+xml', b'rdf+xml', b'x-www-form-urlencoded'
-}
-
-
-def is_text(mime_str):
-    mime = Mime(mime_str)
-    return mime.top_level in _text_mime_top_levels or mime.subtype in _text_mime_subtypes
-
-
-_binary_mime_top_levels = {b'audio', b'image', b'video'}
-_binary_mime_subtypes = {b'octet-stream', b'pdf', b'postscript', b'zip', b'gzip',
-                         b'x-shockwave-flash', b'oct-stream'}
-
-
-def is_binary(mime_str):
-    mime = Mime(mime_str)
-    return mime.top_level in _binary_mime_top_levels or mime.subtype in _binary_mime_subtypes
+    return Mime(mime), encoding.strip().lower()
 
 
 def decode_body(content, charset):
