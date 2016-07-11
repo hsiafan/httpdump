@@ -131,4 +131,4 @@ def parse_(source):
 
 
 if __name__ == "__main__":
-    parse_pcap()
+    parse_live()

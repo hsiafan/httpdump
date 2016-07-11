@@ -4,7 +4,6 @@ import threading
 from collections import defaultdict
 
 import six
-from six.moves import queue
 
 from httpcap import content_utils
 from httpcap.constant import HttpType, Compress
