@@ -55,6 +55,7 @@ def parse_(source):
     parser.add_argument("-o", "--output", help="output to file instead of stdout")
     parser.add_argument("-e", "--encoding", help="decode the data use specified encodings.")
     parser.add_argument("-b", "--beauty", help="output json in a pretty way.", action="store_true")
+    parser.add_argument("-f", "--force", help="for to try output as json(ignore Content-Type text).", action="store_true")
     parser.add_argument("-d", "--domain", help="filter http data by request domain")
     parser.add_argument("-u", "--uri", help="filter http data by request uri pattern")
 
@@ -83,6 +84,7 @@ def parse_(source):
     if args.encoding:
         parse_config.encoding = args.encoding
     parse_config.pretty = args.beauty
+    parse_config.force = args.force
     parse_config.group = args.group
 
     if args.output:

@@ -160,7 +160,7 @@ class HttpPrinter(object):
             if mime is None:
                 mime = Mime(b'')
             if self.parse_config.pretty:
-                if mime.sub_type == b'json':
+                if mime.sub_type == b'json' or self.parse_config.force:
                     content_utils.try_print_json(content, self.buf)
                 elif mime.sub_type == b"www-form-urlencoded":
                     content_utils.try_decoded_print(content, self.buf)

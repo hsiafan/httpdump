@@ -16,6 +16,7 @@ class ParseConfig(object):
     def __init__(self):
         self.level = OutputLevel.ONLY_URL
         self.pretty = False
+        self.force = False
         self.encoding = None
         self.group = False
 
