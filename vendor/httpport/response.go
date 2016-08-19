@@ -15,7 +15,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"github.com/caoqianli/httpparse/textprotoport"
+	"textprotoport"
 )
 
 var respExcludeHeader = map[string]bool{

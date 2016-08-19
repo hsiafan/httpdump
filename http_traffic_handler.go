@@ -10,7 +10,7 @@ import (
 	"io"
 	"fmt"
 	"bytes"
-	"github.com/caoqianli/httpparse/httpport"
+	"httpport"
 	"io/ioutil"
 	"strings"
 	"encoding/json"
