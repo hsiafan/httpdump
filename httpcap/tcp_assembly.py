@@ -1,9 +1,9 @@
 from __future__ import unicode_literals, print_function, division
 
 from httpcap.constant import HttpType
+from httpcap.content_utils import is_request
 from httpcap.httpparser import HttpParser
 from httpcap.printer import HttpPrinter
-from httpcap.content_utils import is_request
 
 # assemble http packets
 
@@ -127,3 +127,4 @@ class TcpConnection(object):
 
     def finish(self):
         self.http_parser.finish()
+        self.processor.finish()

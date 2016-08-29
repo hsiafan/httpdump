@@ -110,6 +110,7 @@ class HttpParser(object):
             self.request_reader.send_finish()
         if self.response_reader:
             self.response_reader.send_finish()
+        
 
 
 class HttpParserWorker(threading.Thread):

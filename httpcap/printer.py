@@ -45,7 +45,7 @@ class HttpPrinter(object):
 
             mime, charset = content_utils.parse_content_type(req_header.content_type)
             # usually charset is not set in http post
-            output_body = self._if_output(mime)
+            output_body = self._if_output_body(mime)
             if self.parse_config.encoding and not charset:
                 charset = self.parse_config.encoding
             if req_header.compress == Compress.IDENTITY:
@@ -73,7 +73,7 @@ class HttpPrinter(object):
 
             mime, charset = content_utils.parse_content_type(resp_header.content_type)
             # usually charset is not set in http post
-            output_body = self._if_output(mime)
+            output_body = self._if_output_body(mime)
             if self.parse_config.encoding and not charset:
                 charset = self.parse_config.encoding
             if resp_header.compress == Compress.IDENTITY:
@@ -96,6 +96,7 @@ class HttpPrinter(object):
         _printer_lock.acquire()
         try:
             value = self.buf.getvalue()
+            # create new stringIO is faster for python now
             self.buf = StringIO()
             if value:
                 print("[%s:%d] -- -- --> [%s:%d] " % (self.client_host[0], self.client_host[1],
@@ -116,7 +117,7 @@ class HttpPrinter(object):
         finally:
             _printer_lock.release()
 
-    def _if_output(self, mime):
+    def _if_output_body(self, mime):
         """
         :type mime: httpcap.content_utils.Mime
         """

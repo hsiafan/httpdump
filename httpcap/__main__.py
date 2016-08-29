@@ -25,19 +25,19 @@ signal.signal(signal.SIGINT, signal_handler)
 
 def parse_pcap():
     try:
-        parse_("file")
+        do_parse("file")
     finally:
         cleanups.cleanup()
 
 
 def parse_live():
     try:
-        parse_("device")
+        do_parse("device")
     finally:
         cleanups.cleanup()
 
 
-def parse_(source):
+def do_parse(source):
     parser = argparse.ArgumentParser()
     if source == 'file':
         parser.add_argument("infile", nargs='?', default='-',
@@ -131,4 +131,4 @@ def parse_(source):
 
 
 if __name__ == "__main__":
-    parse_live()
+    parse_pcap()
