@@ -175,6 +175,7 @@ class HttpParserWorker(threading.Thread):
         _filter = config.get_filter()
         show = all([_filter.by_domain(req_header.host),
                     _filter.by_method(req_header.method),
+                    _filter.by_keyword(content),
                     _filter.by_uri(req_header.uri)])
         context.filtered = not show
         if show:
