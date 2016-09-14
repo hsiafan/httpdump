@@ -49,6 +49,13 @@ class Filter(object):
     def by_uri(self, uri):
         return not self.uri_pattern or self.uri_pattern in uri
 
+    def by_method(self, method):
+        return not self.method or self.method.lower() == method.lower()
+
+    def by_keyword(self, content):
+        return not self.keyword or self.keyword in content
+
+
 _filter = Filter()
 
 

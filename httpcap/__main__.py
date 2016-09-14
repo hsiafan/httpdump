@@ -57,6 +57,8 @@ def do_parse(source):
     parser.add_argument("-b", "--beauty", help="output json in a pretty way.", action="store_true")
     parser.add_argument("-d", "--domain", help="filter http data by request domain")
     parser.add_argument("-u", "--uri", help="filter http data by request uri pattern")
+    parser.add_argument("-m", "--method", help="filter http data by request method")
+    parser.add_argument("-k", "--keyword", help="filter http data by body content")
 
     args = parser.parse_args()
 
@@ -69,6 +71,8 @@ def do_parse(source):
     _filter.uri_pattern = args.uri
     if isinstance(_filter.uri_pattern, six.text_type):
         _filter.uri_pattern = _filter.uri_pattern.encode()
+    _filter.method = args.method
+    _filter.keyword = args.keyword
 
     filter_exp = 'tcp'
     if args.port:
