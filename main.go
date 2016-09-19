@@ -1,18 +1,19 @@
 package main
 
 import (
+	"errors"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"runtime"
+	"strings"
+	"time"
+
 	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"github.com/google/gopacket/tcpassembly"
-	"time"
-	"flag"
-	"github.com/google/gopacket/layers"
-	"strings"
-	"log"
-	"fmt"
-	"os"
-	"errors"
-	"runtime"
 )
 
 func openFile(pcapFile string) *pcap.Handle {
@@ -34,7 +35,7 @@ func openDevice(device string) *pcap.Handle {
 // user config for http traffics
 type config struct {
 	level      string
-	filterIp   string
+	filterIP   string
 	filterPort string
 	force      bool
 	pretty     bool
@@ -46,7 +47,7 @@ func parseFilter(filter string) (ip string, port string) {
 	if idx < 0 {
 		return filter, ""
 	}
-	return filter[:idx], filter[idx + 1:]
+	return filter[:idx], filter[idx+1:]
 }
 
 func listenOneSource(handle *pcap.Handle) chan gopacket.Packet {
@@ -55,13 +56,13 @@ func listenOneSource(handle *pcap.Handle) chan gopacket.Packet {
 	return packets
 }
 
-func setDeviceFilter(handle *pcap.Handle, filterIp string, filterPort string) {
+func setDeviceFilter(handle *pcap.Handle, filterIP string, filterPort string) {
 	var bpfFilter = "tcp"
 	if filterPort != "" {
 		bpfFilter += " port " + filterPort
 	}
-	if filterIp != "" {
-		bpfFilter += " ip host " + filterIp
+	if filterIP != "" {
+		bpfFilter += " ip host " + filterIP
 	}
 	var err = handle.SetBPFFilter(bpfFilter)
 	if err != nil {
@@ -82,7 +83,7 @@ func mergeChannel(channels []chan gopacket.Packet) chan gopacket.Packet {
 	return channel
 }
 
-func openSingleDevice(device string, filterIp string, filterPort string) (localPackets chan gopacket.Packet, err error) {
+func openSingleDevice(device string, filterIP string, filterPort string) (localPackets chan gopacket.Packet, err error) {
 	defer func() {
 		if msg := recover(); msg != nil {
 			switch x := msg.(type) {
@@ -97,7 +98,7 @@ func openSingleDevice(device string, filterIp string, filterPort string) (localP
 		}
 	}()
 	var handle = openDevice(device)
-	setDeviceFilter(handle, filterIp, filterPort)
+	setDeviceFilter(handle, filterIP, filterPort)
 	localPackets = listenOneSource(handle)
 	return
 }
@@ -112,14 +113,14 @@ func main() {
 	var pretty = flagSet.Bool("pretty", false, "Try to pretify json output")
 	flagSet.Parse(os.Args[1:])
 
-	filterIp, filterPort := parseFilter(*filter)
+	filterIP, filterPort := parseFilter(*filter)
 
 	var config = &config{
-		level:*level,
-		filterIp:filterIp,
-		filterPort:filterPort,
-		force:*force,
-		pretty:*pretty,
+		level:      *level,
+		filterIP:   filterIP,
+		filterPort: filterPort,
+		force:      *force,
+		pretty:     *pretty,
 	}
 
 	var packets chan gopacket.Packet
@@ -127,7 +128,7 @@ func main() {
 		// read from pcap file
 		var handle = openFile(*filePath)
 		packets = listenOneSource(handle)
-	} else if (*device == "any" && runtime.GOOS != "linux") {
+	} else if *device == "any" && runtime.GOOS != "linux" {
 		// capture all device
 		// Only linux 2.2+ support any interface. we have to list all network device and listened on them all
 		interfaces, err := pcap.FindAllDevs()
@@ -136,7 +137,7 @@ func main() {
 		}
 		var packetsSlice = make([]chan gopacket.Packet, len(interfaces))
 		for _, itf := range interfaces {
-			localPackets, err := openSingleDevice(itf.Name, filterIp, filterPort)
+			localPackets, err := openSingleDevice(itf.Name, filterIP, filterPort)
 			if err != nil {
 				fmt.Fprint(os.Stderr, "Open device", device, "error:", err)
 				continue
@@ -147,7 +148,7 @@ func main() {
 	} else if *device != "" {
 		// capture one device
 		var err error
-		packets, err = openSingleDevice(*device, filterIp, filterPort);
+		packets, err = openSingleDevice(*device, filterIP, filterPort)
 		if err != nil {
 			log.Fatal("Listen on device", *device, "failed, error:", err)
 		}
@@ -156,20 +157,20 @@ func main() {
 	}
 
 	var streamPool = tcpassembly.NewStreamPool(&httpStreamFactory{
-		config:config,
-		printer:newPrinter(),
+		config:  config,
+		printer: newPrinter(),
 	})
 	var assembler = tcpassembly.NewAssembler(streamPool)
 	var ticker = time.Tick(time.Second * 30)
 	for {
 		select {
 		case packet := <-packets:
-		// A nil packet indicates the end of a pcap file.
+			// A nil packet indicates the end of a pcap file.
 			if packet == nil {
 				return
 			}
 			if packet.NetworkLayer() == nil || packet.TransportLayer() == nil ||
-			packet.TransportLayer().LayerType() != layers.LayerTypeTCP {
+				packet.TransportLayer().LayerType() != layers.LayerTypeTCP {
 				continue
 			}
 			var tcp = packet.TransportLayer().(*layers.TCP)
@@ -177,7 +178,7 @@ func main() {
 			assembler.AssembleWithTimestamp(packet.NetworkLayer().NetworkFlow(), tcp, packet.Metadata().Timestamp)
 
 		case <-ticker:
-		// flush connections that haven't seen activity in the past 2 minutes.
+			// flush connections that haven't seen activity in the past 2 minutes.
 			assembler.FlushOlderThan(time.Now().Add(time.Minute * -2))
 		}
 	}

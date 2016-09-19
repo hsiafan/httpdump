@@ -14,7 +14,7 @@ type printer struct {
 var maxOutputQueueLen = 256
 
 func newPrinter() *printer {
-	printer := &printer{outputQueue:make(chan string, maxOutputQueueLen), outputFile:os.Stdin}
+	printer := &printer{outputQueue: make(chan string, maxOutputQueueLen), outputFile: os.Stdin}
 	printer.start()
 	return printer
 }
