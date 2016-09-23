@@ -21,6 +21,8 @@ type TcpAssembler struct {
 	connectionDict    map[string]*TcpConnection
 	lock              sync.Mutex
 	connectionHandler ConnectionHandler
+	filterIp          string
+	filterPort        uint16
 }
 
 func newTcpAssembler(connectionHandler ConnectionHandler) *TcpAssembler {
@@ -30,6 +32,21 @@ func newTcpAssembler(connectionHandler ConnectionHandler) *TcpAssembler {
 func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time) {
 	src := EndPoint{ip:flow.Src().String(), port:uint16(tcp.SrcPort)}
 	dst := EndPoint{ip:flow.Dst().String(), port:uint16(tcp.DstPort)}
+	dropped := false
+	if assembler.filterIp != "" {
+		if src.ip != assembler.filterIp && dst.ip != assembler.filterIp {
+			dropped = true
+		}
+	}
+	if assembler.filterPort != 0 {
+		if src.port != assembler.filterPort && dst.port != assembler.filterPort {
+			dropped = true
+		}
+	}
+	if dropped {
+		return
+	}
+
 	srcString := src.String()
 	dstString := dst.String()
 	var key string
@@ -38,8 +55,8 @@ func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, tim
 	} else {
 		key = dstString + "-" + srcString
 	}
-
 	connection := assembler.newConnection(src, dst, key)
+
 	connection.onReceive(src, dst, tcp, timestamp)
 
 	if connection.closed() {

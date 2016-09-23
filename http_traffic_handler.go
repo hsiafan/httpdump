@@ -25,16 +25,6 @@ func (ck *ConnectionKey) reverse() ConnectionKey {
 	return ConnectionKey{ck.dst, ck.src}
 }
 
-// if ip match this connection
-func (ck *ConnectionKey) ipMatched(ip string) bool {
-	return ck.src.ip == ip || ck.dst.ip == ip
-}
-
-// if port match this connection
-func (ck *ConnectionKey) portMatched(port uint16) bool {
-	return ck.src.port == port || ck.dst.port == port
-}
-
 // return the src ip and port
 func (ck *ConnectionKey) srcString() string {
 	return ck.src.String()
@@ -80,57 +70,57 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 	defer connection.upStream.Close()
 	defer connection.downStream.Close()
 	// filter by args setting
-	droped := false
-	if th.config.filterIP != "" {
-		if !th.key.ipMatched(th.config.filterIP) {
-			droped = true
-		}
-	}
-	if th.config.filterPort != 0 {
-		if !th.key.portMatched(th.config.filterPort) {
-			droped = true
-		}
-	}
-
-	if droped {
-		tcpreader.DiscardBytesToEOF(connection.upStream)
-		tcpreader.DiscardBytesToEOF(connection.downStream)
-		return
-	}
 
 	requestReader := bufio.NewReader(connection.upStream)
 	responseReader := bufio.NewReader(connection.downStream)
 	for {
 		th.buffer = new(bytes.Buffer)
+		filtered := false
 		req, err := httpport.ReadRequest(requestReader)
 		if err == io.EOF {
-			//return
-		} else if err != nil {
+			break
+		}
+		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests:", err)
 			tcpreader.DiscardBytesToEOF(requestReader)
 			break
-		} else {
+		}
+		if th.config.domain != "" && !strings.HasSuffix(req.Host, th.config.domain) {
+			filtered = true
+		}
+		if th.config.urlPath != "" && !strings.Contains(req.RequestURI, th.config.urlPath) {
+			filtered = true
+		}
+		if !filtered {
 			th.printRequest(req)
+			th.writeLine("")
+		} else {
+			tcpreader.DiscardBytesToEOF(req.Body)
 		}
 
-		th.writeLine("")
 		resp, err := httpport.ReadResponse(responseReader, nil)
 		if err == io.EOF {
-			return
-		} else if err == io.ErrUnexpectedEOF {
+			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests: unexpected end, ", err)
+			break
+		}
+		if err == io.ErrUnexpectedEOF {
+			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests: unexpected end, ", err)
 			// here return directly too, to avoid error when long polling connection is used
-			return
-		} else if err != nil {
+			break
+		}
+		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err)
 			tcpreader.DiscardBytesToEOF(responseReader)
 			break
-		} else {
-			th.printResponse(resp)
 		}
-		th.printer.send(th.buffer.String())
+		if !filtered {
+			th.printResponse(resp)
+			th.printer.send(th.buffer.String())
+		} else {
+			tcpreader.DiscardBytesToEOF(resp.Body)
+		}
 	}
 	th.printer.send(th.buffer.String())
-
 }
 
 func (th *HttpTrafficHandler) writeLine(a ...interface{}) {

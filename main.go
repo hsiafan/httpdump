@@ -15,8 +15,6 @@ import (
 	"github.com/google/gopacket/pcap"
 	"strconv"
 	"sync"
-	_ "net/http/pprof"
-	"net/http"
 )
 
 var waitGroup sync.WaitGroup
@@ -43,6 +41,8 @@ type Config struct {
 	level      string
 	filterIP   string
 	filterPort uint16
+	domain     string
+	urlPath    string
 	force      bool
 	pretty     bool
 }
@@ -121,6 +121,8 @@ func main() {
 	var filePath = flagSet.String("file", "", "Read from pcap file. If not specified, will capture from network devices")
 	var device = flagSet.String("device", "any", "Which network interface to capture. If any, capture all interface traffics")
 	var filter = flagSet.String("filter", "", "Filter by ip/port, format: [ip][:port], eg: 192.168.122.46:50792, 192.168.122.46, :50792")
+	var domain = flagSet.String("domain", "", "Filter by request domain, suffix match")
+	var urlPath = flagSet.String("urlPath", "", "Filter by request url path, contains match")
 	var force = flagSet.Bool("force", false, "Force print unknown content-type http body even if it seems not to be text content")
 	var pretty = flagSet.Bool("pretty", false, "Try to pretify json output")
 	flagSet.Parse(os.Args[1:])
@@ -131,6 +133,8 @@ func main() {
 		level:      *level,
 		filterIP:   filterIP,
 		filterPort: filterPort,
+		domain:     *domain,
+		urlPath:    *urlPath,
 		force:      *force,
 		pretty:     *pretty,
 	}
@@ -173,6 +177,8 @@ func main() {
 		printer: newPrinter(),
 	}
 	var assembler = newTcpAssembler(handler)
+	assembler.filterIp = filterIP
+	assembler.filterPort = filterPort
 	var ticker = time.Tick(time.Second * 30)
 
 	outer:
@@ -198,10 +204,6 @@ func main() {
 			assembler.flushOlderThan(time.Now().Add(time.Minute * -2))
 		}
 	}
-
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
 
 	assembler.finishAll()
 	waitGroup.Wait()
