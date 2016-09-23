@@ -1,4 +1,4 @@
-![License](https://img.shields.io/badge/licence-Simplified%20BSD-blue.svg?style=flat)
+There is one more efficient go version impl [httpparse](https://github.com/caoqianli/httpparse) now. This project is no longer mantained.
 
 ## Httpcap (Former name pcap-parser)
 Capture, parse and display HTTP traffics. Python 2.7.* or Python 3.3+ required.
