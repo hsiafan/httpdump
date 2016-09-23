@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"compress/zlib"
@@ -12,68 +11,81 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/tcpassembly"
 	"github.com/google/gopacket/tcpassembly/tcpreader"
+	"bufio"
 )
 
-type connectionKey struct {
-	ipFlow  gopacket.Flow
-	tcpFlow gopacket.Flow
+type ConnectionKey struct {
+	src EndPoint
+	dst EndPoint
 }
 
-func (ck *connectionKey) reverse() connectionKey {
-	return connectionKey{ck.ipFlow.Reverse(), ck.tcpFlow.Reverse()}
+func (ck *ConnectionKey) reverse() ConnectionKey {
+	return ConnectionKey{ck.dst, ck.src}
 }
 
 // if ip match this connection
-func (ck *connectionKey) ipMatched(ip string) bool {
-	return ck.ipFlow.Src().String() == ip || ck.ipFlow.Dst().String() == ip
+func (ck *ConnectionKey) ipMatched(ip string) bool {
+	return ck.src.ip == ip || ck.dst.ip == ip
 }
 
 // if port match this connection
-func (ck *connectionKey) portMatched(port string) bool {
-	return ck.tcpFlow.Src().String() == port || ck.tcpFlow.Dst().String() == port
+func (ck *ConnectionKey) portMatched(port uint16) bool {
+	return ck.src.port == port || ck.dst.port == port
 }
 
-func (ck *connectionKey) src() string {
-	return ck.ipFlow.Src().String() + ":" + ck.tcpFlow.Src().String()
+// return the src ip and port
+func (ck *ConnectionKey) srcString() string {
+	return ck.src.String()
 }
 
-func (ck *connectionKey) dst() string {
-	return ck.ipFlow.Dst().String() + ":" + ck.tcpFlow.Dst().String()
+// return the dest ip and port
+func (ck *ConnectionKey) dstString() string {
+	return ck.dst.String()
 }
 
-// Create our StreamFactory
-type httpStreamFactory struct {
-	config  *config
-	printer *printer
+// Impl ConnectionHandler
+type HttpConnectionHandler struct {
+	config  *Config
+	printer *Printer
 }
 
-func (hsf *httpStreamFactory) New(f1, f2 gopacket.Flow) tcpassembly.Stream {
-	var ck = connectionKey{f1, f2}
-	r := tcpreader.NewReaderStream()
-
-	trafficHandler := &httpTrafficHandler{
+func (handler *HttpConnectionHandler) handle(src EndPoint, dst EndPoint, connection *TcpConnection) {
+	ck := ConnectionKey{src, dst}
+	trafficHandler := &HttpTrafficHandler{
 		key:     ck,
 		buffer:  new(bytes.Buffer),
-		config:  hsf.config,
-		printer: hsf.printer,
+		config:  handler.config,
+		printer: handler.printer,
 	}
-	go trafficHandler.handle(&r)
-	return &r
+	waitGroup.Add(1)
+	go trafficHandler.handle(connection.upStream, true)
+
+	trafficHandler = &HttpTrafficHandler{
+		key:     ck,
+		buffer:  new(bytes.Buffer),
+		config:  handler.config,
+		printer: handler.printer,
+	}
+	waitGroup.Add(1)
+	go trafficHandler.handle(connection.downStream, false)
 }
 
-type httpTrafficHandler struct {
-	key     connectionKey
+func (handler *HttpConnectionHandler) finish() {
+	//handler.printer.finish()
+}
+
+type HttpTrafficHandler struct {
+	key     ConnectionKey
 	buffer  *bytes.Buffer
-	config  *config
-	printer *printer
+	config  *Config
+	printer *Printer
 }
 
 // read http request/response stream, and do output
-func (th *httpTrafficHandler) handle(r io.ReadCloser) {
+func (th *HttpTrafficHandler) handle(r io.ReadCloser, isRequest bool) {
 	defer r.Close()
+	defer waitGroup.Done()
 	// filter by args setting
 	droped := false
 	if th.config.filterIP != "" {
@@ -81,7 +93,7 @@ func (th *httpTrafficHandler) handle(r io.ReadCloser) {
 			droped = true
 		}
 	}
-	if th.config.filterPort != "" {
+	if th.config.filterPort != 0 {
 		if !th.key.portMatched(th.config.filterPort) {
 			droped = true
 		}
@@ -92,45 +104,24 @@ func (th *httpTrafficHandler) handle(r io.ReadCloser) {
 		return
 	}
 
-	// read first 8 bytes, check if is http request/response
-	br := bufio.NewReader(r)
-	prefix, err := br.Peek(8)
-	if err != nil {
-		if err == io.ErrUnexpectedEOF {
-			tcpreader.DiscardBytesToEOF(r)
-			return
-		}
-		//fmt.Println("Read stream prefix error:", err)
-		tcpreader.DiscardBytesToEOF(r)
-		return
-	}
-
-	idx := bytes.IndexByte(prefix, 32)
-
 	th.buffer = new(bytes.Buffer)
-	if idx >= 3 {
-		method := string(prefix[:idx])
-		if method == "GET" || method == "POST" || method == "PUT" || method == "DELETE" || method == "PATCH" ||
-			method == "TRACE" || method == "OPTIONS" {
-			for {
-				if req, err := httpport.ReadRequest(br); err == io.EOF {
-					return
-				} else if err != nil {
-					th.printRequestMark()
-					th.writeLine("Error parsing HTTP requests:", err)
-					tcpreader.DiscardBytesToEOF(br)
-					break
-				} else {
-					th.printRequest(req)
-				}
-				th.printer.send(th.buffer.String())
-				th.buffer = new(bytes.Buffer)
+	br := bufio.NewReader(r)
+	if isRequest {
+		for {
+			if req, err := httpport.ReadRequest(br); err == io.EOF {
+				return
+			} else if err != nil {
+				th.printRequestMark()
+				th.writeLine("Error parsing HTTP requests:", err)
+				tcpreader.DiscardBytesToEOF(br)
+				break
+			} else {
+				th.printRequest(req)
 			}
-		} else {
-			tcpreader.DiscardBytesToEOF(br)
-			//log.Println("Unknown method:", method)
+			th.printer.send(th.buffer.String())
+			th.buffer = new(bytes.Buffer)
 		}
-	} else if string(prefix[:5]) == "HTTP/" {
+	} else {
 		for {
 			if resp, err := httpport.ReadResponse(br, nil); err == io.EOF {
 				return
@@ -148,29 +139,24 @@ func (th *httpTrafficHandler) handle(r io.ReadCloser) {
 			th.printer.send(th.buffer.String())
 			th.buffer = new(bytes.Buffer)
 		}
-	} else {
-		//hsf.printRequestMark()
-		//log.Print("Not http traffic")
-		tcpreader.DiscardBytesToEOF(br)
-		return
 	}
 	th.printer.send(th.buffer.String())
 }
 
-func (th *httpTrafficHandler) writeLine(a ...interface{}) {
+func (th *HttpTrafficHandler) writeLine(a ...interface{}) {
 	fmt.Fprintln(th.buffer, a...)
 }
 
-func (th *httpTrafficHandler) printRequestMark() {
+func (th *HttpTrafficHandler) printRequestMark() {
 	th.writeLine()
-	th.writeLine(th.key.src(), " -----> ", th.key.dst())
+	th.writeLine(th.key.srcString(), " -----> ", th.key.dstString())
 }
 
 // print http request
-func (th *httpTrafficHandler) printRequest(req *httpport.Request) {
+func (th *HttpTrafficHandler) printRequest(req *httpport.Request) {
 	if th.config.level == "url" {
 		tcpreader.DiscardBytesToEOF(req.Body)
-		th.writeLine(req.Method, "http://"+req.Host+req.RequestURI)
+		th.writeLine(req.Method, "http://" + req.Host + req.RequestURI)
 		return
 	}
 
@@ -182,7 +168,7 @@ func (th *httpTrafficHandler) printRequest(req *httpport.Request) {
 
 	var hasBody = true
 	if req.ContentLength == 0 || req.Method == "GET" || req.Method == "HEAD" || req.Method == "TRACE" ||
-		req.Method == "OPTIONS" {
+			req.Method == "OPTIONS" {
 		hasBody = false
 	}
 
@@ -198,13 +184,13 @@ func (th *httpTrafficHandler) printRequest(req *httpport.Request) {
 	th.printBody(hasBody, req.Header, req.Body)
 }
 
-func (th *httpTrafficHandler) printResponseMark() {
+func (th *HttpTrafficHandler) printResponseMark() {
 	th.writeLine()
-	th.writeLine(th.key.dst(), " <----- ", th.key.src())
+	th.writeLine(th.key.dstString(), " <----- ", th.key.srcString())
 }
 
 // print http response
-func (th *httpTrafficHandler) printResponse(resp *httpport.Response) {
+func (th *HttpTrafficHandler) printResponse(resp *httpport.Response) {
 	if th.config.level == "url" {
 		tcpreader.DiscardBytesToEOF(resp.Body)
 		return
@@ -234,7 +220,7 @@ func (th *httpTrafficHandler) printResponse(resp *httpport.Response) {
 }
 
 // print http request/response body
-func (th *httpTrafficHandler) printBody(hasBody bool, header httpport.Header, reader io.ReadCloser) {
+func (th *HttpTrafficHandler) printBody(hasBody bool, header httpport.Header, reader io.ReadCloser) {
 	defer reader.Close()
 
 	if !hasBody {
@@ -313,7 +299,7 @@ func (th *httpTrafficHandler) printBody(hasBody bool, header httpport.Header, re
 	th.writeLine()
 }
 
-func (th *httpTrafficHandler) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
+func (th *HttpTrafficHandler) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
 	if th.config.force && !isBinary {
 		data, err := ioutil.ReadAll(reader)
 		if err != nil {

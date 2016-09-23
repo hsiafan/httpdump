@@ -1,39 +1,45 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"os"
 )
 
-type printer struct {
+type Printer struct {
 	outputQueue chan string
 	outputFile  io.WriteCloser
 }
 
-var maxOutputQueueLen = 256
+var maxOutputQueueLen = 4096
 
-func newPrinter() *printer {
-	printer := &printer{outputQueue: make(chan string, maxOutputQueueLen), outputFile: os.Stdin}
+func newPrinter() *Printer {
+	printer := &Printer{outputQueue: make(chan string, maxOutputQueueLen), outputFile: os.Stdout}
 	printer.start()
 	return printer
 }
 
-func (printer *printer) send(msg string) {
+func (printer *Printer) send(msg string) {
 	if len(printer.outputQueue) == maxOutputQueueLen {
 		// skip this msg
+		os.Stderr.Write([]byte("message generate too fast, skipped!"))
 		return
 	}
 	printer.outputQueue <- msg
 }
 
-func (printer *printer) start() {
-	go printer.print()
+func (printer *Printer) start() {
+	printerWaitGroup.Add(1)
+	go printer.printBackground()
 }
 
-func (printer *printer) print() {
+func (printer *Printer) printBackground() {
+	defer printerWaitGroup.Done()
+	defer printer.outputFile.Close()
 	for msg := range printer.outputQueue {
-		fmt.Println(msg)
+		printer.outputFile.Write([]byte(msg))
 	}
-	printer.outputFile.Close()
+}
+
+func (printer *Printer) finish() {
+	close(printer.outputQueue)
 }

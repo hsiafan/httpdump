@@ -727,6 +727,7 @@ func readRequest(b *bufio.Reader, deleteHostHeader bool) (req *Request, err erro
 	if s, err = tp.ReadLine(); err != nil {
 		return nil, err
 	}
+
 	defer func() {
 		putTextprotoReader(tp)
 		if err == io.EOF {

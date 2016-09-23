@@ -13,8 +13,14 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	"github.com/google/gopacket/tcpassembly"
+	"strconv"
+	"sync"
+	_ "net/http/pprof"
+	"net/http"
 )
+
+var waitGroup sync.WaitGroup
+var printerWaitGroup sync.WaitGroup
 
 func openFile(pcapFile string) *pcap.Handle {
 	handle, err := pcap.OpenOffline(pcapFile)
@@ -33,21 +39,26 @@ func openDevice(device string) *pcap.Handle {
 }
 
 // user config for http traffics
-type config struct {
+type Config struct {
 	level      string
 	filterIP   string
-	filterPort string
+	filterPort uint16
 	force      bool
 	pretty     bool
 }
 
-func parseFilter(filter string) (ip string, port string) {
+func parseFilter(filter string) (string, uint16) {
 	filter = strings.TrimSpace(filter)
 	idx := strings.Index(filter, ":")
 	if idx < 0 {
-		return filter, ""
+		return filter, 0
 	}
-	return filter[:idx], filter[idx+1:]
+	port, err := strconv.Atoi(filter[idx + 1:])
+	if err != nil {
+		log.Fatalln("Not a port num: " + filter[idx + 1:])
+		return filter[:idx], 0
+	}
+	return filter[:idx], uint16(port)
 }
 
 func listenOneSource(handle *pcap.Handle) chan gopacket.Packet {
@@ -56,10 +67,11 @@ func listenOneSource(handle *pcap.Handle) chan gopacket.Packet {
 	return packets
 }
 
-func setDeviceFilter(handle *pcap.Handle, filterIP string, filterPort string) {
+// set packet capture filter, by ip and port
+func setDeviceFilter(handle *pcap.Handle, filterIP string, filterPort uint16) {
 	var bpfFilter = "tcp"
-	if filterPort != "" {
-		bpfFilter += " port " + filterPort
+	if filterPort != 0 {
+		bpfFilter += " port " + strconv.Itoa(int(filterPort))
 	}
 	if filterIP != "" {
 		bpfFilter += " ip host " + filterIP
@@ -83,7 +95,7 @@ func mergeChannel(channels []chan gopacket.Packet) chan gopacket.Packet {
 	return channel
 }
 
-func openSingleDevice(device string, filterIP string, filterPort string) (localPackets chan gopacket.Packet, err error) {
+func openSingleDevice(device string, filterIP string, filterPort uint16) (localPackets chan gopacket.Packet, err error) {
 	defer func() {
 		if msg := recover(); msg != nil {
 			switch x := msg.(type) {
@@ -115,7 +127,7 @@ func main() {
 
 	filterIP, filterPort := parseFilter(*filter)
 
-	var config = &config{
+	var config = &Config{
 		level:      *level,
 		filterIP:   filterIP,
 		filterPort: filterPort,
@@ -156,31 +168,43 @@ func main() {
 		log.Fatal("Empty device")
 	}
 
-	var streamPool = tcpassembly.NewStreamPool(&httpStreamFactory{
+	var handler = &HttpConnectionHandler{
 		config:  config,
 		printer: newPrinter(),
-	})
-	var assembler = tcpassembly.NewAssembler(streamPool)
+	}
+	var assembler = newTcpAssembler(handler)
 	var ticker = time.Tick(time.Second * 30)
+
+	outer:
 	for {
 		select {
 		case packet := <-packets:
-			// A nil packet indicates the end of a pcap file.
+		// A nil packet indicates the end of a pcap file.
 			if packet == nil {
-				return
+				break outer
 			}
+
+		// only assembly tcp/ip packets
 			if packet.NetworkLayer() == nil || packet.TransportLayer() == nil ||
-				packet.TransportLayer().LayerType() != layers.LayerTypeTCP {
+					packet.TransportLayer().LayerType() != layers.LayerTypeTCP {
 				continue
 			}
 			var tcp = packet.TransportLayer().(*layers.TCP)
 
-			assembler.AssembleWithTimestamp(packet.NetworkLayer().NetworkFlow(), tcp, packet.Metadata().Timestamp)
+			assembler.assemble(packet.NetworkLayer().NetworkFlow(), tcp, packet.Metadata().Timestamp)
 
 		case <-ticker:
-			// flush connections that haven't seen activity in the past 2 minutes.
-			assembler.FlushOlderThan(time.Now().Add(time.Minute * -2))
+		// flush connections that haven't seen activity in the past 2 minutes.
+			assembler.flushOlderThan(time.Now().Add(time.Minute * -2))
 		}
 	}
 
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
+	assembler.finishAll()
+	waitGroup.Wait()
+	handler.printer.finish()
+	printerWaitGroup.Wait()
 }
