@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/gopacket/tcpassembly/tcpreader"
 	"bufio"
+	"os"
 )
 
 type ConnectionKey struct {
@@ -59,16 +60,7 @@ func (handler *HttpConnectionHandler) handle(src EndPoint, dst EndPoint, connect
 		printer: handler.printer,
 	}
 	waitGroup.Add(1)
-	go trafficHandler.handle(connection.upStream, true)
-
-	trafficHandler = &HttpTrafficHandler{
-		key:     ck,
-		buffer:  new(bytes.Buffer),
-		config:  handler.config,
-		printer: handler.printer,
-	}
-	waitGroup.Add(1)
-	go trafficHandler.handle(connection.downStream, false)
+	go trafficHandler.handle(connection)
 }
 
 func (handler *HttpConnectionHandler) finish() {
@@ -83,9 +75,10 @@ type HttpTrafficHandler struct {
 }
 
 // read http request/response stream, and do output
-func (th *HttpTrafficHandler) handle(r io.ReadCloser, isRequest bool) {
-	defer r.Close()
+func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 	defer waitGroup.Done()
+	defer connection.upStream.Close()
+	defer connection.downStream.Close()
 	// filter by args setting
 	droped := false
 	if th.config.filterIP != "" {
@@ -100,47 +93,44 @@ func (th *HttpTrafficHandler) handle(r io.ReadCloser, isRequest bool) {
 	}
 
 	if droped {
-		tcpreader.DiscardBytesToEOF(r)
+		tcpreader.DiscardBytesToEOF(connection.upStream)
+		tcpreader.DiscardBytesToEOF(connection.downStream)
 		return
 	}
 
-	th.buffer = new(bytes.Buffer)
-	br := bufio.NewReader(r)
-	if isRequest {
-		for {
-			if req, err := httpport.ReadRequest(br); err == io.EOF {
-				return
-			} else if err != nil {
-				th.printRequestMark()
-				th.writeLine("Error parsing HTTP requests:", err)
-				tcpreader.DiscardBytesToEOF(br)
-				break
-			} else {
-				th.printRequest(req)
-			}
-			th.printer.send(th.buffer.String())
-			th.buffer = new(bytes.Buffer)
+	requestReader := bufio.NewReader(connection.upStream)
+	responseReader := bufio.NewReader(connection.downStream)
+	for {
+		th.buffer = new(bytes.Buffer)
+		req, err := httpport.ReadRequest(requestReader)
+		if err == io.EOF {
+			//return
+		} else if err != nil {
+			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests:", err)
+			tcpreader.DiscardBytesToEOF(requestReader)
+			break
+		} else {
+			th.printRequest(req)
 		}
-	} else {
-		for {
-			if resp, err := httpport.ReadResponse(br, nil); err == io.EOF {
-				return
-			} else if err == io.ErrUnexpectedEOF {
-				// here return directly too, to avoid error when long polling connection is used
-				return
-			} else if err != nil {
-				th.printResponseMark()
-				th.writeLine("Error parsing HTTP response:", err)
-				tcpreader.DiscardBytesToEOF(br)
-				break
-			} else {
-				th.printResponse(resp)
-			}
-			th.printer.send(th.buffer.String())
-			th.buffer = new(bytes.Buffer)
+
+		th.writeLine("")
+		resp, err := httpport.ReadResponse(responseReader, nil)
+		if err == io.EOF {
+			return
+		} else if err == io.ErrUnexpectedEOF {
+			// here return directly too, to avoid error when long polling connection is used
+			return
+		} else if err != nil {
+			fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err)
+			tcpreader.DiscardBytesToEOF(responseReader)
+			break
+		} else {
+			th.printResponse(resp)
 		}
+		th.printer.send(th.buffer.String())
 	}
 	th.printer.send(th.buffer.String())
+
 }
 
 func (th *HttpTrafficHandler) writeLine(a ...interface{}) {
@@ -149,7 +139,6 @@ func (th *HttpTrafficHandler) writeLine(a ...interface{}) {
 
 func (th *HttpTrafficHandler) printRequestMark() {
 	th.writeLine()
-	th.writeLine(th.key.srcString(), " -----> ", th.key.dstString())
 }
 
 // print http request
@@ -160,7 +149,8 @@ func (th *HttpTrafficHandler) printRequest(req *httpport.Request) {
 		return
 	}
 
-	th.printRequestMark()
+	th.writeLine()
+	th.writeLine(strings.Repeat("*", 10), th.key.srcString(), " -----> ", th.key.dstString(), strings.Repeat("*", 10))
 	th.writeLine(req.RequestLine)
 	for _, header := range req.RawHeaders {
 		th.writeLine(header)
@@ -184,11 +174,6 @@ func (th *HttpTrafficHandler) printRequest(req *httpport.Request) {
 	th.printBody(hasBody, req.Header, req.Body)
 }
 
-func (th *HttpTrafficHandler) printResponseMark() {
-	th.writeLine()
-	th.writeLine(th.key.dstString(), " <----- ", th.key.srcString())
-}
-
 // print http response
 func (th *HttpTrafficHandler) printResponse(resp *httpport.Response) {
 	if th.config.level == "url" {
@@ -196,7 +181,6 @@ func (th *HttpTrafficHandler) printResponse(resp *httpport.Response) {
 		return
 	}
 
-	th.printResponseMark()
 	th.writeLine(resp.StatusLine)
 	for _, header := range resp.RawHeaders {
 		th.writeLine(header)
