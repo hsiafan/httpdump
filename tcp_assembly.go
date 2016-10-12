@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"time"
 	"github.com/google/gopacket"
-	"sort"
 	"io"
 	"sync"
 	"strconv"
@@ -55,7 +54,7 @@ func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, tim
 	} else {
 		key = dstString + "-" + srcString
 	}
-	connection := assembler.newConnection(src, dst, key)
+	connection := assembler.retrieveConnection(src, dst, key)
 
 	connection.onReceive(src, dst, tcp, timestamp)
 
@@ -67,26 +66,38 @@ func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, tim
 	//TODO: cleanup timeout connections
 }
 
-func (assembler *TcpAssembler) newConnection(src, dst EndPoint, key string) *TcpConnection {
+// get connection this packet belong to; create new one if is new connection
+func (assembler *TcpAssembler) retrieveConnection(src, dst EndPoint, key string) *TcpConnection {
 	assembler.lock.Lock()
 	defer assembler.lock.Unlock()
 	connection := assembler.connectionDict[key]
 	if (connection == nil) {
-		connection = newTcpConnection()
+		connection = newTcpConnection(key)
 		assembler.connectionDict[key] = connection
 		assembler.connectionHandler.handle(src, dst, connection)
 	}
 	return connection
 }
 
+// remove connection (when is closed or timeout)
 func (assembler *TcpAssembler) deleteConnection(key string) {
 	assembler.lock.Lock()
 	defer assembler.lock.Unlock()
 	delete(assembler.connectionDict, key)
 }
 
+// flush older packets
 func (assembler *TcpAssembler) flushOlderThan(time time.Time) {
-	//
+	var connections []*TcpConnection
+	assembler.lock.Lock()
+	for _, connection := range assembler.connectionDict {
+		connections = append(connections, connection)
+	}
+	assembler.lock.Unlock()
+
+	//for _, connection := range connections {
+	//	connection.flushOlderThan(time)
+	//}
 }
 
 func (assembler *TcpAssembler) finishAll() {
@@ -111,6 +122,7 @@ type  TcpConnection struct {
 	clientId      EndPoint       // the client key(by ip and port)
 	lastTimestamp time.Time      // timestamp receive last packet
 	isHttp        bool
+	key           string
 }
 
 type EndPoint struct {
@@ -132,10 +144,11 @@ type ConnectionId struct {
 }
 
 // create tcp connection, by the first tcp packet. this packet should from client to server
-func newTcpConnection() *TcpConnection {
+func newTcpConnection(key string) *TcpConnection {
 	connection := &TcpConnection{
 		upStream:newNetworkStream(),
 		downStream:newNetworkStream(),
+		key: key,
 	}
 	return connection
 }
@@ -186,6 +199,17 @@ func (connection *TcpConnection) onReceive(src, dst EndPoint, tcp *layers.TCP, t
 	}
 }
 
+func (connection *TcpConnection) flushOlderThan(time time.Time) {
+	// flush all data
+	//connection.upStream.window
+	//connection.downStream.window
+	// remove and close connection
+	connection.upStream.closed = true
+	connection.downStream.closed = true
+	connection.finish()
+
+}
+
 func (connection *TcpConnection) closed() bool {
 	return connection.upStream.closed && connection.downStream.closed
 }
@@ -197,7 +221,7 @@ func (connection *TcpConnection) finish() {
 
 // tread one-direction tcp data as stream. impl reader closer
 type NetworkStream struct {
-	buffer []*layers.TCP
+	window *ReceiveWindow
 	c      chan []byte
 	remain []byte
 	ignore bool
@@ -205,43 +229,21 @@ type NetworkStream struct {
 }
 
 func newNetworkStream() *NetworkStream {
-	return &NetworkStream{c:make(chan []byte, 1000)}
+	return &NetworkStream{window:newReceiveWindow(), c:make(chan []byte, 1000)}
 }
 
 func (stream *NetworkStream) appendPacket(tcp *layers.TCP) {
 	if stream.ignore {
 		return
 	}
-	stream.buffer = append(stream.buffer, tcp)
+	stream.window.insert(tcp)
 }
 
 func (stream *NetworkStream) confirmPacket(ack uint32) {
 	if stream.ignore {
 		return
 	}
-	var confirmedBuffer, remainedBuffer Buffer
-	for _, tcp := range stream.buffer {
-		if compareTcpSeq(tcp.Seq, ack) <= 0 {
-			confirmedBuffer = append(confirmedBuffer, tcp)
-		} else {
-			remainedBuffer = append(remainedBuffer, tcp)
-		}
-	}
-
-	if len(confirmedBuffer) > 0 {
-		sort.Sort(confirmedBuffer)
-	}
-	var lastSeq uint32
-	for _, tcp := range confirmedBuffer {
-		seq := uint32(tcp.Seq)
-		if (seq == lastSeq) {
-			continue
-		}
-		lastSeq = seq
-		stream.c <- tcp.Payload
-	}
-
-	stream.buffer = remainedBuffer
+	stream.window.confirm(ack, stream.c)
 }
 
 func (stream *NetworkStream) finish() {
@@ -271,6 +273,91 @@ func (stream *NetworkStream) Read(p []byte) (n int, err error) {
 func (stream *NetworkStream) Close() error {
 	stream.ignore = true
 	return nil
+}
+
+type ReceiveWindow struct {
+	size   int
+	start  int
+	buffer []*layers.TCP
+}
+
+func newReceiveWindow() *ReceiveWindow {
+	buffer := make([]*layers.TCP, 32)
+	return &ReceiveWindow{buffer:buffer}
+}
+
+func (window *ReceiveWindow) destroy() {
+	window.size = 0
+	window.start = 0
+	window.buffer = nil
+}
+
+func (window *ReceiveWindow) insert(packet *layers.TCP) {
+	idx := 0
+	for ; idx < window.size; idx ++ {
+		index := (idx + window.start) % len(window.buffer)
+		current := window.buffer[index]
+		result := compareTcpSeq(current.Seq, packet.Seq)
+		if result == 0 {
+			// duplicated
+			return
+		}
+		if result > 0 {
+			// insert at index
+			break
+		}
+	}
+
+	if window.size == len(window.buffer) {
+		window.expand()
+	}
+
+	if idx == window.size {
+		// append at last
+		index := (idx + window.start) % len(window.buffer)
+		window.buffer[index] = packet
+	} else {
+		// insert at index
+		for i := window.size; i >= idx; i-- {
+			next := (i + window.start + 1) % len(window.buffer)
+			current := (i + window.start) % len(window.buffer)
+			window.buffer[next] = window.buffer[current]
+		}
+		index := (idx + window.start) % len(window.buffer)
+		window.buffer[index] = packet
+
+	}
+
+	window.size++
+}
+
+func (window *ReceiveWindow) confirm(ack uint32, c chan []byte) {
+	idx := 0
+	for ; idx < window.size; idx ++ {
+		index := (idx + window.start) % len(window.buffer)
+		current := window.buffer[index]
+		result := compareTcpSeq(current.Seq, ack)
+		if result > 0 {
+			break
+		}
+		window.buffer[index] = nil
+		c <- current.Payload
+	}
+	window.start = (window.start + idx) % len(window.buffer)
+	window.size = window.size - idx
+}
+
+func (window *ReceiveWindow) expand() {
+	buffer := make([]*layers.TCP, len(window.buffer) * 2)
+	end := window.start + window.size
+	if end < len(window.buffer) {
+		copy(buffer, window.buffer[window.start:window.start + window.size])
+	} else {
+		copy(buffer, window.buffer[window.start:])
+		copy(buffer[len(window.buffer) - window.start:], window.buffer[:end - len(window.buffer)])
+	}
+	window.start = 0
+	window.buffer = buffer
 }
 
 type Buffer []*layers.TCP
