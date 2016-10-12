@@ -109,7 +109,7 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 			break
 		}
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err)
+			fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err, connection.clientId)
 			break
 		}
 		if !filtered {
@@ -244,7 +244,8 @@ func (th *HttpTrafficHandler) printBody(hasBody bool, header httpport.Header, re
 		var data []byte
 		data, err = ioutil.ReadAll(nr)
 		if err == nil {
-			body, err = byteToStringDetected(data)
+			// TODO: try to guess charset
+			body = string(data)
 		}
 	} else {
 		body, err = readToStringWithCharset(nr, charset)
@@ -273,7 +274,8 @@ func (th *HttpTrafficHandler) printNonTextTypeBody(reader io.Reader, contentType
 		if err != nil {
 			return err
 		}
-		str, err := byteToStringDetected(data)
+		// TODO: try to guess charset
+		str := string(data)
 		if err != nil {
 			return err
 		}

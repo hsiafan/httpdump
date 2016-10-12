@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/saintfish/chardet"
+	//"github.com/saintfish/chardet" // not work, realy stupid...
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/htmlindex"
 	"golang.org/x/text/transform"
@@ -72,17 +72,6 @@ var binarySubtypes = map[string]bool{"7z-compressed": true, "abiword": true, "ac
 // if is binary type mime
 func (ct mimeType) isBinaryContent() bool {
 	return binaryTypes[ct.Type] || binarySubtypes[ct.subType]
-}
-
-// detect byte data charset, and convert to string
-func byteToStringDetected(data []byte) (string, error) {
-	var detector = chardet.NewTextDetector()
-	result, err := detector.DetectBest(data)
-	if err != nil {
-		return "", err
-	}
-	var charset = result.Charset
-	return byteToStringWithCharset(data, charset)
 }
 
 // read reader content to string, using charset specified
