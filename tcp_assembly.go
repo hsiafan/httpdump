@@ -86,18 +86,23 @@ func (assembler *TcpAssembler) deleteConnection(key string) {
 	delete(assembler.connectionDict, key)
 }
 
-// flush older packets
+// flush timeout connections
 func (assembler *TcpAssembler) flushOlderThan(time time.Time) {
 	var connections []*TcpConnection
 	assembler.lock.Lock()
 	for _, connection := range assembler.connectionDict {
-		connections = append(connections, connection)
+		if connection.lastTimestamp.Before(time) {
+			connections = append(connections, connection)
+		}
+	}
+	for _, connection := range connections {
+		delete(assembler.connectionDict, connection.key)
 	}
 	assembler.lock.Unlock()
 
-	//for _, connection := range connections {
-	//	connection.flushOlderThan(time)
-	//}
+	for _, connection := range connections {
+		connection.flushOlderThan()
+	}
 }
 
 func (assembler *TcpAssembler) finishAll() {
@@ -199,7 +204,8 @@ func (connection *TcpConnection) onReceive(src, dst EndPoint, tcp *layers.TCP, t
 	}
 }
 
-func (connection *TcpConnection) flushOlderThan(time time.Time) {
+// just close this connection?
+func (connection *TcpConnection) flushOlderThan() {
 	// flush all data
 	//connection.upStream.window
 	//connection.downStream.window
