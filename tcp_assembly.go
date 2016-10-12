@@ -8,6 +8,7 @@ import (
 	"io"
 	"sync"
 	"strconv"
+	"fmt"
 )
 
 // gopacket provide a tcp connection, however it split one tcp connection into two stream.
@@ -235,7 +236,7 @@ type NetworkStream struct {
 }
 
 func newNetworkStream() *NetworkStream {
-	return &NetworkStream{window:newReceiveWindow(), c:make(chan []byte, 1000)}
+	return &NetworkStream{window:newReceiveWindow(32), c:make(chan []byte, 1000)}
 }
 
 func (stream *NetworkStream) appendPacket(tcp *layers.TCP) {
@@ -287,8 +288,8 @@ type ReceiveWindow struct {
 	buffer []*layers.TCP
 }
 
-func newReceiveWindow() *ReceiveWindow {
-	buffer := make([]*layers.TCP, 32)
+func newReceiveWindow(initialSize int) *ReceiveWindow {
+	buffer := make([]*layers.TCP, initialSize)
 	return &ReceiveWindow{buffer:buffer}
 }
 
@@ -299,6 +300,7 @@ func (window *ReceiveWindow) destroy() {
 }
 
 func (window *ReceiveWindow) insert(packet *layers.TCP) {
+
 	idx := 0
 	for ; idx < window.size; idx ++ {
 		index := (idx + window.start) % len(window.buffer)
@@ -324,7 +326,7 @@ func (window *ReceiveWindow) insert(packet *layers.TCP) {
 		window.buffer[index] = packet
 	} else {
 		// insert at index
-		for i := window.size; i >= idx; i-- {
+		for i := window.size - 1; i >= idx; i-- {
 			next := (i + window.start + 1) % len(window.buffer)
 			current := (i + window.start) % len(window.buffer)
 			window.buffer[next] = window.buffer[current]
@@ -335,6 +337,7 @@ func (window *ReceiveWindow) insert(packet *layers.TCP) {
 	}
 
 	window.size++
+	//check(window.buffer, window.start, window.size)
 }
 
 func (window *ReceiveWindow) confirm(ack uint32, c chan []byte) {
@@ -351,6 +354,17 @@ func (window *ReceiveWindow) confirm(ack uint32, c chan []byte) {
 	}
 	window.start = (window.start + idx) % len(window.buffer)
 	window.size = window.size - idx
+	//check(window.buffer, window.start, window.size)
+}
+
+func check(buffer []*layers.TCP, start int, size int) {
+	for idx := 0; idx < size; idx++ {
+		if buffer[(start + idx) % len(buffer)] == nil {
+			fmt.Println("item is nil, capacity:", len(buffer), "start: ", start, ", size: ", size, ", idx: ", idx)
+			fmt.Println(buffer[0].Seq)
+			panic("item is nil")
+		}
+	}
 }
 
 func (window *ReceiveWindow) expand() {

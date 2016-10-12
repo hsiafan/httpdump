@@ -15,6 +15,8 @@ import (
 	"github.com/google/gopacket/pcap"
 	"strconv"
 	"sync"
+	_ "net/http/pprof"
+	"net/http"
 )
 
 var waitGroup sync.WaitGroup
@@ -116,6 +118,10 @@ func openSingleDevice(device string, filterIP string, filterPort uint16) (localP
 }
 
 func main() {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
+
 	var flagSet = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	var level = flagSet.String("level", "header", "Print level, url(only url) | header(http headers) | all(headers, and textuary http body)")
 	var filePath = flagSet.String("file", "", "Read from pcap file. If not specified, will capture from network devices")
