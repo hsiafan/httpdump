@@ -63,8 +63,6 @@ func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, tim
 		assembler.deleteConnection(key)
 		connection.finish()
 	}
-
-	//TODO: cleanup timeout connections
 }
 
 // get connection this packet belong to; create new one if is new connection
