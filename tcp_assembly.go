@@ -55,7 +55,10 @@ func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, tim
 	} else {
 		key = dstString + "-" + srcString
 	}
-	connection := assembler.retrieveConnection(src, dst, key)
+	connection := assembler.retrieveConnection(src, dst, key, tcp.SYN)
+	if connection == nil {
+		return
+	}
 
 	connection.onReceive(src, dst, tcp, timestamp)
 
@@ -66,14 +69,16 @@ func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, tim
 }
 
 // get connection this packet belong to; create new one if is new connection
-func (assembler *TcpAssembler) retrieveConnection(src, dst EndPoint, key string) *TcpConnection {
+func (assembler *TcpAssembler) retrieveConnection(src, dst EndPoint, key string, syn bool) *TcpConnection {
 	assembler.lock.Lock()
 	defer assembler.lock.Unlock()
 	connection := assembler.connectionDict[key]
 	if (connection == nil) {
-		connection = newTcpConnection(key)
-		assembler.connectionDict[key] = connection
-		assembler.connectionHandler.handle(src, dst, connection)
+		if syn {
+			connection = newTcpConnection(key)
+			assembler.connectionDict[key] = connection
+			assembler.connectionHandler.handle(src, dst, connection)
+		}
 	}
 	return connection
 }

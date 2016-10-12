@@ -30,7 +30,7 @@ func (ck *ConnectionKey) srcString() string {
 	return ck.src.String()
 }
 
-// return the dest ip and port
+// return the dst ip and port
 func (ck *ConnectionKey) dstString() string {
 	return ck.dst.String()
 }
@@ -72,7 +72,10 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 	// filter by args setting
 
 	requestReader := bufio.NewReader(connection.upStream)
+	defer tcpreader.DiscardBytesToEOF(requestReader)
 	responseReader := bufio.NewReader(connection.downStream)
+	defer tcpreader.DiscardBytesToEOF(responseReader)
+
 	for {
 		th.buffer = new(bytes.Buffer)
 		filtered := false
@@ -82,7 +85,6 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 		}
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests:", err)
-			tcpreader.DiscardBytesToEOF(requestReader)
 			break
 		}
 		if th.config.domain != "" && !strings.HasSuffix(req.Host, th.config.domain) {
@@ -94,8 +96,6 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 		if !filtered {
 			th.printRequest(req)
 			th.writeLine("")
-		} else {
-			tcpreader.DiscardBytesToEOF(req.Body)
 		}
 
 		resp, err := httpport.ReadResponse(responseReader, nil)
@@ -110,14 +110,11 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 		}
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err)
-			tcpreader.DiscardBytesToEOF(responseReader)
 			break
 		}
 		if !filtered {
 			th.printResponse(resp)
 			th.printer.send(th.buffer.String())
-		} else {
-			tcpreader.DiscardBytesToEOF(resp.Body)
 		}
 	}
 	th.printer.send(th.buffer.String())
@@ -133,8 +130,8 @@ func (th *HttpTrafficHandler) printRequestMark() {
 
 // print http request
 func (th *HttpTrafficHandler) printRequest(req *httpport.Request) {
+	defer tcpreader.DiscardBytesToEOF(req.Body)
 	if th.config.level == "url" {
-		tcpreader.DiscardBytesToEOF(req.Body)
 		th.writeLine(req.Method, "http://" + req.Host + req.RequestURI)
 		return
 	}
@@ -166,8 +163,8 @@ func (th *HttpTrafficHandler) printRequest(req *httpport.Request) {
 
 // print http response
 func (th *HttpTrafficHandler) printResponse(resp *httpport.Response) {
+	defer tcpreader.DiscardBytesToEOF(resp.Body)
 	if th.config.level == "url" {
-		tcpreader.DiscardBytesToEOF(resp.Body)
 		return
 	}
 
@@ -195,10 +192,8 @@ func (th *HttpTrafficHandler) printResponse(resp *httpport.Response) {
 
 // print http request/response body
 func (th *HttpTrafficHandler) printBody(hasBody bool, header httpport.Header, reader io.ReadCloser) {
-	defer reader.Close()
 
 	if !hasBody {
-		tcpreader.DiscardBytesToEOF(reader)
 		return
 	}
 
@@ -256,7 +251,6 @@ func (th *HttpTrafficHandler) printBody(hasBody bool, header httpport.Header, re
 	}
 	if err != nil {
 		th.writeLine("{Read body failed", err, "}")
-		tcpreader.DiscardBytesToEOF(reader)
 		return
 	}
 
