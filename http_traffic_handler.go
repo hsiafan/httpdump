@@ -80,6 +80,7 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 		th.buffer = new(bytes.Buffer)
 		filtered := false
 		req, err := httpport.ReadRequest(requestReader)
+
 		if err == io.EOF {
 			break
 		}
@@ -117,6 +118,7 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 			th.printer.send(th.buffer.String())
 		}
 	}
+
 	th.printer.send(th.buffer.String())
 }
 
@@ -181,7 +183,7 @@ func (th *HttpTrafficHandler) printResponse(resp *httpport.Response) {
 	if th.config.level == "header" {
 		if hasBody {
 			th.writeLine("\n{body size:", tcpreader.DiscardBytesToEOF(resp.Body),
-				", set level arg to all to display body content}")
+				", set [level = all] to display body content}")
 		}
 		return
 	}

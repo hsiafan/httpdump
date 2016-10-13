@@ -12,8 +12,19 @@ type Printer struct {
 
 var maxOutputQueueLen = 4096
 
-func newPrinter() *Printer {
-	printer := &Printer{outputQueue: make(chan string, maxOutputQueueLen), outputFile: os.Stdout}
+func newPrinter(outputPath string) *Printer {
+	var outputFile io.WriteCloser
+	if outputPath == "" {
+		outputFile = os.Stdout
+	} else {
+		var err error
+		outputFile, err = os.OpenFile(outputPath, os.O_WRONLY | os.O_TRUNC | os.O_CREATE, os.ModePerm)
+		if err != nil {
+			panic(err)
+		}
+
+	}
+	printer := &Printer{outputQueue: make(chan string, maxOutputQueueLen), outputFile: outputFile}
 	printer.start()
 	return printer
 }

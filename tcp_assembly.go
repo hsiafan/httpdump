@@ -15,7 +15,7 @@ import (
 // So it is hard to match http request and response. we make our own connection here
 
 const MAX_TCP_SEQ uint32 = 0xFFFFFFFF
-const TCP_SEQ_WINDOW = 1 << 10
+const TCP_SEQ_WINDOW = 0x0000FFFF
 
 type TcpAssembler struct {
 	connectionDict    map[string]*TcpConnection
@@ -55,7 +55,7 @@ func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, tim
 	} else {
 		key = dstString + "-" + srcString
 	}
-	connection := assembler.retrieveConnection(src, dst, key, tcp.SYN)
+	connection := assembler.retrieveConnection(src, dst, key, tcp.SYN && !tcp.ACK)
 	if connection == nil {
 		return
 	}
@@ -69,12 +69,12 @@ func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, tim
 }
 
 // get connection this packet belong to; create new one if is new connection
-func (assembler *TcpAssembler) retrieveConnection(src, dst EndPoint, key string, syn bool) *TcpConnection {
+func (assembler *TcpAssembler) retrieveConnection(src, dst EndPoint, key string, init bool) *TcpConnection {
 	assembler.lock.Lock()
 	defer assembler.lock.Unlock()
 	connection := assembler.connectionDict[key]
 	if (connection == nil) {
-		if syn {
+		if init {
 			connection = newTcpConnection(key)
 			assembler.connectionDict[key] = connection
 			assembler.connectionHandler.handle(src, dst, connection)
@@ -189,9 +189,7 @@ func (connection *TcpConnection) onReceive(src, dst EndPoint, tcp *layers.TCP, t
 		//up = false
 	}
 
-	if len(payload) > 0 {
-		sendStream.appendPacket(tcp)
-	}
+	sendStream.appendPacket(tcp)
 
 	if tcp.SYN {
 		// do nothing
@@ -232,14 +230,14 @@ func (connection *TcpConnection) finish() {
 // tread one-direction tcp data as stream. impl reader closer
 type NetworkStream struct {
 	window *ReceiveWindow
-	c      chan []byte
+	c      chan *layers.TCP
 	remain []byte
 	ignore bool
 	closed bool
 }
 
 func newNetworkStream() *NetworkStream {
-	return &NetworkStream{window:newReceiveWindow(32), c:make(chan []byte, 1000)}
+	return &NetworkStream{window:newReceiveWindow(64), c:make(chan *layers.TCP, 1024)}
 }
 
 func (stream *NetworkStream) appendPacket(tcp *layers.TCP) {
@@ -262,12 +260,12 @@ func (stream *NetworkStream) finish() {
 
 func (stream *NetworkStream) Read(p []byte) (n int, err error) {
 	for len(stream.remain) == 0 {
-		data, ok := <-stream.c
+		packet, ok := <-stream.c
 		if !ok {
 			err = io.EOF
 			return
 		}
-		stream.remain = data
+		stream.remain = packet.Payload
 	}
 
 	if len(stream.remain) > len(p) {
@@ -286,9 +284,11 @@ func (stream *NetworkStream) Close() error {
 }
 
 type ReceiveWindow struct {
-	size   int
-	start  int
-	buffer []*layers.TCP
+	size        int
+	start       int
+	buffer      []*layers.TCP
+	lastAck     uint32
+	expectBegin uint32
 }
 
 func newReceiveWindow(initialSize int) *ReceiveWindow {
@@ -304,16 +304,26 @@ func (window *ReceiveWindow) destroy() {
 
 func (window *ReceiveWindow) insert(packet *layers.TCP) {
 
-	idx := 0
-	for ; idx < window.size; idx ++ {
-		index := (idx + window.start) % len(window.buffer)
-		current := window.buffer[index]
-		result := compareTcpSeq(current.Seq, packet.Seq)
+	if window.expectBegin != 0 && compareTcpSeq(window.expectBegin, packet.Seq + uint32(len(packet.Payload))) >= 0 {
+		// dropped
+		return
+	}
+
+	if len(packet.Payload) == 0 {
+		//ignore empty data packet
+		return
+	}
+
+	idx := window.size
+	for ; idx > 0; idx -- {
+		index := (idx - 1 + window.start) % len(window.buffer)
+		prev := window.buffer[index]
+		result := compareTcpSeq(prev.Seq, packet.Seq)
 		if result == 0 {
 			// duplicated
 			return
 		}
-		if result > 0 {
+		if result < 0 {
 			// insert at index
 			break
 		}
@@ -336,37 +346,59 @@ func (window *ReceiveWindow) insert(packet *layers.TCP) {
 		}
 		index := (idx + window.start) % len(window.buffer)
 		window.buffer[index] = packet
-
 	}
 
 	window.size++
-	//check(window.buffer, window.start, window.size)
 }
 
-func (window *ReceiveWindow) confirm(ack uint32, c chan []byte) {
+// for debug
+func (window *ReceiveWindow) printWindow() {
+	fmt.Println("==========", window.size, window.start, window.lastAck, "==============")
+	for i := 0; i < window.size; i++ {
+		index := (i + window.start) % len(window.buffer)
+		tcp := window.buffer[index]
+		fmt.Println(i, index, tcp.Seq, len(tcp.Payload))
+	}
+	fmt.Println("========================")
+	fmt.Println()
+}
+
+var total = 0
+// send confirmed packets to reader, when receive ack
+func (window *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 	idx := 0
 	for ; idx < window.size; idx ++ {
 		index := (idx + window.start) % len(window.buffer)
-		current := window.buffer[index]
-		result := compareTcpSeq(current.Seq, ack)
-		if result > 0 {
+		packet := window.buffer[index]
+		result := compareTcpSeq(packet.Seq, ack)
+		if result >= 0 {
 			break
 		}
 		window.buffer[index] = nil
-		c <- current.Payload
+		newExpect := packet.Seq + uint32(len(packet.Payload))
+		if window.expectBegin != 0 {
+			diff := compareTcpSeq(window.expectBegin, packet.Seq)
+			if diff > 0 {
+				duplicatedSize := window.expectBegin - packet.Seq
+				if duplicatedSize < 0 {
+					duplicatedSize += MAX_TCP_SEQ
+				}
+				if duplicatedSize >= uint32(len(packet.Payload)) {
+					continue
+				}
+				packet.Payload = packet.Payload[duplicatedSize:]
+			} else if diff < 0 {
+				//TODO: we lose packet here
+				//fmt.Println(window.expectBegin, packet.Seq, packet.Seq - window.expectBegin)
+			}
+		}
+		c <- packet
+		window.expectBegin = newExpect
 	}
 	window.start = (window.start + idx) % len(window.buffer)
 	window.size = window.size - idx
-	//check(window.buffer, window.start, window.size)
-}
-
-func check(buffer []*layers.TCP, start int, size int) {
-	for idx := 0; idx < size; idx++ {
-		if buffer[(start + idx) % len(buffer)] == nil {
-			fmt.Println("item is nil, capacity:", len(buffer), "start: ", start, ", size: ", size, ", idx: ", idx)
-			fmt.Println(buffer[0].Seq)
-			panic("item is nil")
-		}
+	if compareTcpSeq(window.lastAck, ack) < 0 || window.lastAck == 0 {
+		window.lastAck = ack
 	}
 }
 
@@ -381,22 +413,6 @@ func (window *ReceiveWindow) expand() {
 	}
 	window.start = 0
 	window.buffer = buffer
-}
-
-type Buffer []*layers.TCP
-// impl sort.Interface
-// Len is the number of elements in the collection.
-func (buffer Buffer) Len() int {
-	return len(buffer)
-}
-// Less reports whether the element with
-// index i should sort before the element with index j.
-func (buffer Buffer) Less(i, j int) bool {
-	return compareTcpSeq(buffer[i].Seq, buffer[j].Seq) < 0
-}
-// Swap swaps the elements with indexes i and j.
-func (buffer Buffer) Swap(i, j int) {
-	buffer[i], buffer[j] = buffer[j], buffer[i]
 }
 
 

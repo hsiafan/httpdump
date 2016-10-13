@@ -130,6 +130,9 @@ func parseContentType(contentType string) (string, string) {
 
 // if sting 'looks like' a json string
 func likeJSON(value string) bool {
+	if len(value) < 2 {
+		return false
+	}
 	value = strings.TrimSpace(value)
 	if value[0] == '[' && value[len(value)-1] == ']' || value[0] == '{' && value[len(value)-1] == '}' {
 		return true

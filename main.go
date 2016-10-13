@@ -15,6 +15,8 @@ import (
 	"github.com/google/gopacket/pcap"
 	"strconv"
 	"sync"
+     _ "net/http/pprof"
+
 )
 
 var waitGroup sync.WaitGroup
@@ -45,6 +47,7 @@ type Config struct {
 	urlPath    string
 	force      bool
 	pretty     bool
+	output     string
 }
 
 func parseFilter(filter string) (string, uint16) {
@@ -116,6 +119,9 @@ func openSingleDevice(device string, filterIP string, filterPort uint16) (localP
 }
 
 func main() {
+	//go func() {
+	//	log.Println(http.ListenAndServe("localhost:6060", nil))
+	//}()
 	var flagSet = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	var level = flagSet.String("level", "header", "Print level, url(only url) | header(http headers) | all(headers, and textuary http body)")
 	var filePath = flagSet.String("file", "", "Read from pcap file. If not specified, will capture from network devices")
@@ -124,7 +130,8 @@ func main() {
 	var domain = flagSet.String("domain", "", "Filter by request domain, suffix match")
 	var urlPath = flagSet.String("urlPath", "", "Filter by request url path, contains match")
 	var force = flagSet.Bool("force", false, "Force print unknown content-type http body even if it seems not to be text content")
-	var pretty = flagSet.Bool("pretty", false, "Try to pretify json output")
+	var pretty = flagSet.Bool("pretty", false, "Try to format and pretify json content")
+	var output = flagSet.String("output", "", "Write result to file [output] instead of stdout")
 	flagSet.Parse(os.Args[1:])
 
 	filterIP, filterPort := parseFilter(*filter)
@@ -137,6 +144,7 @@ func main() {
 		urlPath:    *urlPath,
 		force:      *force,
 		pretty:     *pretty,
+		output:     *output,
 	}
 
 	var packets chan gopacket.Packet
@@ -174,7 +182,7 @@ func main() {
 
 	var handler = &HttpConnectionHandler{
 		config:  config,
-		printer: newPrinter(),
+		printer: newPrinter(*output),
 	}
 	var assembler = newTcpAssembler(handler)
 	assembler.filterIp = filterIP
