@@ -1,5 +1,3 @@
-Go impl of python version [httpcap](https://github.com/caoqianli/httpcap).
-
 Parse and display http traffic from network device or pcap file. This is a go version of origin pcap-parser, thanks to gopacket project, this tool has simpler code base and is more efficient.
 
 # install & requirement
