@@ -6,7 +6,7 @@ import (
 	"compress/zlib"
 	"encoding/json"
 	"fmt"
-	"httpport"
+	"github.com/caoqianli/httpparse/httpport"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -154,7 +154,7 @@ func (th *HttpTrafficHandler) printRequest(req *httpport.Request) {
 	if th.config.level == "header" {
 		if hasBody {
 			th.writeLine("\n{body size:", tcpreader.DiscardBytesToEOF(req.Body),
-				", use [-level all] to display http body}")
+				", set [level = all] to display http body}")
 		}
 		return
 	}
