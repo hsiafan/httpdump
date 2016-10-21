@@ -173,7 +173,10 @@ class HttpParserWorker(threading.Thread):
             content = self.read_chunked_body(reader)
 
         _filter = config.get_filter()
-        show = _filter.by_domain(req_header.host) and _filter.by_uri(req_header.uri)
+        show = all([_filter.by_domain(req_header.host),
+                    _filter.by_method(req_header.method),
+                    _filter.by_keyword(content),
+                    _filter.by_uri(req_header.uri)])
         context.filtered = not show
         if show:
             self.processor.on_http_req(req_header, content)

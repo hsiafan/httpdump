@@ -25,19 +25,19 @@ signal.signal(signal.SIGINT, signal_handler)
 
 def parse_pcap():
     try:
-        parse_("file")
+        do_parse("file")
     finally:
         cleanups.cleanup()
 
 
 def parse_live():
     try:
-        parse_("device")
+        do_parse("device")
     finally:
         cleanups.cleanup()
 
 
-def parse_(source):
+def do_parse(source):
     parser = argparse.ArgumentParser()
     if source == 'file':
         parser.add_argument("infile", nargs='?', default='-',
@@ -58,6 +58,8 @@ def parse_(source):
     parser.add_argument("-f", "--force", help="for to try output as json(ignore Content-Type text).", action="store_true")
     parser.add_argument("-d", "--domain", help="filter http data by request domain")
     parser.add_argument("-u", "--uri", help="filter http data by request uri pattern")
+    parser.add_argument("-m", "--method", help="filter http data by request method")
+    parser.add_argument("-k", "--keyword", help="filter http data by body content")
 
     args = parser.parse_args()
 
@@ -70,6 +72,8 @@ def parse_(source):
     _filter.uri_pattern = args.uri
     if isinstance(_filter.uri_pattern, six.text_type):
         _filter.uri_pattern = _filter.uri_pattern.encode()
+    _filter.method = args.method
+    _filter.keyword = args.keyword
 
     filter_exp = 'tcp'
     if args.port:
@@ -133,4 +137,4 @@ def parse_(source):
 
 
 if __name__ == "__main__":
-    parse_live()
+    parse_pcap()
