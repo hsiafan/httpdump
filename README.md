@@ -17,7 +17,7 @@ Libpcap and header files already installed.
 
 ## build
 ```sh
-go get github.com/caoqianli/httpparse
+go get github.com/clearthesky/httpparse
 ```
 
 
