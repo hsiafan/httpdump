@@ -39,7 +39,7 @@ httpparse can read from pcap file, or capture data from network interfaces:
 -output string
     Write result to file [output] instead of stdout
 -pretty
-    Try to format and pretify json content
+    Try to format and prettify json content
 -urlPath string
     Filter by request url path, contains match
 ```

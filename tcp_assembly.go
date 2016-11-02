@@ -56,7 +56,7 @@ func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, tim
 		key = dstString + "-" + srcString
 	}
 
-	var createNewConn = tcp.SYN && !tcp.ACK || isHttpRequestStart(tcp.Payload)
+	var createNewConn = tcp.SYN && !tcp.ACK || isHttpRequestData(tcp.Payload)
 	connection := assembler.retrieveConnection(src, dst, key, createNewConn)
 	if connection == nil {
 		return

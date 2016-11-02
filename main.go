@@ -130,7 +130,7 @@ func main() {
 	var domain = flagSet.String("domain", "", "Filter by request domain, suffix match")
 	var urlPath = flagSet.String("urlPath", "", "Filter by request url path, contains match")
 	var force = flagSet.Bool("force", false, "Force print unknown content-type http body even if it seems not to be text content")
-	var pretty = flagSet.Bool("pretty", false, "Try to format and pretify json content")
+	var pretty = flagSet.Bool("pretty", false, "Try to format and prettify json content")
 	var output = flagSet.String("output", "", "Write result to file [output] instead of stdout")
 	flagSet.Parse(os.Args[1:])
 

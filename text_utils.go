@@ -139,19 +139,3 @@ func likeJSON(value string) bool {
 	}
 	return false
 }
-
-func isHttpRequestStart(data []byte) bool {
-	// guard
-	if len(data) < 10 {
-		return false
-	}
-
-	idx := bytes.IndexByte(data, ' ')
-	if idx < 0 || idx > 10 {
-		return false
-	}
-	return bytes.Equal(data, []byte("GET")) || bytes.Equal(data, []byte("POST")) ||
-			bytes.Equal(data, []byte("PUT")) || bytes.Equal(data, []byte("HEAD")) ||
-			bytes.Equal(data, []byte("DELETE")) || bytes.Equal(data, []byte("PATCH")) || bytes.Equal(data, []byte("TRACE")) ||
-			bytes.Equal(data, []byte("OPTIONS"))
-}
