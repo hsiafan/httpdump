@@ -27,7 +27,7 @@ func parseMimeType(contentTypeStr string) mimeType {
 		return mimeType{contentTypeStr, "", ""}
 	}
 	var scope = ""
-	var subType = contentTypeStr[idx+1:]
+	var subType = contentTypeStr[idx + 1:]
 	if strings.HasPrefix(subType, "x-") {
 		subType = subType[2:]
 		scope = "x"
@@ -117,12 +117,12 @@ func parseContentType(contentType string) (string, string) {
 		charset = ""
 	} else {
 		mimeTypeStr = strings.TrimSpace(contentType[:idx])
-		charsetSeg := strings.TrimSpace(contentType[idx+1:])
+		charsetSeg := strings.TrimSpace(contentType[idx + 1:])
 		eidx := strings.Index(charsetSeg, "=")
 		if eidx < 0 {
 			charset = ""
 		} else {
-			charset = strings.TrimSpace(charsetSeg[eidx+1:])
+			charset = strings.TrimSpace(charsetSeg[eidx + 1:])
 		}
 	}
 	return mimeTypeStr, charset
@@ -134,8 +134,24 @@ func likeJSON(value string) bool {
 		return false
 	}
 	value = strings.TrimSpace(value)
-	if value[0] == '[' && value[len(value)-1] == ']' || value[0] == '{' && value[len(value)-1] == '}' {
+	if value[0] == '[' && value[len(value) - 1] == ']' || value[0] == '{' && value[len(value) - 1] == '}' {
 		return true
 	}
 	return false
+}
+
+func isHttpRequestStart(data []byte) bool {
+	// guard
+	if len(data) < 10 {
+		return false
+	}
+
+	idx := bytes.IndexByte(data, ' ')
+	if idx < 0 || idx > 10 {
+		return false
+	}
+	return bytes.Equal(data, []byte("GET")) || bytes.Equal(data, []byte("POST")) ||
+			bytes.Equal(data, []byte("PUT")) || bytes.Equal(data, []byte("HEAD")) ||
+			bytes.Equal(data, []byte("DELETE")) || bytes.Equal(data, []byte("PATCH")) || bytes.Equal(data, []byte("TRACE")) ||
+			bytes.Equal(data, []byte("OPTIONS"))
 }

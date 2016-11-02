@@ -24,22 +24,24 @@ go get github.com/clearthesky/httpparse
 # Usage
 httpparse can read from pcap file, or capture data from network interfaces:
 ```
-  -device string
-    	Which network interface to capture. If any, capture all interface traffics (default "any")
-  -domain string
-    	Filter by request domain, suffix match
-  -file string
-    	Read from pcap file. If not specified, will capture from network devices
-  -filter string
-    	Filter by ip/port, format: [ip][:port], eg: 192.168.122.46:50792, 192.168.122.46, :50792
-  -force
-    	Force print unknown content-type http body even if it seems not to be text content
-  -level string
-    	Print level, url(only url) | header(http headers) | all(headers, and textuary http body) (default "header")
-  -pretty
-    	Try to pretify json output
-  -urlPath string
-    	Filter by request url path, contains match
+-device string
+    Which network interface to capture. If any, capture all interface traffics (default "any")
+-domain string
+    Filter by request domain, suffix match
+-file string
+    Read from pcap file. If not specified, will capture from network devices
+-filter string
+    Filter by ip/port, format: [ip][:port], eg: 192.168.122.46:50792, 192.168.122.46, :50792
+-force
+    Force print unknown content-type http body even if it seems not to be text content
+-level string
+    Print level, url(only url) | header(http headers) | all(headers, and textuary http body) (default "header")
+-output string
+    Write result to file [output] instead of stdout
+-pretty
+    Try to format and pretify json content
+-urlPath string
+    Filter by request url path, contains match
 ```
 
 ## samples
