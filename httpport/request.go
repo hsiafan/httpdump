@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"github.com/caoqianli/httpparse/textprotoport"
+	"github.com/clearthesky/httpparse/textprotoport"
 )
 
 const (
