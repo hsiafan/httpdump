@@ -1,21 +1,28 @@
 Parse and display http traffic from network device or pcap file. This is a go version of origin pcap-parser, thanks to gopacket project, this tool has simpler code base and is more efficient.
 
+For origin python version, [go to this branch](https://github.com/clearthesky/httpparse/tree/pcap-parser-python).
+
 # install & requirement
 Build httpparse requires libpcap-dev and cgo enabled.
 ## libpcap
 for ubuntu/debian:
+
 ```sh
 sudo apt-get install libpcap libpcap-dev
 ```
+
 for centos/redhat/fedora:
+
 ```sh
 sudo yum install libpcap libpcap-devel
 ```
+
 for osx:
 
 Libpcap and header files already installed.
 
 ## build
+
 ```sh
 go get github.com/clearthesky/httpparse
 ```
@@ -23,6 +30,7 @@ go get github.com/clearthesky/httpparse
 
 # Usage
 httpparse can read from pcap file, or capture data from network interfaces:
+
 ```
 -device string
     Which network interface to capture. If any, capture all interface traffics (default "any")
@@ -46,6 +54,7 @@ httpparse can read from pcap file, or capture data from network interfaces:
 
 ## samples
 A simple capture:
+
 ```
 $ httpparse
 192.168.110.48:56585  ----->  101.201.170.152:80
@@ -75,8 +84,10 @@ Content-Encoding: gzip
 
 {body size: 15482 , set level arg to all to display body content}
 ```
+
 More:
-```bash
+
+```sh
 # parse pcap file
 sudo tcpdump -wa.pcap tcp
 httpparse -file a.pcap

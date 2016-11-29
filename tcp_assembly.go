@@ -365,7 +365,6 @@ func (window *ReceiveWindow) printWindow() {
 	fmt.Println()
 }
 
-var total = 0
 // send confirmed packets to reader, when receive ack
 func (window *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 	idx := 0
