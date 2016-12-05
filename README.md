@@ -8,13 +8,13 @@ Build httpparse requires libpcap-dev and cgo enabled.
 for ubuntu/debian:
 
 ```sh
-sudo apt-get install libpcap libpcap-dev
+sudo apt install libpcap-dev
 ```
 
 for centos/redhat/fedora:
 
 ```sh
-sudo yum install libpcap libpcap-devel
+sudo yum install libpcap-devel
 ```
 
 for osx:
