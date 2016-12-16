@@ -10,10 +10,10 @@ func TestReceiveWindow(t *testing.T) {
 	window := newReceiveWindow(4)
 
 	// init insert
-	window.insert(&layers.TCP{Seq:10005})
-	window.insert(&layers.TCP{Seq:10000})
-	window.insert(&layers.TCP{Seq:10010})
-	window.insert(&layers.TCP{Seq:10005})
+	window.insert(&layers.TCP{Seq:10005, BaseLayer:layers.BaseLayer{Payload:[]byte{1, 2}}})
+	window.insert(&layers.TCP{Seq:10000, BaseLayer:layers.BaseLayer{Payload:[]byte{7, 8, 9, 0}}})
+	window.insert(&layers.TCP{Seq:10010, BaseLayer:layers.BaseLayer{Payload:[]byte{2, 3, 4, 5}}})
+	window.insert(&layers.TCP{Seq:10005, BaseLayer:layers.BaseLayer{Payload:[]byte{1, 2}}})
 	if window.size != 3 {
 		t.Fatal("window size should be 3")
 	}
@@ -30,7 +30,7 @@ func TestReceiveWindow(t *testing.T) {
 		t.Fatal("window.buffer[2].Seq should be 10010")
 	}
 
-	window.insert(&layers.TCP{Seq:10009})
+	window.insert(&layers.TCP{Seq:10009, BaseLayer:layers.BaseLayer{Payload:[]byte{7, 8, 9, 0}}})
 	if window.buffer[0].Seq != 10000 {
 		t.FailNow()
 	}
@@ -38,9 +38,8 @@ func TestReceiveWindow(t *testing.T) {
 		t.FailNow()
 	}
 
-
 	// expand
-	window.insert(&layers.TCP{Seq:10030})
+	window.insert(&layers.TCP{Seq:10030, BaseLayer:layers.BaseLayer{Payload:[]byte{7, 8, 9, 0}}})
 	if window.size != 5 {
 		t.Fatal("window size should be 5")
 	}
@@ -48,7 +47,7 @@ func TestReceiveWindow(t *testing.T) {
 		t.Fatal("window start should be 0")
 	}
 
-	c := make(chan []byte, 1000)
+	c := make(chan *layers.TCP, 1000)
 	// confirm
 	window.confirm(10020, c)
 	if window.size != 1 {
@@ -56,48 +55,5 @@ func TestReceiveWindow(t *testing.T) {
 	}
 	if window.start != 4 {
 		t.Fatal("window start should be 4, but:", window.start)
-	}
-
-
-	// rolling insert
-	window.insert(&layers.TCP{Seq:10005})
-	window.insert(&layers.TCP{Seq:10000})
-	window.insert(&layers.TCP{Seq:10010})
-	window.insert(&layers.TCP{Seq:10040})
-	if window.size != 5 {
-		t.Fatal("window size should be 5, but:", window.size)
-	}
-	if window.start != 4 {
-		t.Fatal("window start should be 4, but:", window.start)
-	}
-	if window.buffer[4].Seq != 10000 {
-		t.Fatal("window.buffer[4].Seq should be 10000")
-	}
-	if window.buffer[0].Seq != 10040 {
-		t.Fatal("window.buffer[0].Seq should be 10040")
-	}
-
-	// expand
-	window.insert(&layers.TCP{Seq:10045})
-	window.insert(&layers.TCP{Seq:10050})
-	window.insert(&layers.TCP{Seq:10060})
-	window.insert(&layers.TCP{Seq:10070})
-	if window.size != 9 {
-		t.Fatal("window size should be 9, but:", window.size)
-	}
-	if window.start != 0 {
-		t.Fatal("window start should be 0, but:", window.start)
-	}
-	if window.buffer[8].Seq != 10070 {
-		t.Fatal("window.buffer[8].Seq should be 10070")
-	}
-	if window.buffer[0].Seq != 10000 {
-		t.Fatal("window.buffer[0].Seq should be 10000")
-	}
-	for idx := 0; idx < window.size; idx++ {
-		item := window.buffer[(idx + window.start) % len(window.buffer)]
-		if item == nil {
-			t.Fatalf("window.buffer[%v] is nil", idx)
-		}
 	}
 }

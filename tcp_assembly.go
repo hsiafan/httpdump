@@ -75,7 +75,7 @@ func (assembler *TcpAssembler) retrieveConnection(src, dst EndPoint, key string,
 	assembler.lock.Lock()
 	defer assembler.lock.Unlock()
 	connection := assembler.connectionDict[key]
-	if (connection == nil) {
+	if connection == nil {
 		if init {
 			connection = newTcpConnection(key)
 			assembler.connectionDict[key] = connection
@@ -157,9 +157,9 @@ type ConnectionId struct {
 // create tcp connection, by the first tcp packet. this packet should from client to server
 func newTcpConnection(key string) *TcpConnection {
 	connection := &TcpConnection{
-		upStream:newNetworkStream(),
+		upStream:  newNetworkStream(),
 		downStream:newNetworkStream(),
-		key: key,
+		key:       key,
 	}
 	return connection
 }
@@ -321,6 +321,7 @@ func (window *ReceiveWindow) insert(packet *layers.TCP) {
 		index := (idx - 1 + window.start) % len(window.buffer)
 		prev := window.buffer[index]
 		result := compareTcpSeq(prev.Seq, packet.Seq)
+		fmt.Println(prev.Seq, packet.Seq)
 		if result == 0 {
 			// duplicated
 			return
@@ -416,7 +417,6 @@ func (window *ReceiveWindow) expand() {
 	window.buffer = buffer
 }
 
-
 // compare two tcp sequences, if seq1 is earlier, return num < 0, if seq1 == seq2, return 0, else return num > 0
 func compareTcpSeq(seq1, seq2 uint32) int {
 	if seq1 < TCP_SEQ_WINDOW && seq2 > MAX_TCP_SEQ - TCP_SEQ_WINDOW {
@@ -427,9 +427,8 @@ func compareTcpSeq(seq1, seq2 uint32) int {
 	return int(int32(seq1 - seq2))
 }
 
-var HTTP_METHODS = map[string]bool{"GET":true, "POST":true, "PUT":true, "DELETE":true, "HEAD":true, "TRACE":true,
-	"OPTIONS":true, "PATCH":true}
-
+var HTTP_METHODS = map[string]bool{"GET":true, "POST":true, "PUT":true, "DELETE":true, "HEAD":true,
+	"TRACE":                             true, "OPTIONS":true, "PATCH":true}
 
 // if is first http request packet
 func isHttpRequestData(body []byte) bool {
@@ -438,7 +437,7 @@ func isHttpRequestData(body []byte) bool {
 	}
 	data := body[0:8]
 	idx := bytes.IndexByte(data, byte(' '))
-	if (idx < 0) {
+	if idx < 0 {
 		return false
 	}
 

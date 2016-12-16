@@ -65,7 +65,7 @@ type HttpTrafficHandler struct {
 }
 
 // read http request/response stream, and do output
-func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
+func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 	defer waitGroup.Done()
 	defer connection.upStream.Close()
 	defer connection.downStream.Close()
@@ -77,7 +77,7 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 	defer tcpreader.DiscardBytesToEOF(responseReader)
 
 	for {
-		th.buffer = new(bytes.Buffer)
+		h.buffer = new(bytes.Buffer)
 		filtered := false
 		req, err := httpport.ReadRequest(requestReader)
 
@@ -88,16 +88,16 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests:", err)
 			break
 		}
-		if th.config.domain != "" && !strings.HasSuffix(req.Host, th.config.domain) {
+		if h.config.domain != "" && !strings.HasSuffix(req.Host, h.config.domain) {
 			filtered = true
 		}
-		if th.config.urlPath != "" && !strings.Contains(req.RequestURI, th.config.urlPath) {
+		if h.config.urlPath != "" && !strings.Contains(req.RequestURI, h.config.urlPath) {
 			filtered = true
 		}
 
 		if !filtered {
-			th.printRequest(req)
-			th.writeLine("")
+			h.printRequest(req)
+			h.writeLine("")
 		}
 
 		// if is websocket request,  by header: Upgrade: websocket
@@ -119,14 +119,14 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 			break
 		}
 		if !filtered {
-			th.printResponse(resp)
-			th.printer.send(th.buffer.String())
+			h.printResponse(resp)
+			h.printer.send(h.buffer.String())
 		}
 
 		if websocket {
 			if resp.StatusCode == 101 && resp.Header.Get("Upgrade") == "websocket" {
 				// change to handle websocket
-				th.handleWebsocket(requestReader, responseReader)
+				h.handleWebsocket(requestReader, responseReader)
 				break
 			}
 		}
@@ -149,8 +149,8 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 					break
 				}
 				if !filtered {
-					th.printResponse(resp)
-					th.printer.send(th.buffer.String())
+					h.printResponse(resp)
+					h.printer.send(h.buffer.String())
 				}
 			} else if resp.StatusCode == 417 {
 
@@ -158,36 +158,36 @@ func (th *HttpTrafficHandler) handle(connection *TcpConnection) {
 		}
 	}
 
-	th.printer.send(th.buffer.String())
+	h.printer.send(h.buffer.String())
 }
 
-func (handler *HttpTrafficHandler) handleWebsocket(requestReader *bufio.Reader, responseReader *bufio.Reader) {
+func (h *HttpTrafficHandler) handleWebsocket(requestReader *bufio.Reader, responseReader *bufio.Reader) {
 	//TODO: websocket
 
 }
 
-func (handler *HttpTrafficHandler) writeLine(a ...interface{}) {
-	fmt.Fprintln(handler.buffer, a...)
+func (h *HttpTrafficHandler) writeLine(a ...interface{}) {
+	fmt.Fprintln(h.buffer, a...)
 }
 
-func (handler *HttpTrafficHandler) printRequestMark() {
-	handler.writeLine()
+func (h *HttpTrafficHandler) printRequestMark() {
+	h.writeLine()
 }
 
 // print http request
-func (handler *HttpTrafficHandler) printRequest(req *httpport.Request) {
+func (h *HttpTrafficHandler) printRequest(req *httpport.Request) {
 	defer tcpreader.DiscardBytesToEOF(req.Body)
 	//TODO: expect-100 continue handle
-	if handler.config.level == "url" {
-		handler.writeLine(req.Method, req.Host + req.RequestURI)
+	if h.config.level == "url" {
+		h.writeLine(req.Method, req.Host + req.RequestURI)
 		return
 	}
 
-	handler.writeLine()
-	handler.writeLine(strings.Repeat("*", 10), handler.key.srcString(), " -----> ", handler.key.dstString(), strings.Repeat("*", 10))
-	handler.writeLine(req.RequestLine)
+	h.writeLine()
+	h.writeLine(strings.Repeat("*", 10), h.key.srcString(), " -----> ", h.key.dstString(), strings.Repeat("*", 10))
+	h.writeLine(req.RequestLine)
 	for _, header := range req.RawHeaders {
-		handler.writeLine(header)
+		h.writeLine(header)
 	}
 
 	var hasBody = true
@@ -196,28 +196,28 @@ func (handler *HttpTrafficHandler) printRequest(req *httpport.Request) {
 		hasBody = false
 	}
 
-	if handler.config.level == "header" {
+	if h.config.level == "header" {
 		if hasBody {
-			handler.writeLine("\n{body size:", tcpreader.DiscardBytesToEOF(req.Body),
+			h.writeLine("\n{body size:", tcpreader.DiscardBytesToEOF(req.Body),
 				", set [level = all] to display http body}")
 		}
 		return
 	}
 
-	handler.writeLine()
-	handler.printBody(hasBody, req.Header, req.Body)
+	h.writeLine()
+	h.printBody(hasBody, req.Header, req.Body)
 }
 
 // print http response
-func (handler *HttpTrafficHandler) printResponse(resp *httpport.Response) {
+func (h *HttpTrafficHandler) printResponse(resp *httpport.Response) {
 	defer tcpreader.DiscardBytesToEOF(resp.Body)
-	if handler.config.level == "url" {
+	if h.config.level == "url" {
 		return
 	}
 
-	handler.writeLine(resp.StatusLine)
+	h.writeLine(resp.StatusLine)
 	for _, header := range resp.RawHeaders {
-		handler.writeLine(header)
+		h.writeLine(header)
 	}
 
 	var hasBody = true
@@ -225,20 +225,20 @@ func (handler *HttpTrafficHandler) printResponse(resp *httpport.Response) {
 		hasBody = false
 	}
 
-	if handler.config.level == "header" {
+	if h.config.level == "header" {
 		if hasBody {
-			handler.writeLine("\n{body size:", tcpreader.DiscardBytesToEOF(resp.Body),
+			h.writeLine("\n{body size:", tcpreader.DiscardBytesToEOF(resp.Body),
 				", set [level = all] to display body content}")
 		}
 		return
 	}
 
-	handler.writeLine()
-	handler.printBody(hasBody, resp.Header, resp.Body)
+	h.writeLine()
+	h.printBody(hasBody, resp.Header, resp.Body)
 }
 
 // print http request/response body
-func (handler *HttpTrafficHandler) printBody(hasBody bool, header httpport.Header, reader io.ReadCloser) {
+func (h *HttpTrafficHandler) printBody(hasBody bool, header httpport.Header, reader io.ReadCloser) {
 
 	if !hasBody {
 		return
@@ -254,19 +254,19 @@ func (handler *HttpTrafficHandler) printBody(hasBody bool, header httpport.Heade
 	} else if strings.Contains(contentEncoding, "gzip") {
 		nr, err = gzip.NewReader(reader)
 		if err != nil {
-			handler.writeLine("{Decompress gzip err:", err, ", len:", tcpreader.DiscardBytesToEOF(reader), "}")
+			h.writeLine("{Decompress gzip err:", err, ", len:", tcpreader.DiscardBytesToEOF(reader), "}")
 			return
 		}
 		defer nr.Close()
 	} else if strings.Contains(contentEncoding, "deflate") {
 		nr, err = zlib.NewReader(reader)
 		if err != nil {
-			handler.writeLine("{Decompress deflate err:", err, ", len:", tcpreader.DiscardBytesToEOF(reader), "}")
+			h.writeLine("{Decompress deflate err:", err, ", len:", tcpreader.DiscardBytesToEOF(reader), "}")
 			return
 		}
 		defer nr.Close()
 	} else {
-		handler.writeLine("{Unsupport Content-Encoding:", contentEncoding, ", len:", tcpreader.DiscardBytesToEOF(reader), "}")
+		h.writeLine("{Unsupport Content-Encoding:", contentEncoding, ", len:", tcpreader.DiscardBytesToEOF(reader), "}")
 		return
 	}
 
@@ -278,9 +278,9 @@ func (handler *HttpTrafficHandler) printBody(hasBody bool, header httpport.Heade
 	isBinary := mimeType.isBinaryContent()
 
 	if !isText {
-		err = handler.printNonTextTypeBody(nr, contentType, isBinary)
+		err = h.printNonTextTypeBody(nr, contentType, isBinary)
 		if err != nil {
-			handler.writeLine("{Read content error", err, "}")
+			h.writeLine("{Read content error", err, "}")
 		}
 		return
 	}
@@ -298,7 +298,7 @@ func (handler *HttpTrafficHandler) printBody(hasBody bool, header httpport.Heade
 		body, err = readToStringWithCharset(nr, charset)
 	}
 	if err != nil {
-		handler.writeLine("{Read body failed", err, "}")
+		h.writeLine("{Read body failed", err, "}")
 		return
 	}
 
@@ -311,12 +311,12 @@ func (handler *HttpTrafficHandler) printBody(hasBody bool, header httpport.Heade
 			body = string(prettyJSON)
 		}
 	}
-	handler.writeLine(body)
-	handler.writeLine()
+	h.writeLine(body)
+	h.writeLine()
 }
 
-func (th *HttpTrafficHandler) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
-	if th.config.force && !isBinary {
+func (h *HttpTrafficHandler) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
+	if h.config.force && !isBinary {
 		data, err := ioutil.ReadAll(reader)
 		if err != nil {
 			return err
@@ -326,10 +326,10 @@ func (th *HttpTrafficHandler) printNonTextTypeBody(reader io.Reader, contentType
 		if err != nil {
 			return err
 		}
-		th.writeLine(str)
-		th.writeLine()
+		h.writeLine(str)
+		h.writeLine()
 	} else {
-		th.writeLine("{Non-text body, content-type:", contentType, ", len:", tcpreader.DiscardBytesToEOF(reader), "}")
+		h.writeLine("{Non-text body, content-type:", contentType, ", len:", tcpreader.DiscardBytesToEOF(reader), "}")
 	}
 	return nil
 }
