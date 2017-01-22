@@ -11,8 +11,8 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/google/gopacket/tcpassembly/tcpreader"
 	"bufio"
+	"github.com/google/gopacket/tcpassembly/tcpreader"
 	"os"
 )
 
@@ -179,7 +179,7 @@ func (h *HttpTrafficHandler) printRequest(req *httpport.Request) {
 	defer tcpreader.DiscardBytesToEOF(req.Body)
 	//TODO: expect-100 continue handle
 	if h.config.level == "url" {
-		h.writeLine(req.Method, req.Host + req.RequestURI)
+		h.writeLine(req.Method, req.Host+req.RequestURI)
 		return
 	}
 
@@ -192,7 +192,7 @@ func (h *HttpTrafficHandler) printRequest(req *httpport.Request) {
 
 	var hasBody = true
 	if req.ContentLength == 0 || req.Method == "GET" || req.Method == "HEAD" || req.Method == "TRACE" ||
-			req.Method == "OPTIONS" {
+		req.Method == "OPTIONS" {
 		hasBody = false
 	}
 

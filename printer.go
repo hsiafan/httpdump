@@ -18,7 +18,7 @@ func newPrinter(outputPath string) *Printer {
 		outputFile = os.Stdout
 	} else {
 		var err error
-		outputFile, err = os.OpenFile(outputPath, os.O_WRONLY | os.O_TRUNC | os.O_CREATE, os.ModePerm)
+		outputFile, err = os.OpenFile(outputPath, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, os.ModePerm)
 		if err != nil {
 			panic(err)
 		}

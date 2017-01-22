@@ -1,14 +1,15 @@
 package main
 
 import (
-	"github.com/google/gopacket/layers"
 	"bytes"
-	"time"
-	"github.com/google/gopacket"
-	"io"
-	"sync"
-	"strconv"
 	"fmt"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"io"
+	"reflect"
+	"strconv"
+	"sync"
+	"time"
 )
 
 // gopacket provide a tcp connection, however it split one tcp connection into two stream.
@@ -26,12 +27,12 @@ type TcpAssembler struct {
 }
 
 func newTcpAssembler(connectionHandler ConnectionHandler) *TcpAssembler {
-	return &TcpAssembler{connectionDict:map[string]*TcpConnection{}, connectionHandler:connectionHandler}
+	return &TcpAssembler{connectionDict: map[string]*TcpConnection{}, connectionHandler: connectionHandler}
 }
 
 func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time) {
-	src := EndPoint{ip:flow.Src().String(), port:uint16(tcp.SrcPort)}
-	dst := EndPoint{ip:flow.Dst().String(), port:uint16(tcp.DstPort)}
+	src := EndPoint{ip: flow.Src().String(), port: uint16(tcp.SrcPort)}
+	dst := EndPoint{ip: flow.Dst().String(), port: uint16(tcp.DstPort)}
 	dropped := false
 	if assembler.filterIp != "" {
 		if src.ip != assembler.filterIp && dst.ip != assembler.filterIp {
@@ -127,7 +128,7 @@ type ConnectionHandler interface {
 }
 
 // one tcp connection
-type  TcpConnection struct {
+type TcpConnection struct {
 	upStream      *NetworkStream // stream from client to server
 	downStream    *NetworkStream // stream from server to client
 	clientId      EndPoint       // the client key(by ip and port)
@@ -157,9 +158,9 @@ type ConnectionId struct {
 // create tcp connection, by the first tcp packet. this packet should from client to server
 func newTcpConnection(key string) *TcpConnection {
 	connection := &TcpConnection{
-		upStream:  newNetworkStream(),
-		downStream:newNetworkStream(),
-		key:       key,
+		upStream:   newNetworkStream(),
+		downStream: newNetworkStream(),
+		key:        key,
 	}
 	return connection
 }
@@ -239,7 +240,7 @@ type NetworkStream struct {
 }
 
 func newNetworkStream() *NetworkStream {
-	return &NetworkStream{window:newReceiveWindow(64), c:make(chan *layers.TCP, 1024)}
+	return &NetworkStream{window: newReceiveWindow(64), c: make(chan *layers.TCP, 1024)}
 }
 
 func (stream *NetworkStream) appendPacket(tcp *layers.TCP) {
@@ -295,7 +296,7 @@ type ReceiveWindow struct {
 
 func newReceiveWindow(initialSize int) *ReceiveWindow {
 	buffer := make([]*layers.TCP, initialSize)
-	return &ReceiveWindow{buffer:buffer}
+	return &ReceiveWindow{buffer: buffer}
 }
 
 func (window *ReceiveWindow) destroy() {
@@ -306,7 +307,7 @@ func (window *ReceiveWindow) destroy() {
 
 func (window *ReceiveWindow) insert(packet *layers.TCP) {
 
-	if window.expectBegin != 0 && compareTcpSeq(window.expectBegin, packet.Seq + uint32(len(packet.Payload))) >= 0 {
+	if window.expectBegin != 0 && compareTcpSeq(window.expectBegin, packet.Seq+uint32(len(packet.Payload))) >= 0 {
 		// dropped
 		return
 	}
@@ -317,7 +318,7 @@ func (window *ReceiveWindow) insert(packet *layers.TCP) {
 	}
 
 	idx := window.size
-	for ; idx > 0; idx -- {
+	for ; idx > 0; idx-- {
 		index := (idx - 1 + window.start) % len(window.buffer)
 		prev := window.buffer[index]
 		result := compareTcpSeq(prev.Seq, packet.Seq)
@@ -369,7 +370,7 @@ func (window *ReceiveWindow) printWindow() {
 // send confirmed packets to reader, when receive ack
 func (window *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 	idx := 0
-	for ; idx < window.size; idx ++ {
+	for ; idx < window.size; idx++ {
 		index := (idx + window.start) % len(window.buffer)
 		packet := window.buffer[index]
 		result := compareTcpSeq(packet.Seq, ack)
@@ -405,13 +406,13 @@ func (window *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 }
 
 func (window *ReceiveWindow) expand() {
-	buffer := make([]*layers.TCP, len(window.buffer) * 2)
+	buffer := make([]*layers.TCP, len(window.buffer)*2)
 	end := window.start + window.size
 	if end < len(window.buffer) {
-		copy(buffer, window.buffer[window.start:window.start + window.size])
+		copy(buffer, window.buffer[window.start:window.start+window.size])
 	} else {
 		copy(buffer, window.buffer[window.start:])
-		copy(buffer[len(window.buffer) - window.start:], window.buffer[:end - len(window.buffer)])
+		copy(buffer[len(window.buffer)-window.start:], window.buffer[:end-len(window.buffer)])
 	}
 	window.start = 0
 	window.buffer = buffer
@@ -419,16 +420,16 @@ func (window *ReceiveWindow) expand() {
 
 // compare two tcp sequences, if seq1 is earlier, return num < 0, if seq1 == seq2, return 0, else return num > 0
 func compareTcpSeq(seq1, seq2 uint32) int {
-	if seq1 < TCP_SEQ_WINDOW && seq2 > MAX_TCP_SEQ - TCP_SEQ_WINDOW {
+	if seq1 < TCP_SEQ_WINDOW && seq2 > MAX_TCP_SEQ-TCP_SEQ_WINDOW {
 		return int(seq1 + MAX_TCP_SEQ - seq2)
-	} else if seq2 < TCP_SEQ_WINDOW && seq1 > MAX_TCP_SEQ - TCP_SEQ_WINDOW {
+	} else if seq2 < TCP_SEQ_WINDOW && seq1 > MAX_TCP_SEQ-TCP_SEQ_WINDOW {
 		return int(seq1 - (MAX_TCP_SEQ + seq2))
 	}
 	return int(int32(seq1 - seq2))
 }
 
-var HTTP_METHODS = map[string]bool{"GET":true, "POST":true, "PUT":true, "DELETE":true, "HEAD":true,
-	"TRACE":                             true, "OPTIONS":true, "PATCH":true}
+var HTTP_METHODS = map[string]bool{"GET": true, "POST": true, "PUT": true, "DELETE": true, "HEAD": true,
+	"TRACE": true, "OPTIONS": true, "PATCH": true}
 
 // if is first http request packet
 func isHttpRequestData(body []byte) bool {

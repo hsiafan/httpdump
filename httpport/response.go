@@ -11,11 +11,11 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
+	"github.com/clearthesky/httpparse/textprotoport"
 	"io"
 	"net/url"
 	"strconv"
 	"strings"
-	"github.com/clearthesky/httpparse/textprotoport"
 )
 
 var respExcludeHeader = map[string]bool{

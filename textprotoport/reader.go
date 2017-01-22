@@ -9,9 +9,9 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
+	"net/textproto"
 	"strconv"
 	"strings"
-	"net/textproto"
 )
 
 // A Reader implements convenience methods for reading requests
@@ -101,7 +101,7 @@ func trim(s []byte) []byte {
 		i++
 	}
 	n := len(s)
-	for n > i && (s[n - 1] == ' ' || s[n - 1] == '\t') {
+	for n > i && (s[n-1] == ' ' || s[n-1] == '\t') {
 		n--
 	}
 	return s[i:n]
@@ -195,9 +195,9 @@ func parseCodeLine(line string, expectCode int) (code int, continued bool, messa
 		return
 	}
 	message = line[4:]
-	if 1 <= expectCode && expectCode < 10 && code / 100 != expectCode ||
-	10 <= expectCode && expectCode < 100 && code / 10 != expectCode ||
-	100 <= expectCode && expectCode < 1000 && code != expectCode {
+	if 1 <= expectCode && expectCode < 10 && code/100 != expectCode ||
+		10 <= expectCode && expectCode < 100 && code/10 != expectCode ||
+		100 <= expectCode && expectCode < 1000 && code != expectCode {
 		err = &textproto.Error{Code: code, Msg: message}
 	}
 	return
@@ -495,7 +495,7 @@ func (r *Reader) ReadMIMEHeader() (textproto.MIMEHeader, []string, error) {
 			return m, rawHeaders, textproto.ProtocolError("malformed MIME header line: " + string(kv))
 		}
 		endKey := i
-		for endKey > 0 && kv[endKey - 1] == ' ' {
+		for endKey > 0 && kv[endKey-1] == ' ' {
 			endKey--
 		}
 		key := canonicalMIMEHeaderKey(kv[:endKey])
@@ -551,7 +551,7 @@ func (r *Reader) upcomingHeaderNewlines() (n int) {
 			return
 		}
 		n++
-		peek = peek[i + 1:]
+		peek = peek[i+1:]
 	}
 	return
 }
@@ -595,9 +595,9 @@ const toLower = 'a' - 'A'
 // to CGI environment variables.
 func validHeaderFieldByte(b byte) bool {
 	return ('A' <= b && b <= 'Z') ||
-	('a' <= b && b <= 'z') ||
-	('0' <= b && b <= '9') ||
-	b == '-'
+		('a' <= b && b <= 'z') ||
+		('0' <= b && b <= '9') ||
+		b == '-'
 }
 
 // canonicalMIMEHeaderKey is like CanonicalMIMEHeaderKey but is

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"testing"
 	"github.com/google/gopacket/layers"
+	"testing"
 )
 
 func TestReceiveWindow(t *testing.T) {
@@ -10,10 +10,10 @@ func TestReceiveWindow(t *testing.T) {
 	window := newReceiveWindow(4)
 
 	// init insert
-	window.insert(&layers.TCP{Seq:10005, BaseLayer:layers.BaseLayer{Payload:[]byte{1, 2}}})
-	window.insert(&layers.TCP{Seq:10000, BaseLayer:layers.BaseLayer{Payload:[]byte{7, 8, 9, 0}}})
-	window.insert(&layers.TCP{Seq:10010, BaseLayer:layers.BaseLayer{Payload:[]byte{2, 3, 4, 5}}})
-	window.insert(&layers.TCP{Seq:10005, BaseLayer:layers.BaseLayer{Payload:[]byte{1, 2}}})
+	window.insert(&layers.TCP{Seq: 10005, BaseLayer: layers.BaseLayer{Payload: []byte{1, 2}}})
+	window.insert(&layers.TCP{Seq: 10000, BaseLayer: layers.BaseLayer{Payload: []byte{7, 8, 9, 0}}})
+	window.insert(&layers.TCP{Seq: 10010, BaseLayer: layers.BaseLayer{Payload: []byte{2, 3, 4, 5}}})
+	window.insert(&layers.TCP{Seq: 10005, BaseLayer: layers.BaseLayer{Payload: []byte{1, 2}}})
 	if window.size != 3 {
 		t.Fatal("window size should be 3")
 	}
@@ -30,7 +30,7 @@ func TestReceiveWindow(t *testing.T) {
 		t.Fatal("window.buffer[2].Seq should be 10010")
 	}
 
-	window.insert(&layers.TCP{Seq:10009, BaseLayer:layers.BaseLayer{Payload:[]byte{7, 8, 9, 0}}})
+	window.insert(&layers.TCP{Seq: 10009, BaseLayer: layers.BaseLayer{Payload: []byte{7, 8, 9, 0}}})
 	if window.buffer[0].Seq != 10000 {
 		t.FailNow()
 	}
@@ -39,7 +39,7 @@ func TestReceiveWindow(t *testing.T) {
 	}
 
 	// expand
-	window.insert(&layers.TCP{Seq:10030, BaseLayer:layers.BaseLayer{Payload:[]byte{7, 8, 9, 0}}})
+	window.insert(&layers.TCP{Seq: 10030, BaseLayer: layers.BaseLayer{Payload: []byte{7, 8, 9, 0}}})
 	if window.size != 5 {
 		t.Fatal("window size should be 5")
 	}

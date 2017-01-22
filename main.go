@@ -13,10 +13,9 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
+	_ "net/http/pprof"
 	"strconv"
 	"sync"
-     _ "net/http/pprof"
-
 )
 
 var waitGroup sync.WaitGroup
@@ -56,9 +55,9 @@ func parseFilter(filter string) (string, uint16) {
 	if idx < 0 {
 		return filter, 0
 	}
-	port, err := strconv.Atoi(filter[idx + 1:])
+	port, err := strconv.Atoi(filter[idx+1:])
 	if err != nil {
-		log.Fatalln("Not a port num: " + filter[idx + 1:])
+		log.Fatalln("Not a port num: " + filter[idx+1:])
 		return filter[:idx], 0
 	}
 	return filter[:idx], uint16(port)
@@ -189,18 +188,18 @@ func main() {
 	assembler.filterPort = filterPort
 	var ticker = time.Tick(time.Second * 30)
 
-	outer:
+outer:
 	for {
 		select {
 		case packet := <-packets:
-		// A nil packet indicates the end of a pcap file.
+			// A nil packet indicates the end of a pcap file.
 			if packet == nil {
 				break outer
 			}
 
-		// only assembly tcp/ip packets
+			// only assembly tcp/ip packets
 			if packet.NetworkLayer() == nil || packet.TransportLayer() == nil ||
-					packet.TransportLayer().LayerType() != layers.LayerTypeTCP {
+				packet.TransportLayer().LayerType() != layers.LayerTypeTCP {
 				continue
 			}
 			var tcp = packet.TransportLayer().(*layers.TCP)
@@ -208,7 +207,7 @@ func main() {
 			assembler.assemble(packet.NetworkLayer().NetworkFlow(), tcp, packet.Metadata().Timestamp)
 
 		case <-ticker:
-		// flush connections that haven't seen activity in the past 2 minutes.
+			// flush connections that haven't seen activity in the past 2 minutes.
 			assembler.flushOlderThan(time.Now().Add(time.Minute * -2))
 		}
 	}

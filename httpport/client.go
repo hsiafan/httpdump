@@ -316,7 +316,7 @@ func setRequestCancel(req *Request, rt RoundTripper, deadline time.Time) (stopTi
 			CancelRequest(*Request)
 		}
 		switch v := rt.(type) {
-		case *Transport/*, *http2Transport*/:
+		case *Transport /*, *http2Transport*/ :
 			// Do nothing. The net/http package's transports
 			// support the new Request.Cancel channel
 		case canceler:

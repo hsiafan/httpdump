@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/clearthesky/httpparse/textprotoport"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -21,7 +22,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"github.com/clearthesky/httpparse/textprotoport"
 )
 
 const (
