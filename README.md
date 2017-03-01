@@ -1,3 +1,7 @@
+<span style="display: inline-block;">
+[![Go Report Card](https://goreportcard.com/badge/github.com/clearthesky/httpparse)](https://goreportcard.com/report/github.com/clearthesky/httpparse)
+</span>
+
 Parse and display http traffic from network device or pcap file. This is a go version of origin pcap-parser, thanks to gopacket project, this tool has simpler code base and is more efficient.
 
 For origin python implementation, [go to this branch](https://github.com/clearthesky/httpparse/tree/pcap-parser-python).
