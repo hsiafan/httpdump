@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"io"
@@ -321,7 +320,6 @@ func (window *ReceiveWindow) insert(packet *layers.TCP) {
 		index := (idx - 1 + window.start) % len(window.buffer)
 		prev := window.buffer[index]
 		result := compareTcpSeq(prev.Seq, packet.Seq)
-		fmt.Println(prev.Seq, packet.Seq)
 		if result == 0 {
 			// duplicated
 			return
@@ -354,18 +352,6 @@ func (window *ReceiveWindow) insert(packet *layers.TCP) {
 	window.size++
 }
 
-// for debug
-func (window *ReceiveWindow) printWindow() {
-	fmt.Println("==========", window.size, window.start, window.lastAck, "==============")
-	for i := 0; i < window.size; i++ {
-		index := (i + window.start) % len(window.buffer)
-		tcp := window.buffer[index]
-		fmt.Println(i, index, tcp.Seq, len(tcp.Payload))
-	}
-	fmt.Println("========================")
-	fmt.Println()
-}
-
 // send confirmed packets to reader, when receive ack
 func (window *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 	idx := 0
@@ -391,7 +377,6 @@ func (window *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 				packet.Payload = packet.Payload[duplicatedSize:]
 			} else if diff < 0 {
 				//TODO: we lose packet here
-				//fmt.Println(window.expectBegin, packet.Seq, packet.Seq - window.expectBegin)
 			}
 		}
 		c <- packet
@@ -428,7 +413,7 @@ func compareTcpSeq(seq1, seq2 uint32) int {
 }
 
 var HTTP_METHODS = map[string]bool{"GET": true, "POST": true, "PUT": true, "DELETE": true, "HEAD": true,
-	"TRACE": true, "OPTIONS": true, "PATCH": true}
+	"TRACE":                              true, "OPTIONS": true, "PATCH": true}
 
 // if is first http request packet
 func isHttpRequestData(body []byte) bool {
