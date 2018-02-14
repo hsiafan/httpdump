@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  branch = "master"
+  name = "github.com/hsiafan/httpdump"
+  packages = ["httpport","textprotoport"]
+  revision = "0cecbe96f2596262310749b883ea6de56cddc4e1"
+
+[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "346938d642f2ec3594ed81d874461961cd0faa76"
@@ -34,6 +40,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "8c389a7aab3cab52e533c4c3f758fd2c294c2df1c240eae24863c07eb2b07e1c"
+  inputs-digest = "dec0e64241d75e2e6a2d3c8bf3160f65c30f6c0470dd660ade1631027b0f7f70"
   solver-name = "gps-cdcl"
   solver-version = 1
