@@ -1,9 +1,9 @@
 Parse and display http traffic from network device or pcap file. This is a go version of origin pcap-parser, thanks to gopacket project, this tool has simpler code base and is more efficient.
 
-For origin python implementation, [refer to this branch](https://github.com/clearthesky/httpparse/tree/pcap-parser-python).
+For origin python implementation, [refer to this branch](https://github.com/clearthesky/httpdump/tree/pcap-parser-python).
 
 # install & requirement
-Build httpparse requires libpcap-dev and cgo enabled.
+Build httpdump requires libpcap-dev and cgo enabled.
 ## libpcap
 for ubuntu/debian:
 
@@ -24,12 +24,12 @@ Libpcap and header files already installed.
 ## build
 
 ```sh
-go get github.com/clearthesky/httpparse
+go get github.com/clearthesky/httpdump
 ```
 
 
 # Usage
-httpparse can read from pcap file, or capture data from network interfaces:
+httpdump can read from pcap file, or capture data from network interfaces:
 
 ```
 -device string
@@ -56,7 +56,7 @@ httpparse can read from pcap file, or capture data from network interfaces:
 A simple capture:
 
 ```
-$ httpparse
+$ httpdump
 192.168.110.48:56585  ----->  101.201.170.152:80
 GET / HTTP/1.1
 Host: geek.csdn.net
@@ -90,13 +90,13 @@ More:
 ```sh
 # parse pcap file
 sudo tcpdump -wa.pcap tcp
-httpparse -file a.pcap
+httpdump -file a.pcap
 
 # capture specified device:
-httpparse -device eth0
+httpdump -device eth0
 
 # filter by ip and/or port
-httpparse -filter :80  # filter by port
-httpparse -filter 101.201.170.152 # filter by ip
-httpparse -filter 101.201.170.152:80 # filter by ip and prot
+httpdump -filter :80  # filter by port
+httpdump -filter 101.201.170.152 # filter by ip
+httpdump -filter 101.201.170.152:80 # filter by ip and prot
 ```
