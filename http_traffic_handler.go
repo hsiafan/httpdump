@@ -6,7 +6,7 @@ import (
 	"compress/zlib"
 	"encoding/json"
 	"fmt"
-	"github.com/clearthesky/httpparse/httpport"
+	"github.com/hsiafan/httpdump/httpport"
 	"io"
 	"io/ioutil"
 	"strings"

@@ -13,7 +13,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/clearthesky/httpparse/textprotoport"
+	"github.com/hsiafan/httpdump/textprotoport"
 	"io"
 	"io/ioutil"
 	"mime"

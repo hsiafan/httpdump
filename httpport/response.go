@@ -11,7 +11,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
-	"github.com/clearthesky/httpparse/textprotoport"
+	"github.com/hsiafan/httpdump/textprotoport"
 	"io"
 	"net/url"
 	"strconv"
