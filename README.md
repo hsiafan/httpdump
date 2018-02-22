@@ -2,7 +2,7 @@ Parse and display http traffic from network device or pcap file. This is a go ve
 
 For origin python implementation, [refer to this branch](https://github.com/hsiafan/httpdump/tree/pcap-parser-python).
 
-# install & requirement
+# Install & Requirement
 Build httpdump requires libpcap-dev and cgo enabled.
 ## libpcap
 for ubuntu/debian:
@@ -21,7 +21,13 @@ for osx:
 
 Libpcap and header files already installed.
 
-## build
+## Install
+
+```sh
+vgo get github.com/hsiafan/httpdump
+```
+
+or if do not use vgo:
 
 ```sh
 go get github.com/hsiafan/httpdump
@@ -52,7 +58,7 @@ httpdump can read from pcap file, or capture data from network interfaces:
     Filter by request url path, contains match
 ```
 
-## samples
+## Samples
 A simple capture:
 
 ```
