@@ -88,10 +88,10 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests:", err)
 			break
 		}
-		if h.config.domain != "" && !strings.HasSuffix(req.Host, h.config.domain) {
+		if h.config.host != "" && !wildcardMatch(req.Host, h.config.host) {
 			filtered = true
 		}
-		if h.config.urlPath != "" && !strings.Contains(req.RequestURI, h.config.urlPath) {
+		if h.config.uri != "" && !wildcardMatch(req.RequestURI, h.config.uri) {
 			filtered = true
 		}
 

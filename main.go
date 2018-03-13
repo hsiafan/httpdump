@@ -42,8 +42,8 @@ type Config struct {
 	level      string
 	filterIP   string
 	filterPort uint16
-	domain     string
-	urlPath    string
+	host       string
+	uri        string
 	force      bool
 	pretty     bool
 	output     string
@@ -122,25 +122,29 @@ func main() {
 	//	log.Println(http.ListenAndServe("localhost:6060", nil))
 	//}()
 	var flagSet = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	var level = flagSet.String("level", "header", "Print level, url(only url) | header(http headers) | all(headers, and textuary http body)")
-	var filePath = flagSet.String("file", "", "Read from pcap file. If not specified, will capture from network devices")
-	var device = flagSet.String("device", "any", "Which network interface to capture. If any, capture all interface traffics")
-	var filter = flagSet.String("filter", "", "Filter by ip/port, format: [ip][:port], eg: 192.168.122.46:50792, 192.168.122.46, :50792")
-	var domain = flagSet.String("domain", "", "Filter by request domain, suffix match")
-	var urlPath = flagSet.String("urlPath", "", "Filter by request url path, contains match")
+	var level = flagSet.String("level", "header", "Output level, options are: url(only url) | header(http headers) | all(headers, and textuary http body)")
+	var filePath = flagSet.String("file", "", "Read from pcap file. If not set, will capture data from network device by default")
+	var device = flagSet.String("device", "any", "Capture packet from network device. If is any, capture all interface traffics")
+	var filterIP = flagSet.String("ip", "", "Filter by ip, if either source or target ip is matched, the packet will be processed")
+	var filterPort = flagSet.Uint("port", 0, "Filter by port, if either source or target port is matched, the packet will be processed.")
+	var host = flagSet.String("filter-host", "", "Filter by request host, using wildcard match(*, ?)")
+	var uri = flagSet.String("filter-uri", "", "Filter by request url path, using wildcard match(*, ?)")
 	var force = flagSet.Bool("force", false, "Force print unknown content-type http body even if it seems not to be text content")
 	var pretty = flagSet.Bool("pretty", false, "Try to format and prettify json content")
 	var output = flagSet.String("output", "", "Write result to file [output] instead of stdout")
 	flagSet.Parse(os.Args[1:])
 
-	filterIP, filterPort := parseFilter(*filter)
+	if *filterPort < 0 || *filterPort >= 65536 {
+		fmt.Fprint(os.Stderr, "ignored invalid port ", *filterPort)
+		*filterPort = 0
+	}
 
 	var config = &Config{
 		level:      *level,
-		filterIP:   filterIP,
-		filterPort: filterPort,
-		domain:     *domain,
-		urlPath:    *urlPath,
+		filterIP:   *filterIP,
+		filterPort: uint16(*filterPort),
+		host:       *host,
+		uri:        *uri,
 		force:      *force,
 		pretty:     *pretty,
 		output:     *output,
@@ -160,7 +164,7 @@ func main() {
 		}
 		var packetsSlice = make([]chan gopacket.Packet, len(interfaces))
 		for _, itf := range interfaces {
-			localPackets, err := openSingleDevice(itf.Name, filterIP, filterPort)
+			localPackets, err := openSingleDevice(itf.Name, config.filterIP, config.filterPort)
 			if err != nil {
 				fmt.Fprint(os.Stderr, "Open device", device, "error:", err)
 				continue
@@ -171,7 +175,7 @@ func main() {
 	} else if *device != "" {
 		// capture one device
 		var err error
-		packets, err = openSingleDevice(*device, filterIP, filterPort)
+		packets, err = openSingleDevice(*device, config.filterIP, config.filterPort)
 		if err != nil {
 			log.Fatal("Listen on device", *device, "failed, error:", err)
 		}
@@ -184,8 +188,8 @@ func main() {
 		printer: newPrinter(*output),
 	}
 	var assembler = newTcpAssembler(handler)
-	assembler.filterIp = filterIP
-	assembler.filterPort = filterPort
+	assembler.filterIp = config.filterIP
+	assembler.filterPort = config.filterPort
 	var ticker = time.Tick(time.Second * 30)
 
 outer:

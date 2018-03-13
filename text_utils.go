@@ -139,3 +139,32 @@ func likeJSON(value string) bool {
 	}
 	return false
 }
+
+// if str wildcard match pattern
+func wildcardMatch(str string, pattern string) bool {
+	var n = len(pattern)
+	var i = 0
+	var j = 0
+	var asterick = -1
+	var match = 0
+	for i < len(str) {
+		if j < n && pattern[j] == '*' {
+			match = i
+			asterick = j
+			j++
+		} else if j < n && (str[i] == pattern[j] || pattern[j] == '?') {
+			i++
+			j++
+		} else if asterick >= 0 {
+			match++
+			i = match
+			j = asterick + 1
+		} else {
+			return false
+		}
+	}
+	for j < n && pattern[j] == '*' {
+		j++
+	}
+	return j == n
+}

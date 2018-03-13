@@ -413,7 +413,7 @@ func compareTcpSeq(seq1, seq2 uint32) int {
 }
 
 var HTTP_METHODS = map[string]bool{"GET": true, "POST": true, "PUT": true, "DELETE": true, "HEAD": true,
-	"TRACE":                              true, "OPTIONS": true, "PATCH": true}
+	"TRACE": true, "OPTIONS": true, "PATCH": true}
 
 // if is first http request packet
 func isHttpRequestData(body []byte) bool {

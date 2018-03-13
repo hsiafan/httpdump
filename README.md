@@ -38,24 +38,26 @@ go get github.com/hsiafan/httpdump
 httpdump can read from pcap file, or capture data from network interfaces:
 
 ```
--device string
-    Which network interface to capture. If any, capture all interface traffics (default "any")
--domain string
-    Filter by request domain, suffix match
--file string
-    Read from pcap file. If not specified, will capture from network devices
--filter string
-    Filter by ip/port, format: [ip][:port], eg: 192.168.122.46:50792, 192.168.122.46, :50792
--force
-    Force print unknown content-type http body even if it seems not to be text content
--level string
-    Print level, url(only url) | header(http headers) | all(headers, and textuary http body) (default "header")
--output string
-    Write result to file [output] instead of stdout
--pretty
-    Try to format and prettify json content
--urlPath string
-    Filter by request url path, contains match
+  -device string
+    	Capture packet from network device. If is any, capture all interface traffics (default "any")
+  -file string
+    	Read from pcap file. If not set, will capture data from network device by default
+  -filter-host string
+    	Filter by request host, using wildcard match(*, ?)
+  -filter-uri string
+    	Filter by request url path, using wildcard match(*, ?)
+  -force
+    	Force print unknown content-type http body even if it seems not to be text content
+  -ip string
+    	Filter by ip, if either source or target ip is matched, the packet will be processed
+  -level string
+    	Output level, options are: url(only url) | header(http headers) | all(headers, and textuary http body) (default "header")
+  -output string
+    	Write result to file [output] instead of stdout
+  -port uint
+    	Filter by port, if either source or target port is matched, the packet will be processed.
+  -pretty
+    	Try to format and prettify json content
 ```
 
 ## Samples
@@ -102,7 +104,7 @@ httpdump -file a.pcap
 httpdump -device eth0
 
 # filter by ip and/or port
-httpdump -filter :80  # filter by port
-httpdump -filter 101.201.170.152 # filter by ip
-httpdump -filter 101.201.170.152:80 # filter by ip and prot
+httpdump -port 80  # filter by port
+httpdump -ip 101.201.170.152 # filter by ip
+httpdump -ip 101.201.170.152 -port 80 # filter by ip and prot
 ```
