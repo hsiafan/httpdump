@@ -98,6 +98,8 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 		if !filtered {
 			h.printRequest(req)
 			h.writeLine("")
+		} else {
+			tcpreader.DiscardBytesToEOF(req.Body)
 		}
 
 		// if is websocket request,  by header: Upgrade: websocket
@@ -106,11 +108,11 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 
 		resp, err := httpport.ReadResponse(responseReader, nil)
 		if err == io.EOF {
-			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests: unexpected end, ", err)
+			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests: unexpected end, ", err, connection.clientId)
 			break
 		}
 		if err == io.ErrUnexpectedEOF {
-			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests: unexpected end, ", err)
+			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests: unexpected end, ", err, connection.clientId)
 			// here return directly too, to avoid error when long polling connection is used
 			break
 		}
@@ -121,6 +123,8 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 		if !filtered {
 			h.printResponse(resp)
 			h.printer.send(h.buffer.String())
+		} else {
+			tcpreader.DiscardBytesToEOF(resp.Body)
 		}
 
 		if websocket {
@@ -151,6 +155,8 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 				if !filtered {
 					h.printResponse(resp)
 					h.printer.send(h.buffer.String())
+				} else {
+					tcpreader.DiscardBytesToEOF(resp.Body)
 				}
 			} else if resp.StatusCode == 417 {
 
