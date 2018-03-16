@@ -13,7 +13,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"github.com/hsiafan/httpdump/textprotoport"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -695,16 +694,16 @@ func parseRequestLine(line string) (method, requestURI, proto string, ok bool) {
 
 var textprotoReaderPool sync.Pool
 
-func newTextprotoReader(br *bufio.Reader) *textprotoport.Reader {
+func newTextprotoReader(br *bufio.Reader) *Reader {
 	if v := textprotoReaderPool.Get(); v != nil {
-		tr := v.(*textprotoport.Reader)
+		tr := v.(*Reader)
 		tr.R = br
 		return tr
 	}
-	return textprotoport.NewReader(br)
+	return NewReader(br)
 }
 
-func putTextprotoReader(r *textprotoport.Reader) {
+func putTextprotoReader(r *Reader) {
 	r.R = nil
 	textprotoReaderPool.Put(r)
 }

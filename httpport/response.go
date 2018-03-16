@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"crypto/tls"
 	"errors"
-	"github.com/hsiafan/httpdump/textprotoport"
 	"io"
 	"net/url"
 	"strconv"
@@ -132,7 +131,7 @@ func (r *Response) Location() (*url.URL, error) {
 // After that call, clients can inspect resp.Trailer to find key/value
 // pairs included in the response trailer.
 func ReadResponse(r *bufio.Reader, req *Request) (*Response, error) {
-	tp := textprotoport.NewReader(r)
+	tp := NewReader(r)
 	resp := &Response{
 		Request: req,
 	}
