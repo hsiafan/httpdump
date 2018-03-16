@@ -4,38 +4,26 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	_ "net/http/pprof"
+	"github.com/hsiafan/vlog"
 	"strconv"
 	"sync"
 )
 
+var logger = vlog.CurrentPackageLogger()
+
+func init() {
+	logger.SetAppenders(vlog.NewConsole2Appender())
+}
+
 var waitGroup sync.WaitGroup
 var printerWaitGroup sync.WaitGroup
-
-func openFile(pcapFile string) *pcap.Handle {
-	handle, err := pcap.OpenOffline(pcapFile)
-	if err != nil {
-		log.Fatal("Open file", pcapFile, "error:", err)
-	}
-	return handle
-}
-
-func openDevice(device string) *pcap.Handle {
-	handle, err := pcap.OpenLive(device, 65536, false, pcap.BlockForever)
-	if err != nil {
-		log.Fatal("Open device", device, "error:", err)
-	}
-	return handle
-}
 
 // user config for http traffics
 type Config struct {
@@ -49,20 +37,6 @@ type Config struct {
 	output     string
 }
 
-func parseFilter(filter string) (string, uint16) {
-	filter = strings.TrimSpace(filter)
-	idx := strings.Index(filter, ":")
-	if idx < 0 {
-		return filter, 0
-	}
-	port, err := strconv.Atoi(filter[idx+1:])
-	if err != nil {
-		log.Fatalln("Not a port num: " + filter[idx+1:])
-		return filter[:idx], 0
-	}
-	return filter[:idx], uint16(port)
-}
-
 func listenOneSource(handle *pcap.Handle) chan gopacket.Packet {
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	packets := packetSource.Packets()
@@ -70,7 +44,7 @@ func listenOneSource(handle *pcap.Handle) chan gopacket.Packet {
 }
 
 // set packet capture filter, by ip and port
-func setDeviceFilter(handle *pcap.Handle, filterIP string, filterPort uint16) {
+func setDeviceFilter(handle *pcap.Handle, filterIP string, filterPort uint16) error {
 	var bpfFilter = "tcp"
 	if filterPort != 0 {
 		bpfFilter += " port " + strconv.Itoa(int(filterPort))
@@ -78,10 +52,7 @@ func setDeviceFilter(handle *pcap.Handle, filterIP string, filterPort uint16) {
 	if filterIP != "" {
 		bpfFilter += " ip host " + filterIP
 	}
-	var err = handle.SetBPFFilter(bpfFilter)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "Set capture filter failed, ", err)
-	}
+	return handle.SetBPFFilter(bpfFilter)
 }
 
 // adapter multi channels to one channel. used to aggregate multi devices data
@@ -106,21 +77,26 @@ func openSingleDevice(device string, filterIP string, filterPort uint16) (localP
 			case error:
 				err = x
 			default:
-				err = errors.New("Unknown panic")
+				err = errors.New("unknown panic")
 			}
 			localPackets = nil
 		}
 	}()
-	var handle = openDevice(device)
-	setDeviceFilter(handle, filterIP, filterPort)
+	handle, err := pcap.OpenLive(device, 65536, false, pcap.BlockForever)
+	if err != nil {
+		return
+	}
+
+	if err := setDeviceFilter(handle, filterIP, filterPort); err != nil {
+		if err != nil {
+			logger.Warn("set capture filter failed, ", err)
+		}
+	}
 	localPackets = listenOneSource(handle)
 	return
 }
 
 func main() {
-	//go func() {
-	//	log.Println(http.ListenAndServe("localhost:6060", nil))
-	//}()
 	var flagSet = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	var level = flagSet.String("level", "header", "Output level, options are: url(only url) | header(http headers) | all(headers, and textuary http body)")
 	var filePath = flagSet.String("file", "", "Read from pcap file. If not set, will capture data from network device by default")
@@ -153,20 +129,26 @@ func main() {
 	var packets chan gopacket.Packet
 	if *filePath != "" {
 		// read from pcap file
-		var handle = openFile(*filePath)
+		var handle, err = pcap.OpenOffline(*filePath)
+		if err != nil {
+			logger.Error("Open file", *filePath, "error:", err)
+			return
+		}
 		packets = listenOneSource(handle)
 	} else if *device == "any" && runtime.GOOS != "linux" {
 		// capture all device
 		// Only linux 2.2+ support any interface. we have to list all network device and listened on them all
 		interfaces, err := pcap.FindAllDevs()
 		if err != nil {
-			log.Fatal("Find device error:", err)
+			logger.Error("find device error:", err)
+			return
 		}
+
 		var packetsSlice = make([]chan gopacket.Packet, len(interfaces))
 		for _, itf := range interfaces {
 			localPackets, err := openSingleDevice(itf.Name, config.filterIP, config.filterPort)
 			if err != nil {
-				fmt.Fprint(os.Stderr, "Open device", device, "error:", err)
+				logger.Warn("open device", device, "error:", err)
 				continue
 			}
 			packetsSlice = append(packetsSlice, localPackets)
@@ -177,10 +159,13 @@ func main() {
 		var err error
 		packets, err = openSingleDevice(*device, config.filterIP, config.filterPort)
 		if err != nil {
-			log.Fatal("Listen on device", *device, "failed, error:", err)
+			logger.Error("listen on device", *device, "failed, error:", err)
+			return
 		}
 	} else {
-		log.Fatal("Empty device")
+		fmt.Fprintln(os.Stderr, "no device or pcap file specified.")
+		flagSet.Usage()
+		return
 	}
 
 	var handler = &HttpConnectionHandler{

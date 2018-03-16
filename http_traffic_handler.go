@@ -13,7 +13,6 @@ import (
 
 	"bufio"
 	"github.com/google/gopacket/tcpassembly/tcpreader"
-	"os"
 )
 
 type ConnectionKey struct {
@@ -85,7 +84,7 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 			break
 		}
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests:", err)
+			logger.Warn("Error parsing HTTP requests:", err)
 			break
 		}
 		if h.config.host != "" && !wildcardMatch(req.Host, h.config.host) {
@@ -107,17 +106,12 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 		expectContinue := req.Header.Get("Expect") == "100-continue"
 
 		resp, err := httpport.ReadResponse(responseReader, nil)
-		if err == io.EOF {
-			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests: unexpected end, ", err, connection.clientId)
-			break
-		}
-		if err == io.ErrUnexpectedEOF {
-			fmt.Fprintln(os.Stderr, "Error parsing HTTP requests: unexpected end, ", err, connection.clientId)
-			// here return directly too, to avoid error when long polling connection is used
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			logger.Debug("Error parsing HTTP requests: unexpected end, ", err, connection.clientId)
 			break
 		}
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err, connection.clientId)
+			logger.Warn("Error parsing HTTP response:", err, connection.clientId)
 			break
 		}
 		if !filtered {
@@ -140,16 +134,16 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 				// read next response, the real response
 				resp, err := httpport.ReadResponse(responseReader, nil)
 				if err == io.EOF {
-					fmt.Fprintln(os.Stderr, "Error parsing HTTP requests: unexpected end, ", err)
+					logger.Warn("Error parsing HTTP requests: unexpected end, ", err)
 					break
 				}
 				if err == io.ErrUnexpectedEOF {
-					fmt.Fprintln(os.Stderr, "Error parsing HTTP requests: unexpected end, ", err)
+					logger.Warn("Error parsing HTTP requests: unexpected end, ", err)
 					// here return directly too, to avoid error when long polling connection is used
 					break
 				}
 				if err != nil {
-					fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err, connection.clientId)
+					logger.Warn("Error parsing HTTP response:", err, connection.clientId)
 					break
 				}
 				if !filtered {
