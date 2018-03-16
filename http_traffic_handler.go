@@ -272,6 +272,9 @@ func (h *HttpTrafficHandler) printBody(hasBody bool, header httpport.Header, rea
 
 	// check mime type and charset
 	contentType := header.Get("Content-Type")
+	if contentType == "" {
+		// TODO: detect content type using httpport.DetectContentType()
+	}
 	mimeTypeStr, charset := parseContentType(contentType)
 	var mimeType = parseMimeType(mimeTypeStr)
 	isText := mimeType.isTextContent()

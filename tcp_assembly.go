@@ -13,8 +13,8 @@ import (
 // gopacket provide a tcp connection, however it split one tcp connection into two stream.
 // So it is hard to match http request and response. we make our own connection here
 
-const MAX_TCP_SEQ uint32 = 0xFFFFFFFF
-const TCP_SEQ_WINDOW = 0x0000FFFF
+const maxTcpSeq uint32 = 0xFFFFFFFF
+const tcpSeqWindow = 0x0000FFFF
 
 type TcpAssembler struct {
 	connectionDict    map[string]*TcpConnection
@@ -369,7 +369,7 @@ func (window *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 			if diff > 0 {
 				duplicatedSize := window.expectBegin - packet.Seq
 				if duplicatedSize < 0 {
-					duplicatedSize += MAX_TCP_SEQ
+					duplicatedSize += maxTcpSeq
 				}
 				if duplicatedSize >= uint32(len(packet.Payload)) {
 					continue
@@ -404,15 +404,15 @@ func (window *ReceiveWindow) expand() {
 
 // compare two tcp sequences, if seq1 is earlier, return num < 0, if seq1 == seq2, return 0, else return num > 0
 func compareTcpSeq(seq1, seq2 uint32) int {
-	if seq1 < TCP_SEQ_WINDOW && seq2 > MAX_TCP_SEQ-TCP_SEQ_WINDOW {
-		return int(seq1 + MAX_TCP_SEQ - seq2)
-	} else if seq2 < TCP_SEQ_WINDOW && seq1 > MAX_TCP_SEQ-TCP_SEQ_WINDOW {
-		return int(seq1 - (MAX_TCP_SEQ + seq2))
+	if seq1 < tcpSeqWindow && seq2 > maxTcpSeq-tcpSeqWindow {
+		return int(seq1 + maxTcpSeq - seq2)
+	} else if seq2 < tcpSeqWindow && seq1 > maxTcpSeq-tcpSeqWindow {
+		return int(seq1 - (maxTcpSeq + seq2))
 	}
 	return int(int32(seq1 - seq2))
 }
 
-var HTTP_METHODS = map[string]bool{"GET": true, "POST": true, "PUT": true, "DELETE": true, "HEAD": true,
+var httpMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "DELETE": true, "HEAD": true,
 	"TRACE": true, "OPTIONS": true, "PATCH": true}
 
 // if is first http request packet
@@ -427,5 +427,5 @@ func isHttpRequestData(body []byte) bool {
 	}
 
 	method := string(data[:idx])
-	return HTTP_METHODS[method]
+	return httpMethods[method]
 }
