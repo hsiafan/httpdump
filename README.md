@@ -24,12 +24,6 @@ Libpcap and header files already installed.
 ## Install
 
 ```sh
-vgo get github.com/hsiafan/httpdump
-```
-
-or if do not use vgo:
-
-```sh
 go get github.com/hsiafan/httpdump
 ```
 
