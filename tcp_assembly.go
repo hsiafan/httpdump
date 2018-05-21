@@ -305,7 +305,7 @@ func (window *ReceiveWindow) destroy() {
 
 func (window *ReceiveWindow) insert(packet *layers.TCP) {
 
-	if window.expectBegin != 0 && compareTcpSeq(window.expectBegin, packet.Seq+uint32(len(packet.Payload))) >= 0 {
+	if window.expectBegin != 0 && compareTcpSeq(window.expectBegin, addSeq(packet.Seq,uint32(len(packet.Payload)))) >= 0 {
 		// dropped
 		return
 	}
@@ -363,7 +363,7 @@ func (window *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 			break
 		}
 		window.buffer[index] = nil
-		newExpect := packet.Seq + uint32(len(packet.Payload))
+		newExpect := addSeq(packet.Seq, uint32(len(packet.Payload)))
 		if window.expectBegin != 0 {
 			diff := compareTcpSeq(window.expectBegin, packet.Seq)
 			if diff > 0 {
@@ -429,3 +429,8 @@ func isHttpRequestData(body []byte) bool {
 	method := string(data[:idx])
 	return httpMethods[method]
 }
+
+func addSeq(a, b uint32) (c uint32){
+	c = (a + b) & maxTcpSeq
+	return
+} 
