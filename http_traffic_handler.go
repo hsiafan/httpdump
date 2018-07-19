@@ -6,13 +6,13 @@ import (
 	"compress/zlib"
 	"encoding/json"
 	"fmt"
-	"github.com/hsiafan/httpdump/httpport"
 	"io"
 	"io/ioutil"
 	"strings"
 
 	"bufio"
 	"github.com/google/gopacket/tcpassembly/tcpreader"
+	"net/http"
 )
 
 type ConnectionKey struct {
@@ -78,7 +78,7 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 	for {
 		h.buffer = new(bytes.Buffer)
 		filtered := false
-		req, err := httpport.ReadRequest(requestReader)
+		req, err := http.ReadRequest(requestReader)
 
 		if err == io.EOF {
 			break
@@ -105,7 +105,7 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 		websocket := req.Header.Get("Upgrade") == "websocket"
 		expectContinue := req.Header.Get("Expect") == "100-continue"
 
-		resp, err := httpport.ReadResponse(responseReader, nil)
+		resp, err := http.ReadResponse(responseReader, nil)
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
 			logger.Debug("Error parsing HTTP requests: unexpected end, ", err, connection.clientId)
 			break
@@ -132,7 +132,7 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 		if expectContinue {
 			if resp.StatusCode == 100 {
 				// read next response, the real response
-				resp, err := httpport.ReadResponse(responseReader, nil)
+				resp, err := http.ReadResponse(responseReader, nil)
 				if err == io.EOF {
 					logger.Warn("Error parsing HTTP requests: unexpected end, ", err)
 					break
@@ -175,7 +175,7 @@ func (h *HttpTrafficHandler) printRequestMark() {
 }
 
 // print http request
-func (h *HttpTrafficHandler) printRequest(req *httpport.Request) {
+func (h *HttpTrafficHandler) printRequest(req *http.Request) {
 	defer tcpreader.DiscardBytesToEOF(req.Body)
 	//TODO: expect-100 continue handle
 	if h.config.level == "url" {
@@ -185,9 +185,11 @@ func (h *HttpTrafficHandler) printRequest(req *httpport.Request) {
 
 	h.writeLine()
 	h.writeLine(strings.Repeat("*", 10), h.key.srcString(), " -----> ", h.key.dstString(), strings.Repeat("*", 10))
-	h.writeLine(req.RequestLine)
-	for _, header := range req.RawHeaders {
-		h.writeLine(header)
+	h.writeLine(req.Method, req.RequestURI, req.Proto)
+	for name, values := range req.Header {
+		for _, value := range values {
+			h.writeLine(name+":", value)
+		}
 	}
 
 	var hasBody = true
@@ -209,15 +211,17 @@ func (h *HttpTrafficHandler) printRequest(req *httpport.Request) {
 }
 
 // print http response
-func (h *HttpTrafficHandler) printResponse(resp *httpport.Response) {
+func (h *HttpTrafficHandler) printResponse(resp *http.Response) {
 	defer tcpreader.DiscardBytesToEOF(resp.Body)
 	if h.config.level == "url" {
 		return
 	}
 
-	h.writeLine(resp.StatusLine)
-	for _, header := range resp.RawHeaders {
-		h.writeLine(header)
+	h.writeLine(resp.Proto, resp.Status)
+	for name, values := range resp.Header {
+		for _, value := range values {
+			h.writeLine(name+":", value)
+		}
 	}
 
 	var hasBody = true
@@ -238,7 +242,7 @@ func (h *HttpTrafficHandler) printResponse(resp *httpport.Response) {
 }
 
 // print http request/response body
-func (h *HttpTrafficHandler) printBody(hasBody bool, header httpport.Header, reader io.ReadCloser) {
+func (h *HttpTrafficHandler) printBody(hasBody bool, header http.Header, reader io.ReadCloser) {
 
 	if !hasBody {
 		return
@@ -273,7 +277,7 @@ func (h *HttpTrafficHandler) printBody(hasBody bool, header httpport.Header, rea
 	// check mime type and charset
 	contentType := header.Get("Content-Type")
 	if contentType == "" {
-		// TODO: detect content type using httpport.DetectContentType()
+		// TODO: detect content type using http.DetectContentType()
 	}
 	mimeTypeStr, charset := parseContentType(contentType)
 	var mimeType = parseMimeType(mimeTypeStr)
