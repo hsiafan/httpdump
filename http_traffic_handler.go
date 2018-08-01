@@ -11,13 +11,15 @@ import (
 	"strings"
 
 	"bufio"
-	"github.com/google/gopacket/tcpassembly/tcpreader"
 	"net/http"
+
+	"github.com/google/gopacket/tcpassembly/tcpreader"
 )
 
+// ConnectionKey contains src and dst endpoint idendity a connection
 type ConnectionKey struct {
-	src EndPoint
-	dst EndPoint
+	src Endpoint
+	dst Endpoint
 }
 
 func (ck *ConnectionKey) reverse() ConnectionKey {
@@ -34,15 +36,15 @@ func (ck *ConnectionKey) dstString() string {
 	return ck.dst.String()
 }
 
-// Impl ConnectionHandler
-type HttpConnectionHandler struct {
+// HTTPConnectionHandler impl ConnectionHandler
+type HTTPConnectionHandler struct {
 	config  *Config
 	printer *Printer
 }
 
-func (handler *HttpConnectionHandler) handle(src EndPoint, dst EndPoint, connection *TcpConnection) {
+func (handler *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, connection *TCPConnection) {
 	ck := ConnectionKey{src, dst}
-	trafficHandler := &HttpTrafficHandler{
+	trafficHandler := &HTTPTrafficHandler{
 		key:     ck,
 		buffer:  new(bytes.Buffer),
 		config:  handler.config,
@@ -52,11 +54,12 @@ func (handler *HttpConnectionHandler) handle(src EndPoint, dst EndPoint, connect
 	go trafficHandler.handle(connection)
 }
 
-func (handler *HttpConnectionHandler) finish() {
+func (handler *HTTPConnectionHandler) finish() {
 	//handler.printer.finish()
 }
 
-type HttpTrafficHandler struct {
+// HTTPTrafficHandler parse a http connection traffic and send to printer
+type HTTPTrafficHandler struct {
 	key     ConnectionKey
 	buffer  *bytes.Buffer
 	config  *Config
@@ -64,7 +67,7 @@ type HttpTrafficHandler struct {
 }
 
 // read http request/response stream, and do output
-func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
+func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 	defer waitGroup.Done()
 	defer connection.upStream.Close()
 	defer connection.downStream.Close()
@@ -107,11 +110,11 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 
 		resp, err := http.ReadResponse(responseReader, nil)
 		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			logger.Debug("Error parsing HTTP requests: unexpected end, ", err, connection.clientId)
+			logger.Debug("Error parsing HTTP requests: unexpected end, ", err, connection.clientID)
 			break
 		}
 		if err != nil {
-			logger.Warn("Error parsing HTTP response:", err, connection.clientId)
+			logger.Warn("Error parsing HTTP response:", err, connection.clientID)
 			break
 		}
 		if !filtered {
@@ -143,7 +146,7 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 					break
 				}
 				if err != nil {
-					logger.Warn("Error parsing HTTP response:", err, connection.clientId)
+					logger.Warn("Error parsing HTTP response:", err, connection.clientID)
 					break
 				}
 				if !filtered {
@@ -161,21 +164,21 @@ func (h *HttpTrafficHandler) handle(connection *TcpConnection) {
 	h.printer.send(h.buffer.String())
 }
 
-func (h *HttpTrafficHandler) handleWebsocket(requestReader *bufio.Reader, responseReader *bufio.Reader) {
+func (h *HTTPTrafficHandler) handleWebsocket(requestReader *bufio.Reader, responseReader *bufio.Reader) {
 	//TODO: websocket
 
 }
 
-func (h *HttpTrafficHandler) writeLine(a ...interface{}) {
+func (h *HTTPTrafficHandler) writeLine(a ...interface{}) {
 	fmt.Fprintln(h.buffer, a...)
 }
 
-func (h *HttpTrafficHandler) printRequestMark() {
+func (h *HTTPTrafficHandler) printRequestMark() {
 	h.writeLine()
 }
 
 // print http request
-func (h *HttpTrafficHandler) printRequest(req *http.Request) {
+func (h *HTTPTrafficHandler) printRequest(req *http.Request) {
 	defer tcpreader.DiscardBytesToEOF(req.Body)
 	//TODO: expect-100 continue handle
 	if h.config.level == "url" {
@@ -211,7 +214,7 @@ func (h *HttpTrafficHandler) printRequest(req *http.Request) {
 }
 
 // print http response
-func (h *HttpTrafficHandler) printResponse(resp *http.Response) {
+func (h *HTTPTrafficHandler) printResponse(resp *http.Response) {
 	defer tcpreader.DiscardBytesToEOF(resp.Body)
 	if h.config.level == "url" {
 		return
@@ -242,7 +245,7 @@ func (h *HttpTrafficHandler) printResponse(resp *http.Response) {
 }
 
 // print http request/response body
-func (h *HttpTrafficHandler) printBody(hasBody bool, header http.Header, reader io.ReadCloser) {
+func (h *HTTPTrafficHandler) printBody(hasBody bool, header http.Header, reader io.ReadCloser) {
 
 	if !hasBody {
 		return
@@ -322,7 +325,7 @@ func (h *HttpTrafficHandler) printBody(hasBody bool, header http.Header, reader 
 	h.writeLine()
 }
 
-func (h *HttpTrafficHandler) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
+func (h *HTTPTrafficHandler) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
 	if h.config.force && !isBinary {
 		data, err := ioutil.ReadAll(reader)
 		if err != nil {

@@ -8,12 +8,13 @@ import (
 	"runtime"
 	"time"
 
+	"strconv"
+	"sync"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	"github.com/hsiafan/vlog"
-	"strconv"
-	"sync"
 )
 
 var logger = vlog.CurrentPackageLogger()
@@ -25,7 +26,7 @@ func init() {
 var waitGroup sync.WaitGroup
 var printerWaitGroup sync.WaitGroup
 
-// user config for http traffics
+// Config is user config for http traffics
 type Config struct {
 	level      string
 	filterIP   string
@@ -168,12 +169,12 @@ func main() {
 		return
 	}
 
-	var handler = &HttpConnectionHandler{
+	var handler = &HTTPConnectionHandler{
 		config:  config,
 		printer: newPrinter(*output),
 	}
-	var assembler = newTcpAssembler(handler)
-	assembler.filterIp = config.filterIP
+	var assembler = newTCPAssembler(handler)
+	assembler.filterIP = config.filterIP
 	assembler.filterPort = config.filterPort
 	var ticker = time.Tick(time.Second * 30)
 

@@ -2,38 +2,40 @@ package main
 
 import (
 	"bytes"
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"io"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 )
 
 // gopacket provide a tcp connection, however it split one tcp connection into two stream.
 // So it is hard to match http request and response. we make our own connection here
 
-const maxTcpSeq uint32 = 0xFFFFFFFF
+const maxTCPSeq uint32 = 0xFFFFFFFF
 const tcpSeqWindow = 0x0000FFFF
 
-type TcpAssembler struct {
-	connectionDict    map[string]*TcpConnection
+// TCPAssembler do tcp package assemble
+type TCPAssembler struct {
+	connectionDict    map[string]*TCPConnection
 	lock              sync.Mutex
 	connectionHandler ConnectionHandler
-	filterIp          string
+	filterIP          string
 	filterPort        uint16
 }
 
-func newTcpAssembler(connectionHandler ConnectionHandler) *TcpAssembler {
-	return &TcpAssembler{connectionDict: map[string]*TcpConnection{}, connectionHandler: connectionHandler}
+func newTCPAssembler(connectionHandler ConnectionHandler) *TCPAssembler {
+	return &TCPAssembler{connectionDict: map[string]*TCPConnection{}, connectionHandler: connectionHandler}
 }
 
-func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time) {
-	src := EndPoint{ip: flow.Src().String(), port: uint16(tcp.SrcPort)}
-	dst := EndPoint{ip: flow.Dst().String(), port: uint16(tcp.DstPort)}
+func (assembler *TCPAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, timestamp time.Time) {
+	src := Endpoint{ip: flow.Src().String(), port: uint16(tcp.SrcPort)}
+	dst := Endpoint{ip: flow.Dst().String(), port: uint16(tcp.DstPort)}
 	dropped := false
-	if assembler.filterIp != "" {
-		if src.ip != assembler.filterIp && dst.ip != assembler.filterIp {
+	if assembler.filterIP != "" {
+		if src.ip != assembler.filterIP && dst.ip != assembler.filterIP {
 			dropped = true
 		}
 	}
@@ -55,7 +57,7 @@ func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, tim
 		key = dstString + "-" + srcString
 	}
 
-	var createNewConn = tcp.SYN && !tcp.ACK || isHttpRequestData(tcp.Payload)
+	var createNewConn = tcp.SYN && !tcp.ACK || isHTTPRequestData(tcp.Payload)
 	connection := assembler.retrieveConnection(src, dst, key, createNewConn)
 	if connection == nil {
 		return
@@ -70,13 +72,13 @@ func (assembler *TcpAssembler) assemble(flow gopacket.Flow, tcp *layers.TCP, tim
 }
 
 // get connection this packet belong to; create new one if is new connection
-func (assembler *TcpAssembler) retrieveConnection(src, dst EndPoint, key string, init bool) *TcpConnection {
+func (assembler *TCPAssembler) retrieveConnection(src, dst Endpoint, key string, init bool) *TCPConnection {
 	assembler.lock.Lock()
 	defer assembler.lock.Unlock()
 	connection := assembler.connectionDict[key]
 	if connection == nil {
 		if init {
-			connection = newTcpConnection(key)
+			connection = newTCPConnection(key)
 			assembler.connectionDict[key] = connection
 			assembler.connectionHandler.handle(src, dst, connection)
 		}
@@ -85,15 +87,15 @@ func (assembler *TcpAssembler) retrieveConnection(src, dst EndPoint, key string,
 }
 
 // remove connection (when is closed or timeout)
-func (assembler *TcpAssembler) deleteConnection(key string) {
+func (assembler *TCPAssembler) deleteConnection(key string) {
 	assembler.lock.Lock()
 	defer assembler.lock.Unlock()
 	delete(assembler.connectionDict, key)
 }
 
 // flush timeout connections
-func (assembler *TcpAssembler) flushOlderThan(time time.Time) {
-	var connections []*TcpConnection
+func (assembler *TCPAssembler) flushOlderThan(time time.Time) {
+	var connections []*TCPConnection
 	assembler.lock.Lock()
 	for _, connection := range assembler.connectionDict {
 		if connection.lastTimestamp.Before(time) {
@@ -110,7 +112,7 @@ func (assembler *TcpAssembler) flushOlderThan(time time.Time) {
 	}
 }
 
-func (assembler *TcpAssembler) finishAll() {
+func (assembler *TCPAssembler) finishAll() {
 	assembler.lock.Lock()
 	defer assembler.lock.Unlock()
 	for _, connection := range assembler.connectionDict {
@@ -120,42 +122,45 @@ func (assembler *TcpAssembler) finishAll() {
 	assembler.connectionHandler.finish()
 }
 
+// ConnectionHandler is interface for handle tcp connection
 type ConnectionHandler interface {
-	handle(src EndPoint, dst EndPoint, connection *TcpConnection)
+	handle(src Endpoint, dst Endpoint, connection *TCPConnection)
 	finish()
 }
 
-// one tcp connection
-type TcpConnection struct {
+// TCPConnection hold info for one tcp connection
+type TCPConnection struct {
 	upStream      *NetworkStream // stream from client to server
 	downStream    *NetworkStream // stream from server to client
-	clientId      EndPoint       // the client key(by ip and port)
+	clientID      Endpoint       // the client key(by ip and port)
 	lastTimestamp time.Time      // timestamp receive last packet
-	isHttp        bool
+	isHTTP        bool
 	key           string
 }
 
-type EndPoint struct {
+// Endpoint is one endpoint of a tcp connection
+type Endpoint struct {
 	ip   string
 	port uint16
 }
 
-func (p EndPoint) equals(p2 EndPoint) bool {
+func (p Endpoint) equals(p2 Endpoint) bool {
 	return p.ip == p2.ip && p.port == p2.port
 }
 
-func (p EndPoint) String() string {
+func (p Endpoint) String() string {
 	return p.ip + ":" + strconv.Itoa(int(p.port))
 }
 
-type ConnectionId struct {
-	src EndPoint
-	dst EndPoint
+// ConnectionID idendentify a tcp connection
+type ConnectionID struct {
+	src Endpoint
+	dst Endpoint
 }
 
 // create tcp connection, by the first tcp packet. this packet should from client to server
-func newTcpConnection(key string) *TcpConnection {
-	connection := &TcpConnection{
+func newTCPConnection(key string) *TCPConnection {
+	connection := &TCPConnection{
 		upStream:   newNetworkStream(),
 		downStream: newNetworkStream(),
 		key:        key,
@@ -164,23 +169,23 @@ func newTcpConnection(key string) *TcpConnection {
 }
 
 // when receive tcp packet
-func (connection *TcpConnection) onReceive(src, dst EndPoint, tcp *layers.TCP, timestamp time.Time) {
+func (connection *TCPConnection) onReceive(src, dst Endpoint, tcp *layers.TCP, timestamp time.Time) {
 	connection.lastTimestamp = timestamp
 	payload := tcp.Payload
 
-	if !connection.isHttp {
+	if !connection.isHTTP {
 		// skip no-http data
-		if !isHttpRequestData(payload) {
+		if !isHTTPRequestData(payload) {
 			return
 		}
 		// receive first valid http data packet
-		connection.clientId = src
-		connection.isHttp = true
+		connection.clientID = src
+		connection.isHTTP = true
 	}
 
 	var sendStream, confirmStream *NetworkStream
 	//var up bool
-	if connection.clientId.equals(src) {
+	if connection.clientID.equals(src) {
 		sendStream = connection.upStream
 		confirmStream = connection.downStream
 		//up = true
@@ -208,7 +213,7 @@ func (connection *TcpConnection) onReceive(src, dst EndPoint, tcp *layers.TCP, t
 }
 
 // just close this connection?
-func (connection *TcpConnection) flushOlderThan() {
+func (connection *TCPConnection) flushOlderThan() {
 	// flush all data
 	//connection.upStream.window
 	//connection.downStream.window
@@ -219,16 +224,16 @@ func (connection *TcpConnection) flushOlderThan() {
 
 }
 
-func (connection *TcpConnection) closed() bool {
+func (connection *TCPConnection) closed() bool {
 	return connection.upStream.closed && connection.downStream.closed
 }
 
-func (connection *TcpConnection) finish() {
+func (connection *TCPConnection) finish() {
 	connection.upStream.finish()
 	connection.downStream.finish()
 }
 
-// tread one-direction tcp data as stream. impl reader closer
+// NetworkStream tread one-direction tcp data as stream. impl reader closer
 type NetworkStream struct {
 	window *ReceiveWindow
 	c      chan *layers.TCP
@@ -279,11 +284,13 @@ func (stream *NetworkStream) Read(p []byte) (n int, err error) {
 	return
 }
 
+// Close the stream
 func (stream *NetworkStream) Close() error {
 	stream.ignore = true
 	return nil
 }
 
+// ReceiveWindow simulate tcp receivec window
 type ReceiveWindow struct {
 	size        int
 	start       int
@@ -305,7 +312,7 @@ func (window *ReceiveWindow) destroy() {
 
 func (window *ReceiveWindow) insert(packet *layers.TCP) {
 
-	if window.expectBegin != 0 && compareTcpSeq(window.expectBegin, packet.Seq+uint32(len(packet.Payload))) >= 0 {
+	if window.expectBegin != 0 && compareTCPSeq(window.expectBegin, packet.Seq+uint32(len(packet.Payload))) >= 0 {
 		// dropped
 		return
 	}
@@ -319,7 +326,7 @@ func (window *ReceiveWindow) insert(packet *layers.TCP) {
 	for ; idx > 0; idx-- {
 		index := (idx - 1 + window.start) % len(window.buffer)
 		prev := window.buffer[index]
-		result := compareTcpSeq(prev.Seq, packet.Seq)
+		result := compareTCPSeq(prev.Seq, packet.Seq)
 		if result == 0 {
 			// duplicated
 			return
@@ -358,18 +365,18 @@ func (window *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 	for ; idx < window.size; idx++ {
 		index := (idx + window.start) % len(window.buffer)
 		packet := window.buffer[index]
-		result := compareTcpSeq(packet.Seq, ack)
+		result := compareTCPSeq(packet.Seq, ack)
 		if result >= 0 {
 			break
 		}
 		window.buffer[index] = nil
 		newExpect := packet.Seq + uint32(len(packet.Payload))
 		if window.expectBegin != 0 {
-			diff := compareTcpSeq(window.expectBegin, packet.Seq)
+			diff := compareTCPSeq(window.expectBegin, packet.Seq)
 			if diff > 0 {
 				duplicatedSize := window.expectBegin - packet.Seq
 				if duplicatedSize < 0 {
-					duplicatedSize += maxTcpSeq
+					duplicatedSize += maxTCPSeq
 				}
 				if duplicatedSize >= uint32(len(packet.Payload)) {
 					continue
@@ -384,7 +391,7 @@ func (window *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 	}
 	window.start = (window.start + idx) % len(window.buffer)
 	window.size = window.size - idx
-	if compareTcpSeq(window.lastAck, ack) < 0 || window.lastAck == 0 {
+	if compareTCPSeq(window.lastAck, ack) < 0 || window.lastAck == 0 {
 		window.lastAck = ack
 	}
 }
@@ -403,11 +410,11 @@ func (window *ReceiveWindow) expand() {
 }
 
 // compare two tcp sequences, if seq1 is earlier, return num < 0, if seq1 == seq2, return 0, else return num > 0
-func compareTcpSeq(seq1, seq2 uint32) int {
-	if seq1 < tcpSeqWindow && seq2 > maxTcpSeq-tcpSeqWindow {
-		return int(seq1 + maxTcpSeq - seq2)
-	} else if seq2 < tcpSeqWindow && seq1 > maxTcpSeq-tcpSeqWindow {
-		return int(seq1 - (maxTcpSeq + seq2))
+func compareTCPSeq(seq1, seq2 uint32) int {
+	if seq1 < tcpSeqWindow && seq2 > maxTCPSeq-tcpSeqWindow {
+		return int(seq1 + maxTCPSeq - seq2)
+	} else if seq2 < tcpSeqWindow && seq1 > maxTCPSeq-tcpSeqWindow {
+		return int(seq1 - (maxTCPSeq + seq2))
 	}
 	return int(int32(seq1 - seq2))
 }
@@ -416,7 +423,7 @@ var httpMethods = map[string]bool{"GET": true, "POST": true, "PUT": true, "DELET
 	"TRACE": true, "OPTIONS": true, "PATCH": true}
 
 // if is first http request packet
-func isHttpRequestData(body []byte) bool {
+func isHTTPRequestData(body []byte) bool {
 	if len(body) < 8 {
 		return false
 	}

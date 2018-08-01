@@ -5,6 +5,7 @@ import (
 	"os"
 )
 
+// Printer output parsed http messages
 type Printer struct {
 	outputQueue chan string
 	outputFile  io.WriteCloser
