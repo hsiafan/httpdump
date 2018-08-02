@@ -177,6 +177,14 @@ func (h *HTTPTrafficHandler) printRequestMark() {
 	h.writeLine()
 }
 
+func (h *HTTPTrafficHandler) printHeader(header http.Header) {
+	for name, values := range header {
+		for _, value := range values {
+			h.writeLine(name+":", value)
+		}
+	}
+}
+
 // print http request
 func (h *HTTPTrafficHandler) printRequest(req *http.Request) {
 	defer tcpreader.DiscardBytesToEOF(req.Body)
@@ -189,11 +197,7 @@ func (h *HTTPTrafficHandler) printRequest(req *http.Request) {
 	h.writeLine()
 	h.writeLine(strings.Repeat("*", 10), h.key.srcString(), " -----> ", h.key.dstString(), strings.Repeat("*", 10))
 	h.writeLine(req.Method, req.RequestURI, req.Proto)
-	for name, values := range req.Header {
-		for _, value := range values {
-			h.writeLine(name+":", value)
-		}
-	}
+	h.printHeader(req.Header)
 
 	var hasBody = true
 	if req.ContentLength == 0 || req.Method == "GET" || req.Method == "HEAD" || req.Method == "TRACE" ||
@@ -221,11 +225,7 @@ func (h *HTTPTrafficHandler) printResponse(resp *http.Response) {
 	}
 
 	h.writeLine(resp.Proto, resp.Status)
-	for name, values := range resp.Header {
-		for _, value := range values {
-			h.writeLine(name+":", value)
-		}
-	}
+	h.printHeader(resp.Header)
 
 	var hasBody = true
 	if resp.ContentLength == 0 || resp.StatusCode == 304 || resp.StatusCode == 204 {
