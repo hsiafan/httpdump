@@ -19,7 +19,7 @@ sudo yum install libpcap-devel
 
 for osx:
 
-Libpcap and header files already installed.
+Libpcap and header files should be available in macOS already.
 
 ## Install
 
