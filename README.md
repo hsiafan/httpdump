@@ -1,6 +1,6 @@
 Parse and display http traffic from network device or pcap file. This is a go version of origin pcap-parser, thanks to gopacket project, this tool has simpler code base and is more efficient.
 
-For origin python implementation, [refer to pypi](https://pypi.org/project/httpcap/).
+For original python implementation, [refer to httpcap on pypi](https://pypi.org/project/httpcap/).
 
 # Install & Requirement
 Build httpdump requires libpcap-dev and cgo enabled.
