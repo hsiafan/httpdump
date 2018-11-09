@@ -103,10 +103,3 @@ httpdump -ip 101.201.170.152 # filter by ip
 httpdump -ip 101.201.170.152 -port 80 # filter by ip and port
 ```
 
-## Develop
-
-To install dependencies use [vgo](https://github.com/golang/vgo).
-
-Run test
-
-    vgo test
