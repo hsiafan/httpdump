@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 	"io/ioutil"
 	"strings"
 
@@ -49,6 +50,7 @@ func (handler *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, connect
 		buffer:  new(bytes.Buffer),
 		config:  handler.config,
 		printer: handler.printer,
+		startTime: connection.lastTimestamp,
 	}
 	waitGroup.Add(1)
 	go trafficHandler.handle(connection)
@@ -60,6 +62,8 @@ func (handler *HTTPConnectionHandler) finish() {
 
 // HTTPTrafficHandler parse a http connection traffic and send to printer
 type HTTPTrafficHandler struct {
+	startTime time.Time
+	endTime   time.Time
 	key     ConnectionKey
 	buffer  *bytes.Buffer
 	config  *Config
@@ -82,6 +86,7 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 		h.buffer = new(bytes.Buffer)
 		filtered := false
 		req, err := http.ReadRequest(requestReader)
+		h.startTime = connection.lastTimestamp
 
 		if err == io.EOF {
 			break
@@ -118,6 +123,7 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 			break
 		}
 		if !filtered {
+		h.endTime = connection.lastTimestamp
 			h.printResponse(resp)
 			h.printer.send(h.buffer.String())
 		} else {
@@ -195,7 +201,7 @@ func (h *HTTPTrafficHandler) printRequest(req *http.Request) {
 	}
 
 	h.writeLine()
-	h.writeLine(strings.Repeat("*", 10), h.key.srcString(), " -----> ", h.key.dstString(), strings.Repeat("*", 10))
+	h.writeLine(strings.Repeat("*", 10), " REQUEST ", h.key.srcString(), " -----> ", h.key.dstString(), " // ", h.startTime.Format(time.RFC3339Nano), strings.Repeat("*", 10))
 	h.writeLine(req.Method, req.RequestURI, req.Proto)
 	h.printHeader(req.Header)
 
@@ -232,6 +238,7 @@ func (h *HTTPTrafficHandler) printResponse(resp *http.Response) {
 		hasBody = false
 	}
 
+	h.writeLine(strings.Repeat("*", 10), " RESPONSE ", h.key.srcString(), " -----> ", h.key.dstString(), " // ", h.startTime.Format(time.RFC3339Nano), "-", h.endTime.Format(time.RFC3339Nano) , "=" , h.endTime.Sub(h.startTime).String() , strings.Repeat("*", 10))
 	if h.config.level == "header" {
 		if hasBody {
 			h.writeLine("\n{body size:", tcpreader.DiscardBytesToEOF(resp.Body),
