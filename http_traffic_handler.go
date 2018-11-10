@@ -15,6 +15,7 @@ import (
 	"net/http"
 
 	"github.com/google/gopacket/tcpassembly/tcpreader"
+	"github.com/moul/http2curl"
 )
 
 // ConnectionKey contains src and dst endpoint idendity a connection
@@ -202,6 +203,20 @@ func (h *HTTPTrafficHandler) printRequest(req *http.Request) {
 
 	h.writeLine()
 	h.writeLine(strings.Repeat("*", 10), " REQUEST ", h.key.srcString(), " -----> ", h.key.dstString(), " // ", h.startTime.Format(time.RFC3339Nano), strings.Repeat("*", 10))
+	if h.config.curl {
+		curlreq := req
+		curlreq.URL.Scheme = "http"
+		// assume the Host from the Host header, otherwise take server IP from the request
+		if req.Header.Get("Host") != "" {
+			curlreq.URL.Host = req.Header.Get("Host")
+		} else {
+			curlreq.URL.Host = curlreq.Host
+		}
+		command, _ := http2curl.GetCurlCommand(curlreq)
+		h.writeLine(command)
+		h.writeLine(strings.Repeat("*", 50))
+	}
+
 	h.writeLine(req.Method, req.RequestURI, req.Proto)
 	h.printHeader(req.Header)
 
