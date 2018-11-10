@@ -7,9 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"time"
 	"io/ioutil"
 	"strings"
+	"time"
 
 	"bufio"
 	"net/http"
@@ -46,10 +46,10 @@ type HTTPConnectionHandler struct {
 func (handler *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, connection *TCPConnection) {
 	ck := ConnectionKey{src, dst}
 	trafficHandler := &HTTPTrafficHandler{
-		key:     ck,
-		buffer:  new(bytes.Buffer),
-		config:  handler.config,
-		printer: handler.printer,
+		key:       ck,
+		buffer:    new(bytes.Buffer),
+		config:    handler.config,
+		printer:   handler.printer,
 		startTime: connection.lastTimestamp,
 	}
 	waitGroup.Add(1)
@@ -64,10 +64,10 @@ func (handler *HTTPConnectionHandler) finish() {
 type HTTPTrafficHandler struct {
 	startTime time.Time
 	endTime   time.Time
-	key     ConnectionKey
-	buffer  *bytes.Buffer
-	config  *Config
-	printer *Printer
+	key       ConnectionKey
+	buffer    *bytes.Buffer
+	config    *Config
+	printer   *Printer
 }
 
 // read http request/response stream, and do output
@@ -123,7 +123,7 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 			break
 		}
 		if !filtered {
-		h.endTime = connection.lastTimestamp
+			h.endTime = connection.lastTimestamp
 			h.printResponse(resp)
 			h.printer.send(h.buffer.String())
 		} else {
@@ -238,7 +238,7 @@ func (h *HTTPTrafficHandler) printResponse(resp *http.Response) {
 		hasBody = false
 	}
 
-	h.writeLine(strings.Repeat("*", 10), " RESPONSE ", h.key.srcString(), " -----> ", h.key.dstString(), " // ", h.startTime.Format(time.RFC3339Nano), "-", h.endTime.Format(time.RFC3339Nano) , "=" , h.endTime.Sub(h.startTime).String() , strings.Repeat("*", 10))
+	h.writeLine(strings.Repeat("*", 10), " RESPONSE ", h.key.srcString(), " -----> ", h.key.dstString(), " // ", h.startTime.Format(time.RFC3339Nano), "-", h.endTime.Format(time.RFC3339Nano), "=", h.endTime.Sub(h.startTime).String(), strings.Repeat("*", 10))
 	if h.config.level == "header" {
 		if hasBody {
 			h.writeLine("\n{body size:", tcpreader.DiscardBytesToEOF(resp.Body),
