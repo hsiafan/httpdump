@@ -2,7 +2,7 @@ module github.com/hsiafan/httpdump
 
 require (
 	github.com/davecgh/go-spew v1.1.0 // indirect
-	github.com/google/gopacket v1.1.14
+	github.com/google/gopacket v1.1.16
 	github.com/hsiafan/vlog v0.3.2
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/testify v1.2.1

@@ -152,7 +152,7 @@ func (p Endpoint) String() string {
 	return p.ip + ":" + strconv.Itoa(int(p.port))
 }
 
-// ConnectionID idendentify a tcp connection
+// ConnectionID identify a tcp connection
 type ConnectionID struct {
 	src Endpoint
 	dst Endpoint
