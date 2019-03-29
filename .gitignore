@@ -1,5 +1,5 @@
 *.iml
 .idea
 httpdump
-go.sum
 vendor/
+.vscode/
