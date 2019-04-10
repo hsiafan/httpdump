@@ -33,7 +33,7 @@ func newPrinter(outputPath string) *Printer {
 func (printer *Printer) send(msg string) {
 	if len(printer.outputQueue) == maxOutputQueueLen {
 		// skip this msg
-		logger.Warn("too many messages to output, skipped!")
+		logger.Warn("too many messages to output, discard current!")
 		return
 	}
 	printer.outputQueue <- msg

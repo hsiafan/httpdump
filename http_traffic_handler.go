@@ -6,12 +6,14 @@ import (
 	"compress/zlib"
 	"encoding/json"
 	"fmt"
-	"github.com/hsiafan/httpdump/httpport"
 	"io"
 	"io/ioutil"
 	"strings"
 
+	"github.com/hsiafan/httpdump/httpport"
+
 	"bufio"
+
 	"github.com/google/gopacket/tcpassembly/tcpreader"
 )
 
@@ -238,7 +240,7 @@ func (h *HTTPTrafficHandler) printResponse(resp *httpport.Response) {
 	if h.config.level == "header" {
 		if hasBody {
 			h.writeLine("\n{body size:", tcpreader.DiscardBytesToEOF(resp.Body),
-				", set [level = all] to display body content}")
+				", set [level = all] to display http body}")
 		}
 		return
 	}
