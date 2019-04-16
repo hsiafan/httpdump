@@ -172,7 +172,6 @@ func newTCPConnection(key string) *TCPConnection {
 func (connection *TCPConnection) onReceive(src, dst Endpoint, tcp *layers.TCP, timestamp time.Time) {
 	connection.lastTimestamp = timestamp
 	payload := tcp.Payload
-
 	if !connection.isHTTP {
 		// skip no-http data
 		if !isHTTPRequestData(payload) {

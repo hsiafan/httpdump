@@ -33,6 +33,7 @@ type Config struct {
 	filterPort uint16
 	host       string
 	uri        string
+	status     int
 	force      bool
 	pretty     bool
 	output     string
@@ -106,6 +107,7 @@ func main() {
 	var filterPort = flagSet.Uint("port", 0, "Filter by port, if either source or target port is matched, the packet will be processed.")
 	var host = flagSet.String("filter-host", "", "Filter by request host, using wildcard match(*, ?)")
 	var uri = flagSet.String("filter-uri", "", "Filter by request url path, using wildcard match(*, ?)")
+	var status = flagSet.Int("status", 0, "Filter by response status code")
 	var force = flagSet.Bool("force", false, "Force print unknown content-type http body even if it seems not to be text content")
 	var pretty = flagSet.Bool("pretty", false, "Try to format and prettify json content")
 	var output = flagSet.String("output", "", "Write result to file [output] instead of stdout")
@@ -122,6 +124,7 @@ func main() {
 		filterPort: uint16(*filterPort),
 		host:       *host,
 		uri:        *uri,
+		status:     *status,
 		force:      *force,
 		pretty:     *pretty,
 		output:     *output,
