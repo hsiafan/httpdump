@@ -52,6 +52,8 @@ httpdump can read from pcap file, or capture data from network interfaces:
     	Filter by port, if either source or target port is matched, the packet will be processed.
   -pretty
     	Try to format and prettify json content
+   -status string
+          Filter by response status code
 ```
 
 ## Samples

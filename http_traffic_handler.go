@@ -17,7 +17,7 @@ import (
 	"github.com/google/gopacket/tcpassembly/tcpreader"
 )
 
-// ConnectionKey contains src and dst endpoint idendity a connection
+// ConnectionKey contains src and dst endpoint identify a connection
 type ConnectionKey struct {
 	src Endpoint
 	dst Endpoint
@@ -121,7 +121,7 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 			break
 		}
 
-		if h.config.status != 0 && h.config.status != resp.StatusCode {
+		if h.config.status != nil && !h.config.status.Contains(resp.StatusCode) {
 			filtered = true
 		}
 

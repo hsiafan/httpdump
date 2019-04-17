@@ -26,19 +26,6 @@ func init() {
 var waitGroup sync.WaitGroup
 var printerWaitGroup sync.WaitGroup
 
-// Config is user config for http traffics
-type Config struct {
-	level      string
-	filterIP   string
-	filterPort uint16
-	host       string
-	uri        string
-	status     int
-	force      bool
-	pretty     bool
-	output     string
-}
-
 func listenOneSource(handle *pcap.Handle) chan gopacket.Packet {
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	packets := packetSource.Packets()
@@ -90,9 +77,7 @@ func openSingleDevice(device string, filterIP string, filterPort uint16) (localP
 	}
 
 	if err := setDeviceFilter(handle, filterIP, filterPort); err != nil {
-		if err != nil {
-			logger.Warn("set capture filter failed, ", err)
-		}
+		logger.Warn("set capture filter failed, ", err)
 	}
 	localPackets = listenOneSource(handle)
 	return
@@ -107,7 +92,7 @@ func main() {
 	var filterPort = flagSet.Uint("port", 0, "Filter by port, if either source or target port is matched, the packet will be processed.")
 	var host = flagSet.String("filter-host", "", "Filter by request host, using wildcard match(*, ?)")
 	var uri = flagSet.String("filter-uri", "", "Filter by request url path, using wildcard match(*, ?)")
-	var status = flagSet.Int("status", 0, "Filter by response status code")
+	var status = flagSet.String("status", "", "Filter by response status code")
 	var force = flagSet.Bool("force", false, "Force print unknown content-type http body even if it seems not to be text content")
 	var pretty = flagSet.Bool("pretty", false, "Try to format and prettify json content")
 	var output = flagSet.String("output", "", "Write result to file [output] instead of stdout")
@@ -118,13 +103,22 @@ func main() {
 		*filterPort = 0
 	}
 
+	var statusSet *IntSet
+	if *status != "" {
+		var err error
+		if statusSet, err = ParseIntSet(*status); err != nil {
+			fmt.Fprint(os.Stderr, "status range not valid ", *status)
+			return
+		}
+	}
+
 	var config = &Config{
 		level:      *level,
 		filterIP:   *filterIP,
 		filterPort: uint16(*filterPort),
 		host:       *host,
 		uri:        *uri,
-		status:     *status,
+		status:     statusSet,
 		force:      *force,
 		pretty:     *pretty,
 		output:     *output,
