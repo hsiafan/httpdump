@@ -84,13 +84,13 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 		filtered := false
 		req, err := httpport.ReadRequest(requestReader)
 
-		if err == io.EOF {
-			break
-		}
 		if err != nil {
-			logger.Warn("Error parsing HTTP requests:", err)
+			if err != io.EOF {
+				logger.Warn("Error parsing HTTP requests:", err)
+			}
 			break
 		}
+
 		if h.config.host != "" && !wildcardMatch(req.Host, h.config.host) {
 			filtered = true
 		}
@@ -103,12 +103,21 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 		expectContinue := req.Header.Get("Expect") == "100-continue"
 
 		resp, err := httpport.ReadResponse(responseReader, nil)
-		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			logger.Debug("Error parsing HTTP requests: unexpected end, ", err, connection.clientID)
-			break
-		}
+
 		if err != nil {
-			logger.Warn("Error parsing HTTP response:", err, connection.clientID)
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				logger.Debug("Error parsing HTTP response: unexpected end, ", err, connection.clientID)
+				break
+			} else {
+				logger.Warn("Error parsing HTTP response:", err, connection.clientID)
+			}
+			if !filtered {
+				h.printRequest(req)
+				h.writeLine("")
+				h.printer.send(h.buffer.String())
+			} else {
+				discardAll(req.Body)
+			}
 			break
 		}
 
@@ -119,12 +128,11 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 		if !filtered {
 			h.printRequest(req)
 			h.writeLine("")
-
 			h.printResponse(resp)
 			h.printer.send(h.buffer.String())
 		} else {
-			discardAll(resp.Body)
 			discardAll(req.Body)
+			discardAll(resp.Body)
 
 		}
 
@@ -309,7 +317,7 @@ func (h *HTTPTrafficHandler) printBody(hasBody bool, header httpport.Header, rea
 		var data []byte
 		data, err = ioutil.ReadAll(nr)
 		if err == nil {
-			// TODO: try to guess charset
+			// TODO: try to detect charset
 			body = string(data)
 		}
 	} else {
@@ -339,11 +347,8 @@ func (h *HTTPTrafficHandler) printNonTextTypeBody(reader io.Reader, contentType 
 		if err != nil {
 			return err
 		}
-		// TODO: try to guess charset
+		// TODO: try to detect charset
 		str := string(data)
-		if err != nil {
-			return err
-		}
 		h.writeLine(str)
 		h.writeLine()
 	} else {
