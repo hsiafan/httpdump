@@ -36,9 +36,9 @@ httpdump can read from pcap file, or capture data from network interfaces:
     	Capture packet from network device. If is any, capture all interface traffics (default "any")
   -file string
     	Read from pcap file. If not set, will capture data from network device by default
-  -filter-host string
+  -host string
     	Filter by request host, using wildcard match(*, ?)
-  -filter-uri string
+  -uri string
     	Filter by request url path, using wildcard match(*, ?)
   -force
     	Force print unknown content-type http body even if it seems not to be text content
@@ -52,8 +52,8 @@ httpdump can read from pcap file, or capture data from network interfaces:
     	Filter by port, if either source or target port is matched, the packet will be processed.
   -pretty
     	Try to format and prettify json content
-   -status string
-          Filter by response status code
+  -status string
+        Filter by response status code or code range
 ```
 
 ## Samples
