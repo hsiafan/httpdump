@@ -303,15 +303,15 @@ func newReceiveWindow(initialSize int) *ReceiveWindow {
 	return &ReceiveWindow{buffer: buffer}
 }
 
-func (window *ReceiveWindow) destroy() {
-	window.size = 0
-	window.start = 0
-	window.buffer = nil
+func (w *ReceiveWindow) destroy() {
+	w.size = 0
+	w.start = 0
+	w.buffer = nil
 }
 
-func (window *ReceiveWindow) insert(packet *layers.TCP) {
+func (w *ReceiveWindow) insert(packet *layers.TCP) {
 
-	if window.expectBegin != 0 && compareTCPSeq(window.expectBegin, packet.Seq+uint32(len(packet.Payload))) >= 0 {
+	if w.expectBegin != 0 && compareTCPSeq(w.expectBegin, packet.Seq+uint32(len(packet.Payload))) >= 0 {
 		// dropped
 		return
 	}
@@ -321,10 +321,10 @@ func (window *ReceiveWindow) insert(packet *layers.TCP) {
 		return
 	}
 
-	idx := window.size
+	idx := w.size
 	for ; idx > 0; idx-- {
-		index := (idx - 1 + window.start) % len(window.buffer)
-		prev := window.buffer[index]
+		index := (idx - 1 + w.start) % len(w.buffer)
+		prev := w.buffer[index]
 		result := compareTCPSeq(prev.Seq, packet.Seq)
 		if result == 0 {
 			// duplicated
@@ -336,44 +336,44 @@ func (window *ReceiveWindow) insert(packet *layers.TCP) {
 		}
 	}
 
-	if window.size == len(window.buffer) {
-		window.expand()
+	if w.size == len(w.buffer) {
+		w.expand()
 	}
 
-	if idx == window.size {
+	if idx == w.size {
 		// append at last
-		index := (idx + window.start) % len(window.buffer)
-		window.buffer[index] = packet
+		index := (idx + w.start) % len(w.buffer)
+		w.buffer[index] = packet
 	} else {
 		// insert at index
-		for i := window.size - 1; i >= idx; i-- {
-			next := (i + window.start + 1) % len(window.buffer)
-			current := (i + window.start) % len(window.buffer)
-			window.buffer[next] = window.buffer[current]
+		for i := w.size - 1; i >= idx; i-- {
+			next := (i + w.start + 1) % len(w.buffer)
+			current := (i + w.start) % len(w.buffer)
+			w.buffer[next] = w.buffer[current]
 		}
-		index := (idx + window.start) % len(window.buffer)
-		window.buffer[index] = packet
+		index := (idx + w.start) % len(w.buffer)
+		w.buffer[index] = packet
 	}
 
-	window.size++
+	w.size++
 }
 
 // send confirmed packets to reader, when receive ack
-func (window *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
+func (w *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 	idx := 0
-	for ; idx < window.size; idx++ {
-		index := (idx + window.start) % len(window.buffer)
-		packet := window.buffer[index]
+	for ; idx < w.size; idx++ {
+		index := (idx + w.start) % len(w.buffer)
+		packet := w.buffer[index]
 		result := compareTCPSeq(packet.Seq, ack)
 		if result >= 0 {
 			break
 		}
-		window.buffer[index] = nil
+		w.buffer[index] = nil
 		newExpect := packet.Seq + uint32(len(packet.Payload))
-		if window.expectBegin != 0 {
-			diff := compareTCPSeq(window.expectBegin, packet.Seq)
+		if w.expectBegin != 0 {
+			diff := compareTCPSeq(w.expectBegin, packet.Seq)
 			if diff > 0 {
-				duplicatedSize := window.expectBegin - packet.Seq
+				duplicatedSize := w.expectBegin - packet.Seq
 				if duplicatedSize < 0 {
 					duplicatedSize += maxTCPSeq
 				}
@@ -386,26 +386,26 @@ func (window *ReceiveWindow) confirm(ack uint32, c chan *layers.TCP) {
 			}
 		}
 		c <- packet
-		window.expectBegin = newExpect
+		w.expectBegin = newExpect
 	}
-	window.start = (window.start + idx) % len(window.buffer)
-	window.size = window.size - idx
-	if compareTCPSeq(window.lastAck, ack) < 0 || window.lastAck == 0 {
-		window.lastAck = ack
+	w.start = (w.start + idx) % len(w.buffer)
+	w.size = w.size - idx
+	if compareTCPSeq(w.lastAck, ack) < 0 || w.lastAck == 0 {
+		w.lastAck = ack
 	}
 }
 
-func (window *ReceiveWindow) expand() {
-	buffer := make([]*layers.TCP, len(window.buffer)*2)
-	end := window.start + window.size
-	if end < len(window.buffer) {
-		copy(buffer, window.buffer[window.start:window.start+window.size])
+func (w *ReceiveWindow) expand() {
+	buffer := make([]*layers.TCP, len(w.buffer)*2)
+	end := w.start + w.size
+	if end < len(w.buffer) {
+		copy(buffer, w.buffer[w.start:w.start+w.size])
 	} else {
-		copy(buffer, window.buffer[window.start:])
-		copy(buffer[len(window.buffer)-window.start:], window.buffer[:end-len(window.buffer)])
+		copy(buffer, w.buffer[w.start:])
+		copy(buffer[len(w.buffer)-w.start:], w.buffer[:end-len(w.buffer)])
 	}
-	window.start = 0
-	window.buffer = buffer
+	w.start = 0
+	w.buffer = buffer
 }
 
 // compare two tcp sequences, if seq1 is earlier, return num < 0, if seq1 == seq2, return 0, else return num > 0

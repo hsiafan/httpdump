@@ -331,7 +331,7 @@ func (h *HTTPTrafficHandler) printBody(hasBody bool, header httpport.Header, rea
 	// prettify json
 	if mimeType.subType == "json" || likeJSON(body) {
 		var jsonValue interface{}
-		json.Unmarshal([]byte(body), &jsonValue)
+		_ = json.Unmarshal([]byte(body), &jsonValue)
 		prettyJSON, err := json.MarshalIndent(jsonValue, "", "    ")
 		if err == nil {
 			body = string(prettyJSON)

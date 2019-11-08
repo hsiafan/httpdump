@@ -96,7 +96,10 @@ func main() {
 	var force = flagSet.Bool("force", false, "Force print unknown content-type http body even if it seems not to be text content")
 	var pretty = flagSet.Bool("pretty", false, "Try to format and prettify json content")
 	var output = flagSet.String("output", "", "Write result to file [output] instead of stdout")
-	flagSet.Parse(os.Args[1:])
+	if err := flagSet.Parse(os.Args[1:]); err != nil {
+		fmt.Fprint(os.Stderr, "parse cmd error:"+err.Error())
+		return
+	}
 
 	if *filterPort < 0 || *filterPort >= 65536 {
 		fmt.Fprint(os.Stderr, "ignored invalid port ", *filterPort)

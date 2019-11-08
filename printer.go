@@ -48,7 +48,7 @@ func (printer *Printer) printBackground() {
 	defer printerWaitGroup.Done()
 	defer printer.outputFile.Close()
 	for msg := range printer.outputQueue {
-		printer.outputFile.Write([]byte(msg))
+		_, _ = printer.outputFile.Write([]byte(msg))
 	}
 }
 
