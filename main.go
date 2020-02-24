@@ -95,6 +95,7 @@ func main() {
 	var status = flagSet.String("status", "", "Filter by response status code")
 	var force = flagSet.Bool("force", false, "Force print unknown content-type http body even if it seems not to be text content")
 	var pretty = flagSet.Bool("pretty", false, "Try to format and prettify json content")
+	var curl = flagSet.Bool("curl", false, "Output an equivalent curl command for each http request")
 	var output = flagSet.String("output", "", "Write result to file [output] instead of stdout")
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
 		fmt.Fprint(os.Stderr, "parse cmd error:"+err.Error())
@@ -124,6 +125,7 @@ func main() {
 		status:     statusSet,
 		force:      *force,
 		pretty:     *pretty,
+		curl:       *curl,
 		output:     *output,
 	}
 

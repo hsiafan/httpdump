@@ -32,6 +32,8 @@ go get github.com/hsiafan/httpdump
 httpdump can read from pcap file, or capture data from network interfaces:
 
 ```
+  -curl
+    	Generate an equivalent curl command for each HTTP request
   -device string
     	Capture packet from network device. If is any, capture all interface traffics (default "any")
   -file string

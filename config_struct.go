@@ -16,6 +16,7 @@ type Config struct {
 	status     *IntSet
 	force      bool
 	pretty     bool
+	curl       bool
 	output     string
 }
 

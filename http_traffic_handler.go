@@ -9,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"strings"
+	"time"
 
 	"github.com/hsiafan/httpdump/httpport"
 
@@ -46,10 +47,11 @@ type HTTPConnectionHandler struct {
 func (handler *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, connection *TCPConnection) {
 	ck := ConnectionKey{src, dst}
 	trafficHandler := &HTTPTrafficHandler{
-		key:     ck,
-		buffer:  new(bytes.Buffer),
-		config:  handler.config,
-		printer: handler.printer,
+		key:       ck,
+		buffer:    new(bytes.Buffer),
+		config:    handler.config,
+		printer:   handler.printer,
+		startTime: connection.lastTimestamp,
 	}
 	waitGroup.Add(1)
 	go trafficHandler.handle(connection)
@@ -61,10 +63,12 @@ func (handler *HTTPConnectionHandler) finish() {
 
 // HTTPTrafficHandler parse a http connection traffic and send to printer
 type HTTPTrafficHandler struct {
-	key     ConnectionKey
-	buffer  *bytes.Buffer
-	config  *Config
-	printer *Printer
+	startTime time.Time
+	endTime   time.Time
+	key       ConnectionKey
+	buffer    *bytes.Buffer
+	config    *Config
+	printer   *Printer
 }
 
 // read http request/response stream, and do output
@@ -83,6 +87,7 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 		h.buffer = new(bytes.Buffer)
 		filtered := false
 		req, err := httpport.ReadRequest(requestReader)
+		h.startTime = connection.lastTimestamp
 
 		if err != nil {
 			if err != io.EOF {
@@ -128,6 +133,7 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 		if !filtered {
 			h.printRequest(req)
 			h.writeLine("")
+			h.endTime = connection.lastTimestamp
 			h.printResponse(resp)
 			h.printer.send(h.buffer.String())
 		} else {
@@ -207,11 +213,23 @@ func (h *HTTPTrafficHandler) printRequest(req *httpport.Request) {
 	}
 
 	h.writeLine()
-	h.writeLine(strings.Repeat("*", 10), h.key.srcString(), " -----> ", h.key.dstString(), strings.Repeat("*", 10))
-	h.writeLine(req.RequestLine)
-	for _, header := range req.RawHeaders {
-		h.writeLine(header)
+	h.writeLine(strings.Repeat("*", 10), " REQUEST ", h.key.srcString(), " -----> ", h.key.dstString(), " // ", h.startTime.Format(time.RFC3339Nano), strings.Repeat("*", 10))
+	if h.config.curl {
+		curlreq := req
+		curlreq.URL.Scheme = "http"
+		// assume the Host from the Host header, otherwise take server IP from the request
+		if req.Header.Get("Host") != "" {
+			curlreq.URL.Host = req.Header.Get("Host")
+		} else {
+			curlreq.URL.Host = req.Host
+		}
+		command, _ := GetCurlCommand(curlreq)
+		h.writeLine(command)
+		h.writeLine(strings.Repeat("*", 50))
 	}
+
+	h.writeLine(req.Method, req.RequestURI, req.Proto)
+	h.printHeader(req.Header)
 
 	var hasBody = true
 	if req.ContentLength == 0 || req.Method == "GET" || req.Method == "HEAD" || req.Method == "TRACE" ||
@@ -248,6 +266,7 @@ func (h *HTTPTrafficHandler) printResponse(resp *httpport.Response) {
 		hasBody = false
 	}
 
+	h.writeLine(strings.Repeat("*", 10), " RESPONSE ", h.key.srcString(), " -----> ", h.key.dstString(), " // ", h.startTime.Format(time.RFC3339Nano), "-", h.endTime.Format(time.RFC3339Nano), "=", h.endTime.Sub(h.startTime).String(), strings.Repeat("*", 10))
 	if h.config.level == "header" {
 		if hasBody {
 			h.writeLine("\n{body size:", discardAll(resp.Body),
