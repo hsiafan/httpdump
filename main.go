@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/hsiafan/glow/timex/durationx"
 	"os"
 	"runtime"
 	"time"
@@ -97,13 +98,14 @@ func main() {
 	var pretty = flagSet.Bool("pretty", false, "Try to format and prettify json content")
 	var curl = flagSet.Bool("curl", false, "Output an equivalent curl command for each http request")
 	var output = flagSet.String("output", "", "Write result to file [output] instead of stdout")
+	var idleTimeout = flagSet.Duration("idle", durationx.Minutes(5), "idle duration(when no packet is received) to remove connection resources")
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
-		fmt.Fprint(os.Stderr, "parse cmd error:"+err.Error())
+		_, _ = fmt.Fprint(os.Stderr, "parse cmd error:"+err.Error())
 		return
 	}
 
 	if *filterPort < 0 || *filterPort >= 65536 {
-		fmt.Fprint(os.Stderr, "ignored invalid port ", *filterPort)
+		_, _ = fmt.Fprint(os.Stderr, "ignored invalid port ", *filterPort)
 		*filterPort = 0
 	}
 
@@ -111,7 +113,7 @@ func main() {
 	if *status != "" {
 		var err error
 		if statusSet, err = ParseIntSet(*status); err != nil {
-			fmt.Fprint(os.Stderr, "status range not valid ", *status)
+			_, _ = fmt.Fprint(os.Stderr, "status range not valid ", *status)
 			return
 		}
 	}
@@ -166,7 +168,7 @@ func main() {
 			return
 		}
 	} else {
-		fmt.Fprintln(os.Stderr, "no device or pcap file specified.")
+		_, _ = fmt.Fprintln(os.Stderr, "no device or pcap file specified.")
 		flagSet.Usage()
 		return
 	}
@@ -199,8 +201,8 @@ outer:
 			assembler.assemble(packet.NetworkLayer().NetworkFlow(), tcp, packet.Metadata().Timestamp)
 
 		case <-ticker:
-			// flush connections that haven't seen activity in the past 2 minutes.
-			assembler.flushOlderThan(time.Now().Add(time.Minute * -2))
+			// flush connections that haven't been activity in the past 2 minutes.
+			assembler.flushOlderThan(time.Now().Add(*idleTimeout))
 		}
 	}
 
