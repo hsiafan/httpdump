@@ -4,10 +4,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/hsiafan/glow/timex/durationx"
 	"os"
 	"runtime"
 	"time"
+
+	"github.com/hsiafan/glow/timex/durationx"
 
 	"strconv"
 	"sync"
@@ -97,6 +98,7 @@ func main() {
 	var force = flagSet.Bool("force", false, "Force print unknown content-type http body even if it seems not to be text content")
 	var pretty = flagSet.Bool("pretty", false, "Try to format and prettify json content")
 	var curl = flagSet.Bool("curl", false, "Output an equivalent curl command for each http request")
+	var dumpBody = flagSet.Bool("dump-body", false, "dump http request/response body")
 	var output = flagSet.String("output", "", "Write result to file [output] instead of stdout")
 	var idleTimeout = flagSet.Duration("idle", durationx.Minutes(5), "idle duration(when no packet is received) to remove connection resources")
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
@@ -128,6 +130,7 @@ func main() {
 		force:      *force,
 		pretty:     *pretty,
 		curl:       *curl,
+		dumpBody:   *dumpBody,
 		output:     *output,
 	}
 

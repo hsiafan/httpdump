@@ -17,6 +17,7 @@ type Config struct {
 	force      bool
 	pretty     bool
 	curl       bool
+	dumpBody   bool
 	output     string
 }
 

@@ -2,7 +2,7 @@ module github.com/hsiafan/httpdump
 
 require (
 	github.com/google/gopacket v1.1.16
-	github.com/hsiafan/glow v1.0.1
+	github.com/hsiafan/glow v1.1.1
 	github.com/hsiafan/vlog v0.6.0
 	github.com/stretchr/testify v1.4.0
 	golang.org/x/text v0.3.0
