@@ -406,7 +406,7 @@ func discardAll(r io.Reader) (dicarded int) {
 }
 
 func uriToFileName(uri string, t time.Time) string {
-	timeStr := t.Format("2006_01_02_15_04_05_000")
+	timeStr := t.Format("2006_01_02_15_04_05.000000")
 	filename := strings.ReplaceAll(uri, "/", "_") + "-" + timeStr
 	return filename[1:]
 }
