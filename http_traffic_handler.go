@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strconv"
 	"strings"
 	"time"
 
@@ -188,6 +189,14 @@ func (h *HTTPTrafficHandler) handleWebsocket(requestReader *bufio.Reader, respon
 
 }
 
+func (h *HTTPTrafficHandler) writeLineFormat(format string, a ...interface{}) {
+	fmt.Fprintf(h.buffer, format, a...)
+}
+
+func (h *HTTPTrafficHandler) write(a ...interface{}) {
+	fmt.Fprint(h.buffer, a...)
+}
+
 func (h *HTTPTrafficHandler) writeLine(a ...interface{}) {
 	fmt.Fprintln(h.buffer, a...)
 }
@@ -207,6 +216,103 @@ func (h *HTTPTrafficHandler) printHeader(header httpport.Header) {
 // print http request
 func (h *HTTPTrafficHandler) printRequest(req *httpport.Request) {
 	defer discardAll(req.Body)
+	if h.option.Curl {
+		h.printCurlRequest(req)
+	} else {
+		h.printNormalRequest(req)
+	}
+}
+
+var blockHeaders = map[string]bool{
+	"Content-Length":    true,
+	"Transfer-Encoding": true,
+	"Connection":        true,
+	"Accept-Encoding:":  true,
+}
+
+// print http request curl command
+func (h *HTTPTrafficHandler) printCurlRequest(req *httpport.Request) {
+	//TODO: expect-100 continue handle
+
+	h.writeLine()
+	h.writeLine(strings.Repeat("*", 10), " REQUEST ", h.key.srcString(), " -----> ", h.key.dstString(), " // ", h.startTime.Format(time.RFC3339Nano))
+	h.writeLineFormat("curl -X %v http://%v%v \\\n", req.Method, h.key.dstString(), req.RequestURI)
+	var reader io.ReadCloser
+	var deCompressed bool
+	if h.option.DumpBody {
+		reader = req.Body
+		deCompressed = false
+	} else {
+		reader, deCompressed = h.tryDecompress(req.Header, req.Body)
+	}
+
+	if deCompressed {
+		defer reader.Close()
+	}
+	seq := 0
+	for name, values := range req.Header {
+		seq++
+		if blockHeaders[name] {
+			continue
+		}
+		if deCompressed {
+			if name == "Content-Encoding" {
+				continue
+			}
+		}
+		for idx, value := range values {
+			if seq == len(req.Header) && idx == len(values)-1 {
+				h.writeLineFormat("    -H '%v: %v'\n", name, value)
+			} else {
+				h.writeLineFormat("    -H '%v: %v' \\\n", name, value)
+			}
+		}
+	}
+
+	if req.ContentLength == 0 || req.Method == "GET" || req.Method == "HEAD" || req.Method == "TRACE" ||
+		req.Method == "OPTIONS" {
+		h.writeLine()
+		return
+	}
+
+	if h.option.DumpBody {
+		filename := "request-" + uriToFileName(req.RequestURI, h.startTime)
+		h.writeLineFormat("    -d '@%v'", filename)
+
+		err := filex.WriteAllFromReader(filename, reader)
+		if err != nil {
+			h.writeLine("dump to file failed:", err)
+		}
+	} else {
+		br := bufio.NewReader(reader)
+		// optimize for one line body
+		firstLine, err := br.ReadString('\n')
+		if err != nil && err != io.EOF {
+			// read error
+		} else if err == io.EOF && !strings.Contains(firstLine, "'") {
+			h.writeLineFormat("    -d '%v'", strconv.Quote(firstLine))
+		} else {
+			h.writeLineFormat("    -d @- << HTTP_DUMP_BODY_EOF\n")
+			h.write(firstLine)
+			for {
+				line, err := br.ReadString('\n')
+				if err != nil && err != io.EOF {
+					break
+				}
+				h.write(line)
+				if err == io.EOF {
+					h.writeLine("\nHTTP_DUMP_BODY_EOF")
+					break
+				}
+			}
+		}
+	}
+
+	h.writeLine()
+}
+
+// print http request
+func (h *HTTPTrafficHandler) printNormalRequest(req *httpport.Request) {
 	//TODO: expect-100 continue handle
 	if h.option.Level == "url" {
 		h.writeLine(req.Method, req.Host+req.RequestURI)
@@ -215,19 +321,6 @@ func (h *HTTPTrafficHandler) printRequest(req *httpport.Request) {
 
 	h.writeLine()
 	h.writeLine(strings.Repeat("*", 10), " REQUEST ", h.key.srcString(), " -----> ", h.key.dstString(), " // ", h.startTime.Format(time.RFC3339Nano))
-	if h.option.Curl {
-		curlreq := req
-		curlreq.URL.Scheme = "http"
-		// assume the Host from the Host header, otherwise take server IP from the request
-		if req.Header.Get("Host") != "" {
-			curlreq.URL.Host = req.Header.Get("Host")
-		} else {
-			curlreq.URL.Host = req.Host
-		}
-		command, _ := GetCurlCommand(curlreq)
-		h.writeLine(command)
-		h.writeLine(strings.Repeat("*", 50))
-	}
 
 	h.writeLine(req.Method, req.RequestURI, req.Proto)
 	h.printHeader(req.Header)
@@ -259,7 +352,9 @@ func (h *HTTPTrafficHandler) printRequest(req *httpport.Request) {
 
 	h.writeLine()
 
-	h.printBody(hasBody, req.Header, req.Body)
+	if hasBody {
+		h.printBody(req.Header, req.Body)
+	}
 }
 
 // print http response
@@ -301,40 +396,42 @@ func (h *HTTPTrafficHandler) printResponse(uri string, resp *httpport.Response) 
 	}
 
 	h.writeLine()
-	h.printBody(hasBody, resp.Header, resp.Body)
+	if hasBody {
+		h.printBody(resp.Header, resp.Body)
+	}
 }
 
-// print http request/response body
-func (h *HTTPTrafficHandler) printBody(hasBody bool, header httpport.Header, reader io.ReadCloser) {
-
-	if !hasBody {
-		return
-	}
-
-	// deal with content encoding such as gzip, deflate
+func (h *HTTPTrafficHandler) tryDecompress(header httpport.Header, reader io.ReadCloser) (io.ReadCloser, bool) {
 	contentEncoding := header.Get("Content-Encoding")
 	var nr io.ReadCloser
 	var err error
 	if contentEncoding == "" {
 		// do nothing
-		nr = reader
+		return reader, false
 	} else if strings.Contains(contentEncoding, "gzip") {
 		nr, err = gzip.NewReader(reader)
 		if err != nil {
-			h.writeLine("{Decompress gzip err:", err, ", len:", discardAll(reader), "}")
-			return
+			return reader, false
 		}
-		defer nr.Close()
+		return nr, true
 	} else if strings.Contains(contentEncoding, "deflate") {
 		nr, err = zlib.NewReader(reader)
 		if err != nil {
-			h.writeLine("{Decompress deflate err:", err, ", len:", discardAll(reader), "}")
-			return
+			return reader, false
 		}
-		defer nr.Close()
+		return nr, true
 	} else {
-		h.writeLine("{Unsupport Content-Encoding:", contentEncoding, ", len:", discardAll(reader), "}")
-		return
+		return reader, false
+	}
+}
+
+// print http request/response body
+func (h *HTTPTrafficHandler) printBody(header httpport.Header, reader io.ReadCloser) {
+
+	// deal with content encoding such as gzip, deflate
+	nr, decompressed := h.tryDecompress(header, reader)
+	if decompressed {
+		defer nr.Close()
 	}
 
 	// check mime type and charset
@@ -348,7 +445,7 @@ func (h *HTTPTrafficHandler) printBody(hasBody bool, header httpport.Header, rea
 	isBinary := mimeType.isBinaryContent()
 
 	if !isText {
-		err = h.printNonTextTypeBody(nr, contentType, isBinary)
+		err := h.printNonTextTypeBody(nr, contentType, isBinary)
 		if err != nil {
 			h.writeLine("{Read content error", err, "}")
 		}
@@ -356,10 +453,11 @@ func (h *HTTPTrafficHandler) printBody(hasBody bool, header httpport.Header, rea
 	}
 
 	var body string
+	var err error
 	if charset == "" {
 		// response do not set charset, try to detect
 		var data []byte
-		data, err = ioutil.ReadAll(nr)
+		data, err := ioutil.ReadAll(nr)
 		if err == nil {
 			// TODO: try to detect charset
 			body = string(data)
