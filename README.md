@@ -29,21 +29,24 @@ go get github.com/hsiafan/httpdump
 
 
 # Usage
-httpdump can read from pcap file, or capture data from network interfaces:
+httpdump can read from pcap file, or capture data from network interfaces. Usage:
 
 ```
+Usage: httpdump 
   -curl
-    	Generate an equivalent curl command for each HTTP request
+    	Output an equivalent curl command for each http request
   -device string
     	Capture packet from network device. If is any, capture all interface traffics (default "any")
+  -dump-body
+    	dump http request/response body to file
   -file string
     	Read from pcap file. If not set, will capture data from network device by default
-  -host string
-    	Filter by request host, using wildcard match(*, ?)
-  -uri string
-    	Filter by request url path, using wildcard match(*, ?)
   -force
     	Force print unknown content-type http body even if it seems not to be text content
+  -host string
+    	Filter by request host, using wildcard match(*, ?)
+  -idle duration
+    	Idle time to remove connection if no package received (default 4m0s)
   -ip string
     	Filter by ip, if either source or target ip is matched, the packet will be processed
   -level string
@@ -55,7 +58,10 @@ httpdump can read from pcap file, or capture data from network interfaces:
   -pretty
     	Try to format and prettify json content
   -status string
-        Filter by response status code or code range
+    	Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400
+  -uri string
+    	Filter by request url path, using wildcard match(*, ?)
+
 ```
 
 ## Samples
