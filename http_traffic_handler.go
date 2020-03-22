@@ -41,7 +41,7 @@ func (ck *ConnectionKey) dstString() string {
 
 // HTTPConnectionHandler impl ConnectionHandler
 type HTTPConnectionHandler struct {
-	config  *Config
+	option  *Option
 	printer *Printer
 }
 
@@ -50,7 +50,7 @@ func (handler *HTTPConnectionHandler) handle(src Endpoint, dst Endpoint, connect
 	trafficHandler := &HTTPTrafficHandler{
 		key:       ck,
 		buffer:    new(bytes.Buffer),
-		config:    handler.config,
+		option:    handler.option,
 		printer:   handler.printer,
 		startTime: connection.lastTimestamp,
 	}
@@ -68,7 +68,7 @@ type HTTPTrafficHandler struct {
 	endTime   time.Time
 	key       ConnectionKey
 	buffer    *bytes.Buffer
-	config    *Config
+	option    *Option
 	printer   *Printer
 }
 
@@ -97,10 +97,10 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 			break
 		}
 
-		if h.config.host != "" && !wildcardMatch(req.Host, h.config.host) {
+		if h.option.Host != "" && !wildcardMatch(req.Host, h.option.Host) {
 			filtered = true
 		}
-		if h.config.uri != "" && !wildcardMatch(req.RequestURI, h.config.uri) {
+		if h.option.Uri != "" && !wildcardMatch(req.RequestURI, h.option.Uri) {
 			filtered = true
 		}
 
@@ -127,7 +127,7 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 			break
 		}
 
-		if h.config.status != nil && !h.config.status.Contains(resp.StatusCode) {
+		if h.option.StatusSet != nil && !h.option.StatusSet.Contains(resp.StatusCode) {
 			filtered = true
 		}
 
@@ -208,14 +208,14 @@ func (h *HTTPTrafficHandler) printHeader(header httpport.Header) {
 func (h *HTTPTrafficHandler) printRequest(req *httpport.Request) {
 	defer discardAll(req.Body)
 	//TODO: expect-100 continue handle
-	if h.config.level == "url" {
+	if h.option.Level == "url" {
 		h.writeLine(req.Method, req.Host+req.RequestURI)
 		return
 	}
 
 	h.writeLine()
 	h.writeLine(strings.Repeat("*", 10), " REQUEST ", h.key.srcString(), " -----> ", h.key.dstString(), " // ", h.startTime.Format(time.RFC3339Nano))
-	if h.config.curl {
+	if h.option.Curl {
 		curlreq := req
 		curlreq.URL.Scheme = "http"
 		// assume the Host from the Host header, otherwise take server IP from the request
@@ -238,7 +238,7 @@ func (h *HTTPTrafficHandler) printRequest(req *httpport.Request) {
 		hasBody = false
 	}
 
-	if h.config.dumpBody {
+	if h.option.DumpBody {
 		filename := "request-" + uriToFileName(req.RequestURI, h.startTime)
 		h.writeLine("\n// dump body to file:", filename)
 
@@ -249,7 +249,7 @@ func (h *HTTPTrafficHandler) printRequest(req *httpport.Request) {
 		return
 	}
 
-	if h.config.level == "header" {
+	if h.option.Level == "header" {
 		if hasBody {
 			h.writeLine("\n// body size:", discardAll(req.Body),
 				", set [level = all] to display http body")
@@ -265,7 +265,7 @@ func (h *HTTPTrafficHandler) printRequest(req *httpport.Request) {
 // print http response
 func (h *HTTPTrafficHandler) printResponse(uri string, resp *httpport.Response) {
 	defer discardAll(resp.Body)
-	if h.config.level == "url" {
+	if h.option.Level == "url" {
 		return
 	}
 
@@ -281,7 +281,7 @@ func (h *HTTPTrafficHandler) printResponse(uri string, resp *httpport.Response) 
 		hasBody = false
 	}
 
-	if h.config.dumpBody {
+	if h.option.DumpBody {
 		filename := "response-" + uriToFileName(uri, h.startTime)
 		h.writeLine("\n// dump body to file:", filename)
 
@@ -292,7 +292,7 @@ func (h *HTTPTrafficHandler) printResponse(uri string, resp *httpport.Response) 
 		return
 	}
 
-	if h.config.level == "header" {
+	if h.option.Level == "header" {
 		if hasBody {
 			h.writeLine("\n// body size:", discardAll(resp.Body),
 				", set [level = all] to display http body")
@@ -386,7 +386,7 @@ func (h *HTTPTrafficHandler) printBody(hasBody bool, header httpport.Header, rea
 }
 
 func (h *HTTPTrafficHandler) printNonTextTypeBody(reader io.Reader, contentType string, isBinary bool) error {
-	if h.config.force && !isBinary {
+	if h.option.Force && !isBinary {
 		data, err := ioutil.ReadAll(reader)
 		if err != nil {
 			return err

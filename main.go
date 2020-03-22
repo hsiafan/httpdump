@@ -2,13 +2,10 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
-	"os"
+	"github.com/hsiafan/glow/flagx"
 	"runtime"
 	"time"
-
-	"github.com/hsiafan/glow/timex/durationx"
 
 	"strconv"
 	"sync"
@@ -86,104 +83,78 @@ func openSingleDevice(device string, filterIP string, filterPort uint16) (localP
 }
 
 func main() {
-	var flagSet = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	var level = flagSet.String("level", "header", "Output level, options are: url(only url) | header(http headers) | all(headers, and textuary http body)")
-	var filePath = flagSet.String("file", "", "Read from pcap file. If not set, will capture data from network device by default")
-	var device = flagSet.String("device", "any", "Capture packet from network device. If is any, capture all interface traffics")
-	var filterIP = flagSet.String("ip", "", "Filter by ip, if either source or target ip is matched, the packet will be processed")
-	var filterPort = flagSet.Uint("port", 0, "Filter by port, if either source or target port is matched, the packet will be processed.")
-	var host = flagSet.String("host", "", "Filter by request host, using wildcard match(*, ?)")
-	var uri = flagSet.String("uri", "", "Filter by request url path, using wildcard match(*, ?)")
-	var status = flagSet.String("status", "", "Filter by response status code")
-	var force = flagSet.Bool("force", false, "Force print unknown content-type http body even if it seems not to be text content")
-	var pretty = flagSet.Bool("pretty", false, "Try to format and prettify json content")
-	var curl = flagSet.Bool("curl", false, "Output an equivalent curl command for each http request")
-	var dumpBody = flagSet.Bool("dump-body", false, "dump http request/response body")
-	var output = flagSet.String("output", "", "Write result to file [output] instead of stdout")
-	var idleTimeout = flagSet.Duration("idle", durationx.Minutes(5), "idle duration(when no packet is received) to remove connection resources")
-	if err := flagSet.Parse(os.Args[1:]); err != nil {
-		_, _ = fmt.Fprint(os.Stderr, "parse cmd error:"+err.Error())
+
+	var option = &Option{}
+	cmd, err := flagx.NewCommand("httpdump", "capture and dump http contents", option, func() error {
+		return run(option)
+	})
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
+	cmd.ParseOsArgsAndExecute()
+}
 
-	if *filterPort < 0 || *filterPort >= 65536 {
-		_, _ = fmt.Fprint(os.Stderr, "ignored invalid port ", *filterPort)
-		*filterPort = 0
+func run(option *Option) error {
+	if option.Port > 65536 {
+		return fmt.Errorf("ignored invalid port %v", option.Port)
 	}
 
-	var statusSet *IntSet
-	if *status != "" {
-		var err error
-		if statusSet, err = ParseIntSet(*status); err != nil {
-			_, _ = fmt.Fprint(os.Stderr, "status range not valid ", *status)
-			return
+	if option.Status != "" {
+		statusSet, err := ParseIntSet(option.Status)
+		if err != nil {
+			return fmt.Errorf("status range not valid %v", option.Status)
 		}
-	}
-
-	var config = &Config{
-		level:      *level,
-		filterIP:   *filterIP,
-		filterPort: uint16(*filterPort),
-		host:       *host,
-		uri:        *uri,
-		status:     statusSet,
-		force:      *force,
-		pretty:     *pretty,
-		curl:       *curl,
-		dumpBody:   *dumpBody,
-		output:     *output,
+		option.StatusSet = statusSet
 	}
 
 	var packets chan gopacket.Packet
-	if *filePath != "" {
+	if option.File != "" {
+		//TODO: read file stdin
 		// read from pcap file
-		var handle, err = pcap.OpenOffline(*filePath)
+		var handle, err = pcap.OpenOffline(option.File)
 		if err != nil {
-			logger.Error("Open file", *filePath, "error:", err)
-			return
+			return fmt.Errorf("open file %v error: %w", option.File, err)
 		}
 		packets = listenOneSource(handle)
-	} else if *device == "any" && runtime.GOOS != "linux" {
+	} else if option.Device == "any" && runtime.GOOS != "linux" {
 		// capture all device
 		// Only linux 2.2+ support any interface. we have to list all network device and listened on them all
 		interfaces, err := pcap.FindAllDevs()
 		if err != nil {
-			logger.Error("find device error:", err)
-			return
+			return fmt.Errorf("find device error: %w", err)
 		}
 
 		var packetsSlice = make([]chan gopacket.Packet, len(interfaces))
 		for _, itf := range interfaces {
-			localPackets, err := openSingleDevice(itf.Name, config.filterIP, config.filterPort)
+			localPackets, err := openSingleDevice(itf.Name, option.Ip, uint16(option.Port))
 			if err != nil {
-				logger.Warn("open device", device, "error:", err)
+				logger.Warn("open device", itf, "error:", err)
 				continue
 			}
 			packetsSlice = append(packetsSlice, localPackets)
 		}
 		packets = mergeChannel(packetsSlice)
-	} else if *device != "" {
+	} else if option.Device != "" {
 		// capture one device
 		var err error
-		packets, err = openSingleDevice(*device, config.filterIP, config.filterPort)
+		packets, err = openSingleDevice(option.Device, option.Ip, uint16(option.Port))
 		if err != nil {
-			logger.Error("listen on device", *device, "failed, error:", err)
-			return
+			return fmt.Errorf("listen on device %v failed, error: %w", option.Device, err)
 		}
 	} else {
-		_, _ = fmt.Fprintln(os.Stderr, "no device or pcap file specified.")
-		flagSet.Usage()
-		return
+		return errors.New("no device or pcap file specified")
 	}
 
 	var handler = &HTTPConnectionHandler{
-		config:  config,
-		printer: newPrinter(*output),
+		option: option,
+		// TODO: stdout
+		printer: newPrinter(option.Output),
 	}
 	var assembler = newTCPAssembler(handler)
-	assembler.filterIP = config.filterIP
-	assembler.filterPort = config.filterPort
-	var ticker = time.Tick(time.Second * 30)
+	assembler.filterIP = option.Ip
+	assembler.filterPort = uint16(option.Port)
+	var ticker = time.Tick(time.Second * 10)
 
 outer:
 	for {
@@ -204,8 +175,8 @@ outer:
 			assembler.assemble(packet.NetworkLayer().NetworkFlow(), tcp, packet.Metadata().Timestamp)
 
 		case <-ticker:
-			// flush connections that haven't been activity in the past 2 minutes.
-			assembler.flushOlderThan(time.Now().Add(*idleTimeout))
+			// flush connections that haven't been activity in the idle time
+			assembler.flushOlderThan(time.Now().Add(option.Idle))
 		}
 	}
 
@@ -213,4 +184,5 @@ outer:
 	waitGroup.Wait()
 	handler.printer.finish()
 	printerWaitGroup.Wait()
+	return nil
 }
