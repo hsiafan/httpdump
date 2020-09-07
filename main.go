@@ -176,7 +176,7 @@ outer:
 
 		case <-ticker:
 			// flush connections that haven't been activity in the idle time
-			assembler.flushOlderThan(time.Now().Add(option.Idle))
+			assembler.flushOlderThan(time.Now().Add(-option.Idle))
 		}
 	}
 
