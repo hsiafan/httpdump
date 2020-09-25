@@ -411,9 +411,9 @@ func (w *ReceiveWindow) expand() {
 // compare two tcp sequences, if seq1 is earlier, return num < 0, if seq1 == seq2, return 0, else return num > 0
 func compareTCPSeq(seq1, seq2 uint32) int {
 	if seq1 < tcpSeqWindow && seq2 > maxTCPSeq-tcpSeqWindow {
-		return int(seq1 + maxTCPSeq - seq2)
+		return int(int32(seq1 + maxTCPSeq - seq2))
 	} else if seq2 < tcpSeqWindow && seq1 > maxTCPSeq-tcpSeqWindow {
-		return int(seq1 - (maxTCPSeq + seq2))
+		return int(int32(seq1 - (maxTCPSeq + seq2)))
 	}
 	return int(int32(seq1 - seq2))
 }
