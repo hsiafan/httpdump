@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -93,7 +94,7 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 
 		if err != nil {
 			if err != io.EOF {
-				logger.Warn("Error parsing HTTP requests:", err)
+				fmt.Fprintln(os.Stderr, "Error parsing HTTP requests:", err)
 			}
 			break
 		}
@@ -113,10 +114,9 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 
 		if err != nil {
 			if err == io.EOF || err == io.ErrUnexpectedEOF {
-				logger.Debug("Error parsing HTTP response: unexpected end, ", err, connection.clientID)
 				break
 			} else {
-				logger.Warn("Error parsing HTTP response:", err, connection.clientID)
+				fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err, connection.clientID)
 			}
 			if !filtered {
 				h.printRequest(req)
@@ -157,16 +157,16 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 				// read next response, the real response
 				resp, err := httpport.ReadResponse(responseReader, nil)
 				if err == io.EOF {
-					logger.Warn("Error parsing HTTP requests: unexpected end, ", err)
+					fmt.Fprintln(os.Stderr, "Error parsing HTTP requests: unexpected end, ", err)
 					break
 				}
 				if err == io.ErrUnexpectedEOF {
-					logger.Warn("Error parsing HTTP requests: unexpected end, ", err)
+					fmt.Fprintln(os.Stderr, "Error parsing HTTP requests: unexpected end, ", err)
 					// here return directly too, to avoid error when long polling connection is used
 					break
 				}
 				if err != nil {
-					logger.Warn("Error parsing HTTP response:", err, connection.clientID)
+					fmt.Fprintln(os.Stderr, "Error parsing HTTP response:", err, connection.clientID)
 					break
 				}
 				if !filtered {

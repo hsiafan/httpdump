@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"os"
 )
@@ -30,28 +31,28 @@ func newPrinter(outputPath string) *Printer {
 	return printer
 }
 
-func (printer *Printer) send(msg string) {
-	if len(printer.outputQueue) == maxOutputQueueLen {
+func (p *Printer) send(msg string) {
+	if len(p.outputQueue) == maxOutputQueueLen {
 		// skip this msg
-		logger.Warn("too many messages to output, discard current!")
+		fmt.Fprintln(os.Stderr, "too many messages to output, discard current!")
 		return
 	}
-	printer.outputQueue <- msg
+	p.outputQueue <- msg
 }
 
-func (printer *Printer) start() {
+func (p *Printer) start() {
 	printerWaitGroup.Add(1)
-	go printer.printBackground()
+	go p.printBackground()
 }
 
-func (printer *Printer) printBackground() {
+func (p *Printer) printBackground() {
 	defer printerWaitGroup.Done()
-	defer printer.outputFile.Close()
-	for msg := range printer.outputQueue {
-		_, _ = printer.outputFile.Write([]byte(msg))
+	defer p.outputFile.Close()
+	for msg := range p.outputQueue {
+		_, _ = p.outputFile.Write([]byte(msg))
 	}
 }
 
-func (printer *Printer) finish() {
-	close(printer.outputQueue)
+func (p *Printer) finish() {
+	close(p.outputQueue)
 }

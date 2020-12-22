@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hsiafan/glow/flagx"
+	"os"
 	"runtime"
 	"time"
 
@@ -13,14 +14,7 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	"github.com/hsiafan/vlog"
 )
-
-var logger = vlog.CurrentPackageLogger()
-
-func init() {
-	logger.SetAppenders(vlog.NewConsole2Appender())
-}
 
 var waitGroup sync.WaitGroup
 var printerWaitGroup sync.WaitGroup
@@ -76,7 +70,7 @@ func openSingleDevice(device string, filterIP string, filterPort uint16) (localP
 	}
 
 	if err := setDeviceFilter(handle, filterIP, filterPort); err != nil {
-		logger.Warn("set capture filter failed, ", err)
+		fmt.Fprintln(os.Stderr, "set capture filter failed, ", err)
 	}
 	localPackets = listenOneSource(handle)
 	return
@@ -129,7 +123,7 @@ func run(option *Option) error {
 		for _, itf := range interfaces {
 			localPackets, err := openSingleDevice(itf.Name, option.Ip, uint16(option.Port))
 			if err != nil {
-				logger.Warn("open device", itf, "error:", err)
+				fmt.Fprintln(os.Stderr, "open device", itf, "error:", err)
 				continue
 			}
 			packetsSlice = append(packetsSlice, localPackets)

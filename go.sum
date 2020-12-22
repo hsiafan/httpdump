@@ -18,6 +18,8 @@ github.com/hsiafan/glow v1.1.2 h1:WgfschdySgXN2XcAUeDi59K/xS3s/LMi2tXjoZhBddM=
 github.com/hsiafan/glow v1.1.2/go.mod h1:Iw/6UjfU9MpptOHpTcEYdYXfqx5O71WqaZEkcm19E+w=
 github.com/hsiafan/glow v1.1.3 h1:UUkeaWbt0mqLXaj+1NI2PcugZOVxXC6KW5LeMEc608U=
 github.com/hsiafan/glow v1.1.3/go.mod h1:Iw/6UjfU9MpptOHpTcEYdYXfqx5O71WqaZEkcm19E+w=
+github.com/hsiafan/glow v1.3.2 h1:McOjOAEWJS0JaR685txAZ2Mg6KnSbcqPEGlh9K/KJlI=
+github.com/hsiafan/glow v1.3.2/go.mod h1:J7J3Im10qZi2jXik5mC/C2LX/4a8FsMY44h8MBIQP1A=
 github.com/hsiafan/vlog v0.3.2 h1:YDiTv0b9+VlCLDCRqFh8Z0cjwVZyD7+0BIsFQnpqsgI=
 github.com/hsiafan/vlog v0.3.2/go.mod h1:jX1zDEGZAl4cuEOL3IwL0FrwQNpZXWxIpcBm1uqlvrQ=
 github.com/hsiafan/vlog v0.5.1 h1:82OGn+NftK+Lcf/txB3ovvnvucohk7v4RWzA1lVP2dk=
@@ -33,6 +35,7 @@ github.com/stretchr/testify v1.2.1 h1:52QO5WkIUcHGIR7EnGagH88x1bUzqGXTC5/1bDTUQ7
 github.com/stretchr/testify v1.2.1/go.mod h1:a8OnRcib4nhh0OaRAV+Yts87kKdq0PP7pXfy6kDkUVs=
 github.com/stretchr/testify v1.4.0 h1:2E4SXV/wtOkTonXsotYi4li6zVWxYlZuYNCXe9XRJyk=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
+github.com/stretchr/testify v1.6.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
 golang.org/x/net v0.0.0-20190419010253-1f3472d942ba/go.mod h1:t9HGtf8HONx5eT2rtn7q6eTqICYqUVnKs3thJo3Qplg=
 golang.org/x/net v0.0.0-20191126235420-ef20fe5d7933 h1:e6HwijUxhDe+hPNjZQQn9bA5PW3vNmnN64U2ZW759Lk=
@@ -48,7 +51,10 @@ golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0 h1:xQwXv67TxFo9nC1GJFyab5eq
 golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
 golang.org/x/time v0.0.0-20191024005414-555d28b269f0 h1:/5xXl8Y5W96D+TtHSlonuFqGHIWVuyCkGJLwGh9JJFs=
 golang.org/x/time v0.0.0-20191024005414-555d28b269f0/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
+golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e h1:EHBhcS0mlXEAVwNyO2dLfjToGsyY4j24pTs2ScHnX7s=
+golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e/go.mod h1:tRJNPiyCQ0inRvYxbN9jk5I+vvW/OXSQhTDSoE431IQ=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405 h1:yhCVgyC4o1eVCa2tZl7eS0r+SDo693bJlVdllGtEeKM=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/yaml.v2 v2.2.2 h1:ZCJp+EgiOT7lHqUV2J862kp8Qj64Jo6az82+3Td9dZw=
 gopkg.in/yaml.v2 v2.2.2/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
+gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
