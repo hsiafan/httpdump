@@ -2,6 +2,8 @@ Parse and display http traffic from network device or pcap file. This is a go ve
 
 For original python implementation, [refer to httpcap on pypi](https://pypi.org/project/httpcap/).
 
+Note: This tool **can not parse HTTPS/HTTP2 traffics**.
+
 # Install & Requirement
 Build httpdump requires libpcap-dev and cgo enabled.
 ## libpcap
