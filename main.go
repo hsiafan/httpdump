@@ -2,8 +2,8 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
-	"github.com/hsiafan/glow/flagx"
 	"os"
 	"runtime"
 	"time"
@@ -76,17 +76,49 @@ func openSingleDevice(device string, filterIP string, filterPort uint16) (localP
 	return
 }
 
+// Command line options
+type Option struct {
+	Level     string        `default:"header" description:"Output level, options are: url(only url) | header(http headers) | all(headers, and textuary http body)"`
+	File      string        `description:"Read from pcap file. If not set, will capture data from network device by default"`
+	Device    string        `default:"any" description:"Capture packet from network device. If is any, capture all interface traffics"`
+	Ip        string        `description:"Filter by ip, if either source or target ip is matched, the packet will be processed"`
+	Port      uint          `description:"Filter by port, if either source or target port is matched, the packet will be processed."`
+	Host      string        `description:"Filter by request host, using wildcard match(*, ?)"`
+	Uri       string        `description:"Filter by request url path, using wildcard match(*, ?)"`
+	Status    string        `description:"Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400"`
+	StatusSet *IntSet       `ignore:"true"`
+	Force     bool          `description:"Force print unknown content-type http body even if it seems not to be text content"`
+	Pretty    bool          `description:"Try to format and prettify json content"`
+	Curl      bool          `description:"Output an equivalent curl command for each http request"`
+	DumpBody  bool          `description:"dump http request/response body to file"`
+	Output    string        `description:"Write result to file [output] instead of stdout"`
+	Idle      time.Duration `default:"4m" description:"Idle time to remove connection if no package received"`
+}
+
 func main() {
 
-	var option = &Option{}
-	cmd, err := flagx.NewCommand("httpdump", "capture and dump http contents", option, func() error {
-		return run(option)
-	})
+	var o = &Option{}
+	flag.StringVar(&o.Level, "level", "header", "Output level, options are: url(only url) | header(http headers) | all(headers, and textuary http body)")
+	flag.StringVar(&o.File, "file", "", "Read from pcap file. If not set, will capture data from network device by default")
+	flag.StringVar(&o.Device, "device", "any", "Capture packet from network device. If is any, capture all interface traffics")
+	flag.StringVar(&o.Ip, "ip", "", "Filter by ip, if either source or target ip is matched, the packet will be processed")
+	flag.UintVar(&o.Port, "port", 0, "Filter by port, if either source or target port is matched, the packet will be processed")
+	flag.StringVar(&o.Host, "host", "", "Filter by request host, using wildcard match(*, ?)")
+	flag.StringVar(&o.Uri, "uri", "", "Filter by request url path, using wildcard match(*, ?)")
+	flag.StringVar(&o.Status, "status", "", "Filter by response status code. Can use range. eg: 200, 200-300 or 200:300-400")
+	flag.BoolVar(&o.Force, "force", false, "Force print unknown content-type http body even if it seems not to be text content")
+	flag.BoolVar(&o.Pretty, "pretty", false, "Try to format and prettify json content")
+	flag.BoolVar(&o.Curl, "curl", false, "Output an equivalent curl command for each http request")
+	flag.BoolVar(&o.DumpBody, "dump-body", false, "dump http request/response body to file")
+	flag.StringVar(&o.Output, "output", "", "Write result to file instead of stdout")
+	flag.DurationVar(&o.Idle, "idle", time.Minute*4, "Idle time to remove connection if no package received")
+	flag.Parse()
+
+	err := run(o)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	cmd.ParseOsArgsAndExecute()
 }
 
 func run(option *Option) error {

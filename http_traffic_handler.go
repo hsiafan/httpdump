@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hsiafan/glow/iox/filex"
 	"github.com/hsiafan/httpdump/httpport"
 
 	"bufio"
@@ -279,7 +278,7 @@ func (h *HTTPTrafficHandler) printCurlRequest(req *httpport.Request) {
 		filename := "request-" + uriToFileName(req.RequestURI, h.startTime)
 		h.writeLineFormat("    -d '@%v'", filename)
 
-		err := filex.WriteAllFromReader(filename, reader)
+		err := writeToFile(reader, filename)
 		if err != nil {
 			h.writeLine("dump to file failed:", err)
 		}
@@ -335,7 +334,7 @@ func (h *HTTPTrafficHandler) printNormalRequest(req *httpport.Request) {
 		filename := "request-" + uriToFileName(req.RequestURI, h.startTime)
 		h.writeLine("\n// dump body to file:", filename)
 
-		err := filex.WriteAllFromReader(filename, req.Body)
+		err := writeToFile(req.Body, filename)
 		if err != nil {
 			h.writeLine("dump to file failed:", err)
 		}
@@ -380,7 +379,7 @@ func (h *HTTPTrafficHandler) printResponse(uri string, resp *httpport.Response) 
 		filename := "response-" + uriToFileName(uri, h.startTime)
 		h.writeLine("\n// dump body to file:", filename)
 
-		err := filex.WriteAllFromReader(filename, resp.Body)
+		err := writeToFile(resp.Body, filename)
 		if err != nil {
 			h.writeLine("dump to file failed:", err)
 		}
