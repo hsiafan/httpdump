@@ -127,7 +127,7 @@ func (h *HTTPTrafficHandler) handle(connection *TCPConnection) {
 			break
 		}
 
-		if h.option.StatusSet != nil && !h.option.StatusSet.Contains(resp.StatusCode) {
+		if h.option.statusSet != nil && !h.option.statusSet.Contains(resp.StatusCode) {
 			filtered = true
 		}
 
