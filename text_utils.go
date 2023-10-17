@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"strings"
 
-	//"github.com/saintfish/chardet" // not work, realy stupid...
+	//"github.com/saintfish/chardet" // not work, really stupid...
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/htmlindex"
 	"golang.org/x/text/transform"
